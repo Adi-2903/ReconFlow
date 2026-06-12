@@ -1,0 +1,342 @@
+import React, { useState, useEffect } from "react";
+import { format, startOfMonth, endOfMonth } from "date-fns";
+import { CalendarIcon, Play, CheckCircle2, Import, Settings2, Download } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
+import { useData } from "@/lib/data-context";
+
+interface NewRunModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+const steps = [
+  "Fetching 165 Stripe transactions...",
+  "Loading 148 ledger entries...",
+  "Running exact match pass... (142 matched)",
+  "Running fuzzy match pass... (18 pending review)",
+  "Detecting bulk payments...",
+  "Generating AI explanations...",
+  "Run complete!"
+];
+
+export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
+  const router = useRouter();
+  const { refreshMatches } = useData();
+  
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()));
+  const [dateTo, setDateTo] = useState<Date>(endOfMonth(new Date()));
+  
+  const [sources, setSources] = useState({
+    stripe: true,
+    hdfc: true,
+    quickbooks: false,
+  });
+
+  const [ledgerSources, setLedgerSources] = useState({
+    internal: true,
+  });
+
+  const [processingTextIndex, setProcessingTextIndex] = useState(0);
+
+  const handleOpenChange = (val: boolean) => {
+    if (step === 2) return;
+    onOpenChange(val);
+    if (!val) {
+      setTimeout(() => {
+        setStep(1);
+        setProcessingTextIndex(0);
+        setSources({ stripe: true, hdfc: true, quickbooks: false });
+        setLedgerSources({ internal: true });
+      }, 500);
+    }
+  };
+
+  // Step 2 processing effect
+  useEffect(() => {
+    if (step === 2) {
+      const interval = setInterval(() => {
+        setProcessingTextIndex(prev => {
+          if (prev < steps.length - 1) {
+            return prev + 1;
+          }
+          clearInterval(interval);
+          setTimeout(() => setStep(3), 600);
+          return prev;
+        });
+      }, 800);
+      return () => clearInterval(interval);
+    }
+  }, [step]);
+
+  const handleStart = async () => {
+    setStep(2);
+    setProcessingTextIndex(0);
+
+    // Call API
+    try {
+      await fetch('/api/recon/run', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          periodStart: dateFrom.toISOString(),
+          periodEnd: dateTo.toISOString()
+        })
+      });
+    } catch (error) {
+      console.error("API call failed, continuing animation", error);
+    }
+  };
+
+  const handleReview = () => {
+    onOpenChange(false);
+    refreshMatches();
+    setTimeout(() => {
+      setStep(1);
+      setProcessingTextIndex(0);
+      router.push("/dashboard");
+    }, 300);
+  };
+
+  const handleDownload = () => {
+    window.open('/api/reports/pdf', '_blank');
+  };
+
+  const canStart = Object.values(sources).some(Boolean) && Object.values(ledgerSources).some(Boolean);
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent 
+        className="sm:max-w-[520px] p-0 overflow-hidden gap-0 bg-white" 
+        showCloseButton={step !== 2}
+      >
+        {step === 1 && (
+          <>
+            <div className="p-6 pb-4 border-b border-slate-100">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-semibold tracking-tight text-slate-900">
+                  New reconciliation run
+                </DialogTitle>
+                <DialogDescription className="text-slate-500 mt-1.5">
+                  Select data sources and time period for reconciliation.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+            
+            <div className="px-6 py-4 space-y-6 overflow-y-auto max-h-[60vh]">
+              {/* Period */}
+              <div className="space-y-3">
+                <h4 className="text-[13px] font-semibold text-slate-900 uppercase tracking-wider flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <CalendarIcon className="w-4 h-4 text-slate-400" />
+                    Period
+                  </span>
+                </h4>
+                <div className="flex gap-4">
+                  <div className="grid gap-1.5 flex-1">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">From</label>
+                    <Popover>
+                      <PopoverTrigger render={
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full justify-start text-left font-normal border-slate-200",
+                            !dateFrom && "text-muted-foreground"
+                          )}
+                        >
+                          {dateFrom ? format(dateFrom, "PPP") : <span>Pick a date</span>}
+                        </Button>
+                      } />
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={dateFrom}
+                          onSelect={(d) => d && setDateFrom(d)}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="grid gap-1.5 flex-1">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">To</label>
+                    <Popover>
+                      <PopoverTrigger render={
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full justify-start text-left font-normal border-slate-200",
+                            !dateTo && "text-muted-foreground"
+                          )}
+                        >
+                          {dateTo ? format(dateTo, "PPP") : <span>Pick a date</span>}
+                        </Button>
+                      } />
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={dateTo}
+                          onSelect={(d) => d && setDateTo(d)}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+              </div>
+
+              {/* Data Sources */}
+              <div className="space-y-3">
+                <h4 className="text-[13px] font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <Import className="w-4 h-4 text-slate-400" />
+                  Bank & Payment Sources
+                </h4>
+                <div className="space-y-3 border border-slate-100 rounded-md p-3 bg-slate-50/50">
+                  <div className="flex items-start space-x-3">
+                    <Checkbox id="stripe" checked={sources.stripe} onCheckedChange={(c) => setSources(s => ({...s, stripe: !!c}))} className="mt-1" />
+                    <label htmlFor="stripe" className="grid gap-1 leading-none cursor-pointer flex-1">
+                      <span className="text-sm font-medium text-slate-900">Stripe</span>
+                      <span className="text-xs text-slate-500">165 transactions available</span>
+                    </label>
+                  </div>
+                  <div className="flex items-start space-x-3">
+                    <Checkbox id="hdfc" checked={sources.hdfc} onCheckedChange={(c) => setSources(s => ({...s, hdfc: !!c}))} className="mt-1" />
+                    <label htmlFor="hdfc" className="grid gap-1 leading-none cursor-pointer flex-1">
+                      <span className="text-sm font-medium text-slate-900">HDFC CSV</span>
+                      <span className="text-xs text-slate-500">hdfc_statement_oct.csv</span>
+                    </label>
+                  </div>
+                  <div className="flex items-start space-x-3 opacity-70">
+                    <Checkbox id="qb" checked={sources.quickbooks} disabled className="mt-1" />
+                    <label htmlFor="qb" className="grid gap-1 leading-none cursor-not-allowed flex-1">
+                      <span className="text-sm font-medium text-slate-900">QuickBooks</span>
+                      <span className="text-xs text-blue-600 hover:underline cursor-pointer" onClick={(e) => e.preventDefault()}>Connect first &rarr;</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ledger Sources */}
+              <div className="space-y-3">
+                <h4 className="text-[13px] font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <CalendarIcon className="w-4 h-4 text-slate-400" />
+                  Ledger Source
+                </h4>
+                <div className="space-y-3 border border-slate-100 rounded-md p-3 bg-slate-50/50">
+                  <div className="flex items-start space-x-3">
+                    <Checkbox id="internal" checked={ledgerSources.internal} onCheckedChange={(c) => setLedgerSources(s => ({...s, internal: !!c}))} className="mt-1" />
+                    <label htmlFor="internal" className="grid gap-1 leading-none cursor-pointer flex-1">
+                      <span className="text-sm font-medium text-slate-900">Internal Ledger DB</span>
+                      <span className="text-xs text-slate-500">148 entries available</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Info Box */}
+              <div className="bg-slate-50 rounded-md p-3 border border-slate-200 flex items-start gap-2.5">
+                <Settings2 className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+                <div className="text-xs text-slate-600 leading-relaxed">
+                  <span className="font-semibold text-slate-700">Using your saved rules:</span> ±₹500 amount, ±3 days date, 95% auto-approve.{' '}
+                  <button className="text-blue-600 font-medium hover:underline inline-flex items-center">
+                    Change in Settings &rarr;
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 pt-4 bg-white border-t border-slate-100 flex justify-end">
+              <Button 
+                onClick={handleStart} 
+                disabled={!canStart}
+                className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-medium shadow-sm transition-all active:scale-[0.98]"
+              >
+                Start reconciliation <Play className="w-3.5 h-3.5 ml-1.5 fill-current" />
+              </Button>
+            </div>
+          </>
+        )}
+
+        {step === 2 && (
+          <div className="p-12 flex flex-col items-center justify-center min-h-[440px]">
+             {/* Progress simulation animation */}
+             <div className="w-16 h-16 relative mb-8">
+               <div className="absolute inset-0 rounded-full border-4 border-slate-100"></div>
+               <div className="absolute inset-0 rounded-full border-4 border-blue-600 border-t-transparent animate-spin duration-700"></div>
+               <div className="absolute inset-0 flex items-center justify-center">
+                 <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></div>
+               </div>
+             </div>
+             
+             <div className="w-full max-w-xs space-y-4 text-center">
+               <h3 className="text-lg font-medium text-slate-900 mb-1">
+                 {processingTextIndex === steps.length - 1 ? "Finishing up..." : "Processing run"}
+               </h3>
+               <div className="h-6">
+                 <p className="text-sm font-medium text-slate-500 animate-pulse">
+                   {steps[processingTextIndex]}
+                 </p>
+               </div>
+               
+               <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                 <div 
+                   className="h-full bg-blue-600 rounded-full transition-all duration-300 ease-out"
+                   style={{ width: `${((processingTextIndex) / (steps.length - 1)) * 100}%` }}
+                 />
+               </div>
+             </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="p-8 sm:p-10 text-center animate-in fade-in zoom-in-95 duration-500 flex flex-col min-h-[440px] items-center justify-center">
+             <div className="w-20 h-20 mx-auto bg-green-50 rounded-full flex items-center justify-center mb-6 shadow-[0_0_0_8px_rgba(220,252,231,0.5)]">
+               <CheckCircle2 className="w-12 h-12 text-green-500" />
+             </div>
+             
+             <DialogTitle className="text-2xl font-bold tracking-tight text-slate-900 mb-2">
+               Run complete
+             </DialogTitle>
+             <p className="text-slate-500 mb-8 font-medium">
+               165 transactions processed
+             </p>
+             
+             <div className="flex justify-center gap-3 mb-8 w-full">
+               <div className="flex-1 px-3 py-2 bg-green-50 text-green-700 rounded-md border border-green-100 flex flex-col items-center justify-center">
+                 <span className="text-xl font-bold">142</span>
+                 <span className="text-[10px] font-semibold uppercase tracking-wider opacity-80 mt-0.5">Auto-matched</span>
+               </div>
+               <div className="flex-1 px-3 py-2 bg-amber-50 text-amber-700 rounded-md border border-amber-100 flex flex-col items-center justify-center">
+                 <span className="text-xl font-bold">18</span>
+                 <span className="text-[10px] font-semibold uppercase tracking-wider opacity-80 mt-0.5">Need review</span>
+               </div>
+               <div className="flex-1 px-3 py-2 bg-red-50 text-red-700 rounded-md border border-red-100 flex flex-col items-center justify-center">
+                 <span className="text-xl font-bold">5</span>
+                 <span className="text-[10px] font-semibold uppercase tracking-wider opacity-80 mt-0.5">Exceptions</span>
+               </div>
+             </div>
+             
+             <div className="text-sm text-slate-500 mb-10 bg-slate-50 py-3 px-4 rounded-md border border-slate-100 inline-flex shadow-sm">
+               Time this would have taken manually: <span className="font-semibold text-slate-700 ml-1">~8 hours</span>
+             </div>
+             
+             <div className="flex flex-col sm:flex-row justify-center gap-3 w-full">
+               <Button onClick={handleReview} className="w-full sm:w-auto flex-1 bg-slate-900 hover:bg-slate-800 text-white font-medium shadow-sm">
+                 Review matches &rarr;
+               </Button>
+               <Button onClick={handleDownload} variant="outline" className="w-full sm:w-auto flex-1 hover:bg-slate-50 font-medium">
+                 <Download className="w-4 h-4 mr-2" />
+                 Download run report
+               </Button>
+             </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
