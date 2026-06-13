@@ -6,11 +6,10 @@ import { EvidencePanel } from "@/components/evidence-panel/EvidencePanel";
 import { MatchTableSkeleton } from "@/components/skeletons";
 import { CheckCircle2, AlertCircle, FileStack, TrendingUp, X } from "lucide-react";
 import { useData } from "@/lib/data-context";
-
-
+import { EmptyDashboardState } from "@/components/empty-dashboard-state";
 
 export default function DashboardPage() {
-  const { matches, setMatches, handleApprove, handleReject } = useData();
+  const { matches, setMatches, handleApprove, handleReject, isLoading, isDemoMode } = useData();
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
 
   const handleBulkApprove = (threshold: number) => {
@@ -41,6 +40,14 @@ export default function DashboardPage() {
   });
 
   const selectedMatch = matches.find(m => m.id === selectedMatchId) || null;
+
+  if (!isLoading && matches.length === 0 && !isDemoMode) {
+    return (
+      <div className="p-4 sm:p-6 sm:px-8 flex flex-col h-full font-sans text-slate-900 mx-auto w-full max-w-7xl relative">
+        <EmptyDashboardState />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 sm:px-8 flex flex-col gap-6 sm:gap-8 h-full font-sans text-slate-900 mx-auto w-full max-w-7xl relative">
@@ -89,14 +96,14 @@ function MetricCard({ title, value, change, alert = false, icon }: { title: stri
       {alert && <div className="absolute top-0 left-0 w-full h-1 bg-amber-500" />}
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <p className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-widest">{title}</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">{title}</p>
           <div className="p-1.5 bg-slate-50 rounded-md group-hover:bg-slate-100 transition-colors">
             {icon}
           </div>
         </div>
         <p className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">{value}</p>
       </div>
-      <p className={`text-[11px] sm:text-xs font-bold mt-3 ${alert ? "text-amber-600" : "text-emerald-600"} flex items-center gap-1`}>
+      <p className={`text-xs font-bold mt-3 ${alert ? "text-amber-600" : "text-emerald-600"} flex items-center gap-1`}>
         {change}
       </p>
     </div>

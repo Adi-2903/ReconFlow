@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Search, Filter, ArrowUpDown } from "lucide-react";
+import { Search, Filter, ArrowUpDown, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useData } from "@/lib/data-context";
+import { toast } from "sonner";
 
 type ReasonTag = "No ledger match found" | "Amount mismatch > ₹1,000" | "Duplicate detected" | "Unknown counterparty" | "Stripe fee deduction" | "Bank processing charge" | "Currency conversion" | "Partial payment" | "Bulk payment mismatch" | "Manually rejected" | string;
 
@@ -22,26 +23,47 @@ interface ExceptionItem {
 export default function ExceptionsPage() {
   const [items, setItems] = useState<ExceptionItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set());
-  const { exceptionCount, refreshExceptions } = useData();
+  const { exceptionCount, refreshExceptions, isDemoMode } = useData();
 
   useEffect(() => {
     const fetchExceptions = async () => {
       setIsLoading(true);
+      setError(null);
       try {
-        const res = await fetch("/api/exceptions");
-        if (res.ok) {
-          const data = await res.json();
-          setItems(data.exceptions || []);
+        if (isDemoMode) {
+          // In demo mode, simulate loading and load from sharedMatches
+          await new Promise(resolve => setTimeout(resolve, 600));
+          const { sharedMatches } = await import("@/lib/data");
+          setItems(sharedMatches.filter(m => m.status === 'pending' && m.confidenceScore < 0.9).map(m => ({
+            id: m.id,
+            amount: m.bankRow.amount,
+            date: m.bankRow.date,
+            source: "Bank",
+            reference: m.bankRow.reference,
+            reasonTag: m.reasonText,
+            reasonText: m.reasonText,
+            flags: []
+          })));
+        } else {
+          const res = await fetch("/api/exceptions");
+          if (res.ok) {
+            const data = await res.json();
+            setItems(data.exceptions || []);
+          } else {
+            setError("Failed to fetch exceptions");
+          }
         }
-      } catch (error) {
-        console.error("Failed to fetch exceptions", error);
+      } catch (err) {
+        console.error("Failed to fetch exceptions", err);
+        setError("Failed to connect to server");
       } finally {
         setIsLoading(false);
       }
     };
     fetchExceptions();
-  }, []);
+  }, [refreshExceptions, isDemoMode]);
 
   const handleResolve = async (id: string) => {
     setResolvingIds(prev => new Set(prev).add(id));
@@ -53,8 +75,10 @@ export default function ExceptionsPage() {
       
       setItems(prev => prev.filter(item => item.id !== id));
       refreshExceptions();
-    } catch (error) {
-      console.error("Failed to resolve exception", error);
+      toast.success("Exception marked as resolved");
+    } catch (err) {
+      console.error("Failed to resolve exception", err);
+      toast.error("Failed to resolve exception");
     } finally {
       setResolvingIds(prev => {
         const next = new Set(prev);
@@ -159,7 +183,7 @@ export default function ExceptionsPage() {
 
                   {/* Middle Section - Reason & Explanation */}
                   <div className="flex-1 flex flex-col">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
                       Reason
                     </span>
                     <div className="mb-2">
@@ -167,7 +191,7 @@ export default function ExceptionsPage() {
                         {item.reasonTag}
                       </span>
                     </div>
-                    <p className="text-[13px] text-slate-500 font-medium leading-relaxed max-w-2xl">
+                    <p className="text-sm text-slate-500 font-medium leading-relaxed max-w-2xl">
                       {item.reasonText}
                     </p>
                   </div>
@@ -188,13 +212,48 @@ export default function ExceptionsPage() {
               );
             })}
             
-            {items.length > 0 && (
+            {items.length > 0 && !isLoading && !error && (
               <div className="p-4 text-center text-sm font-medium text-slate-500 border-t border-slate-200">
                 (+7 more exceptions omitted for display)
               </div>
             )}
+
+            {isLoading && items.length === 0 && !error && (
+              <div className="p-8 flex flex-col gap-6">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex flex-col lg:flex-row gap-6 animate-pulse border-b border-slate-100 pb-6 last:border-0">
+                    <div className="w-full lg:w-48 flex flex-col gap-2">
+                      <div className="h-6 w-24 bg-slate-200 rounded"></div>
+                      <div className="h-4 w-32 bg-slate-100 rounded"></div>
+                    </div>
+                    <div className="flex-1 flex flex-col gap-2">
+                      <div className="h-4 w-16 bg-slate-200 rounded"></div>
+                      <div className="h-4 w-full max-w-2xl bg-slate-100 rounded"></div>
+                      <div className="h-4 w-3/4 max-w-xl bg-slate-100 rounded"></div>
+                    </div>
+                    <div className="w-full lg:w-auto flex flex-col gap-2 shrink-0">
+                      <div className="h-8 w-36 bg-slate-200 rounded"></div>
+                      <div className="h-8 w-36 bg-slate-200 rounded"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             
-            {items.length === 0 && (
+            {error && (
+              <div className="p-12 text-center flex flex-col items-center">
+                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4 ring-8 ring-red-50/50">
+                  <AlertCircle className="w-8 h-8 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-1 tracking-tight">Something went wrong</h3>
+                <p className="text-sm text-slate-500 max-w-[250px] text-center mb-6">
+                  {error}
+                </p>
+                <Button variant="outline" onClick={() => refreshExceptions()}>Retry</Button>
+              </div>
+            )}
+
+            {!isLoading && !error && items.length === 0 && (
               <div className="p-12 text-center flex flex-col items-center">
                  <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mb-4 ring-8 ring-green-50/50">
                   <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">

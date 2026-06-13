@@ -4,11 +4,11 @@ import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
 import { Providers } from "@/components/Providers";
-import { Toaster } from "sonner";
 import { DataProvider } from "@/lib/data-context";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "@/auth";
 import { DemoBanner } from "@/components/demo-banner";
+import { Toaster } from "sonner";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -29,11 +29,10 @@ export default async function RootLayout({children}: {children: React.ReactNode}
             <AppShell>
               <Providers>{children}</Providers>
             </AppShell>
-            <Toaster position="bottom-right" richColors />
           </DataProvider>
+          <Toaster position="bottom-right" richColors />
         </body>
       </html>
     </SessionProvider>
   );
 }
-

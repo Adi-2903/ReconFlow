@@ -41,6 +41,12 @@ export function AppShell({ children }: AppShellProps) {
     { href: "/settings", icon: Settings, label: "Settings", active: pathname === "/settings" },
   ];
 
+  const isAuthOrOnboarding = pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/onboarding";
+
+  if (isAuthOrOnboarding) {
+    return <div className="min-h-screen bg-slate-50">{children}</div>;
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-white text-slate-900 font-sans select-none">
       {/* Top Nav */}

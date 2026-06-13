@@ -18,6 +18,21 @@ export default function ConnectPage() {
   const [isQboSyncing, setIsQboSyncing] = useState(false);
   const [qboTxnCount, setQboTxnCount] = useState(0);
 
+  const onSyncQbo = React.useCallback(async () => {
+    setIsQboSyncing(true);
+    try {
+      const res = await fetch("/api/qbo/sync", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to sync QBO");
+      const data = await res.json();
+      setQboTxnCount(data.count || 0);
+    } catch (error) {
+      console.error(error);
+      alert("Error syncing QuickBooks data");
+    } finally {
+      setIsQboSyncing(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     // Check URL for OAuth callback success
     const params = new URLSearchParams(window.location.search);
@@ -32,22 +47,7 @@ export default function ConnectPage() {
       alert("Failed to connect to QuickBooks. Please try again.");
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, []);
-
-  const onSyncQbo = async () => {
-    setIsQboSyncing(true);
-    try {
-      const res = await fetch("/api/qbo/sync", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to sync QBO");
-      const data = await res.json();
-      setQboTxnCount(data.count || 0);
-    } catch (error) {
-      console.error(error);
-      alert("Error syncing QuickBooks data");
-    } finally {
-      setIsQboSyncing(false);
-    }
-  };
+  }, [onSyncQbo]);
 
   const onConnectQbo = () => {
     // Redirect to backend auth route to start OAuth flow

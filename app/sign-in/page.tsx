@@ -2,26 +2,16 @@
 
 import { useState } from "react"
 import { signIn } from "next-auth/react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Activity, ArrowRight } from "lucide-react"
+import { Activity } from "lucide-react"
 
 export default function SignInPage() {
   const [googleLoading, setGoogleLoading] = useState(false)
-  const [demoLoading, setDemoLoading] = useState(false)
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true)
     await signIn("google", { redirectTo: "/dashboard" })
-  }
-
-  const handleDemoSignIn = async () => {
-    setDemoLoading(true)
-    await signIn("credentials", { 
-      email: "demo@example.com", 
-      password: "password", 
-      redirectTo: "/dashboard?demo=true" 
-    })
   }
 
   return (
@@ -36,24 +26,21 @@ export default function SignInPage() {
           <span className="text-2xl font-bold tracking-tight text-slate-900">ReconFlow</span>
         </div>
 
-        <Card className="w-full shadow-xl shadow-slate-200/50 border-slate-200/60 overflow-hidden">
+        <Card className="w-full shadow-xl shadow-slate-200/50 border-slate-200/60 overflow-hidden bg-white">
           <CardHeader className="text-center pb-8 pt-8">
             <CardTitle className="text-xl font-semibold tracking-tight text-slate-900">Sign in to your account</CardTitle>
             <CardDescription className="text-slate-500 mt-2">
-              Choose how you want to experience ReconFlow today.
+              Sign in using your Google account to access your ReconFlow dashboard.
             </CardDescription>
           </CardHeader>
           
           <CardContent className="space-y-6 pb-8 px-8">
-            
-            {/* Live Data Option */}
             <div className="space-y-3">
-              <div className="text-xs font-bold uppercase tracking-widest text-slate-400">Live Production</div>
               <Button 
                 variant="outline" 
-                className="w-full h-12 text-base font-medium flex items-center justify-center gap-3 border-slate-200 hover:bg-slate-50 hover:text-slate-900 relative"
+                className="w-full h-12 text-base font-medium flex items-center justify-center gap-3 border-slate-200 hover:bg-slate-50 hover:text-slate-900 relative bg-white"
                 onClick={handleGoogleSignIn}
-                disabled={googleLoading || demoLoading}
+                disabled={googleLoading}
               >
                 {googleLoading ? (
                   <span className="text-slate-500">Connecting...</span>
@@ -69,36 +56,10 @@ export default function SignInPage() {
                   </>
                 )}
               </Button>
-              <p className="text-[13px] text-slate-500 leading-tight">
-                Connects to your real Aurora Database. Allows syncing live data from Stripe and QuickBooks.
+              <p className="text-[13px] text-slate-500 leading-tight text-center">
+                Securely syncs live data from your Stripe and QuickBooks accounts.
               </p>
             </div>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-slate-100" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-slate-300 font-semibold tracking-widest">Or</span>
-              </div>
-            </div>
-
-            {/* Mock Demo Option */}
-            <div className="space-y-3">
-              <div className="text-xs font-bold uppercase tracking-widest text-slate-400">Sandbox</div>
-              <Button 
-                className="w-full h-12 text-base font-medium bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-between px-4 group"
-                onClick={handleDemoSignIn}
-                disabled={demoLoading || googleLoading}
-              >
-                <span>{demoLoading ? "Loading demo..." : "Explore Mock Demo"}</span>
-                <ArrowRight className="w-5 h-5 opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-              </Button>
-              <p className="text-[13px] text-slate-500 leading-tight">
-                Instantly bypasses authentication. Loads perfect mock data to explore the UI immediately.
-              </p>
-            </div>
-
           </CardContent>
         </Card>
         

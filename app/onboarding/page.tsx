@@ -44,7 +44,7 @@ export default function OnboardingPage() {
               </div>
               <h1 className="text-3xl font-bold text-slate-900 mb-3">Welcome to ReconFlow</h1>
               <p className="text-slate-500 text-lg mb-8">
-                The AI-powered reconciliation engine for modern finance teams. Let's get your accounts connected so you can stop matching rows manually.
+                The AI-powered reconciliation engine for modern finance teams. Let&apos;s get your accounts connected so you can stop matching rows manually.
               </p>
               
               <div className="space-y-4">
@@ -149,7 +149,7 @@ export default function OnboardingPage() {
               <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
                 <CheckCircle2 className="w-10 h-10 text-green-600" />
               </div>
-              <h1 className="text-3xl font-bold text-slate-900 mb-3">You're all set!</h1>
+              <h1 className="text-3xl font-bold text-slate-900 mb-3">You&apos;re all set!</h1>
               <p className="text-slate-500 text-lg mb-8 max-w-md mx-auto">
                 {isSeeding ? "Demo data has been loaded." : "Your accounts are connected."} The AI engine is ready to run your first reconciliation.
               </p>

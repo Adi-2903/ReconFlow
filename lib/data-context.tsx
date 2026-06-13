@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { MatchData } from "@/types/match";
 import { sharedMatches as initialMatches } from "@/lib/data";
+import { toast } from "sonner";
 
 interface DataContextType {
   matches: MatchData[];
@@ -19,15 +20,18 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [matches, setMatches] = useState<MatchData[]>(initialMatches);
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(false);
   const [exceptionCount, setExceptionCount] = useState(0);
-  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [matches, setMatches] = useState<MatchData[]>([]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const isDemo = new URLSearchParams(window.location.search).get("demo") === "true";
-      if (isDemo) setIsDemoMode(true);
+      const demoParam = new URLSearchParams(window.location.search).get("demo") === "true";
+      setIsDemoMode(demoParam);
+      if (demoParam) {
+        setMatches(initialMatches);
+      }
     }
   }, []);
 
@@ -41,7 +45,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/matches");
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setMatches(data);
         }
       }
@@ -69,8 +73,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [isDemoMode]);
 
   useEffect(() => {
-    refreshMatches();
-    refreshExceptions();
+    let active = true;
+    const initData = async () => {
+      // Defer to next microtask to prevent synchronous state setting in effect body
+      await Promise.resolve();
+      if (active) {
+        refreshMatches();
+        refreshExceptions();
+      }
+    };
+    initData();
+    return () => {
+      active = false;
+    };
   }, [refreshMatches, refreshExceptions]);
 
   const handleApprove = async (id: string) => {
@@ -79,8 +94,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     );
     try {
       await fetch(`/api/matches/${id}/approve`, { method: "POST" });
+      toast.success("Match approved");
     } catch (e) {
       console.error("Failed to approve match on server", e);
+      toast.error("Failed to approve match");
     }
   };
 
@@ -90,8 +107,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     );
     try {
       await fetch(`/api/matches/${id}/reject`, { method: "POST" });
+      toast.success("Match rejected");
     } catch (e) {
       console.error("Failed to reject match on server", e);
+      toast.error("Failed to reject match");
     }
   };
 
