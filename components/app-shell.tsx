@@ -79,7 +79,7 @@ export function AppShell({ children }: AppShellProps) {
           >
             <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => signOut()}>Sign out</Button>
+          <Button variant="outline" size="sm" onClick={() => signOut({ callbackUrl: "/sign-in" })}>Sign out</Button>
         </div>
       </header>
 

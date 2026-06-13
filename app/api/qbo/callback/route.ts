@@ -42,8 +42,13 @@ export async function GET(req: NextRequest) {
 
     // Redirect the user back to the connect page with a success parameter
     return NextResponse.redirect(new URL("/connect?qbo_connected=true", req.url));
-  } catch (error) {
+  } catch (error: any) {
+    console.error("==========================================");
     console.error("Error in QBO callback:", error);
+    if (error?.authResponse) {
+      console.error("QBO AuthResponse JSON:", error.authResponse.getJson());
+    }
+    console.error("==========================================");
     return NextResponse.redirect(new URL("/connect?qbo_error=true", req.url));
   }
 }

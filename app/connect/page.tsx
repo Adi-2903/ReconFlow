@@ -236,8 +236,7 @@ export default function ConnectPage() {
 
           {/* QuickBooks */}
           <div
-            onClick={() => setLedgerSource("quickbooks")}
-            className={`border rounded-lg p-5 flex flex-col items-center text-center cursor-pointer transition-all ${ledgerSource === "quickbooks"
+            className={`border rounded-lg p-5 flex flex-col items-center text-center transition-all ${qboConnected
               ? 'border-green-500 bg-green-50/50 shadow-sm ring-1 ring-green-500'
               : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white'
               }`}
@@ -246,12 +245,22 @@ export default function ConnectPage() {
               <span className="leading-none text-xl lowercase opacity-90">qb</span>
             </div>
             <h4 className="font-medium text-slate-900 mb-3 text-sm">QuickBooks</h4>
-            {ledgerSource === "quickbooks" ? (
-              <span className="text-sm font-semibold text-green-700 flex items-center gap-1.5 bg-green-50 rounded-full px-3 py-1">
-                <CheckCircle2 className="w-4 h-4" /> Connected
-              </span>
+            {qboConnected ? (
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-sm font-semibold text-green-700 flex items-center gap-1.5 bg-green-50 rounded-full px-3 py-1">
+                  <CheckCircle2 className="w-4 h-4" /> Connected
+                </span>
+                <span className="text-xs text-slate-500">{qboTxnCount} invoices synced</span>
+              </div>
             ) : (
-              <Button variant="outline" size="sm" className="w-full text-xs font-medium">Connect</Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full text-xs font-medium"
+                onClick={onConnectQbo}
+              >
+                Connect
+              </Button>
             )}
           </div>
 

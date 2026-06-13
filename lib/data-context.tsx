@@ -13,6 +13,7 @@ interface DataContextType {
   refreshExceptions: () => Promise<void>;
   isLoading: boolean;
   exceptionCount: number;
+  isDemoMode: boolean;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -21,8 +22,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [matches, setMatches] = useState<MatchData[]>(initialMatches);
   const [isLoading, setIsLoading] = useState(false);
   const [exceptionCount, setExceptionCount] = useState(0);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isDemo = new URLSearchParams(window.location.search).get("demo") === "true";
+      if (isDemo) setIsDemoMode(true);
+    }
+  }, []);
 
   const refreshMatches = useCallback(async () => {
+    if (isDemoMode) {
+      setMatches(initialMatches);
+      return;
+    }
     setIsLoading(true);
     try {
       const res = await fetch("/api/matches");
@@ -37,9 +50,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isDemoMode]);
 
   const refreshExceptions = useCallback(async () => {
+    if (isDemoMode) {
+      setExceptionCount(initialMatches.filter(m => m.status === 'pending' && m.confidenceScore < 0.9).length);
+      return;
+    }
     try {
       const res = await fetch("/api/exceptions");
       if (res.ok) {
@@ -49,7 +66,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.error("Failed to fetch exception count", e);
     }
-  }, []);
+  }, [isDemoMode]);
 
   useEffect(() => {
     refreshMatches();
@@ -79,7 +96,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <DataContext.Provider value={{ matches, setMatches, handleApprove, handleReject, refreshMatches, refreshExceptions, isLoading, exceptionCount }}>
+    <DataContext.Provider value={{
+      matches,
+      setMatches,
+      handleApprove,
+      handleReject,
+      refreshMatches,
+      refreshExceptions,
+      isLoading,
+      exceptionCount,
+      isDemoMode,
+    }}>
       {children}
     </DataContext.Provider>
   );

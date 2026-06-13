@@ -8,6 +8,7 @@ import { Toaster } from "sonner";
 import { DataProvider } from "@/lib/data-context";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "@/auth";
+import { DemoBanner } from "@/components/demo-banner";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -21,9 +22,10 @@ export default async function RootLayout({children}: {children: React.ReactNode}
 
   return (
     <SessionProvider session={session}>
-      <html lang="en" className={cn("font-sans", geist.variable)}>
+      <html lang="en" className={cn("font-sans", geist.variable)} suppressHydrationWarning>
         <body suppressHydrationWarning>
           <DataProvider>
+            <DemoBanner />
             <AppShell>
               <Providers>{children}</Providers>
             </AppShell>
