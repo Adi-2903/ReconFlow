@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { Lock, Upload, CheckCircle2 } from "lucide-react";
+import React, { useState, useRef } from "react";
+import { Lock, Upload, CheckCircle2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 
@@ -17,6 +17,8 @@ export default function ConnectPage() {
   const [qboConnected, setQboConnected] = useState(false);
   const [isQboSyncing, setIsQboSyncing] = useState(false);
   const [qboTxnCount, setQboTxnCount] = useState(0);
+  const [ledgerCsvFilename, setLedgerCsvFilename] = useState<string | null>(null);
+  const ledgerCsvInputRef = useRef<HTMLInputElement>(null);
 
   const onSyncQbo = React.useCallback(async () => {
     setIsQboSyncing(true);
@@ -48,6 +50,17 @@ export default function ConnectPage() {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [onSyncQbo]);
+
+  const onDisconnectQbo = async () => {
+    try {
+      await fetch("/api/qbo/disconnect", { method: "POST" });
+    } catch (e) {
+      console.error("Failed to clear QBO token on server", e);
+    }
+    setQboConnected(false);
+    setQboTxnCount(0);
+    setLedgerSource(null);
+  };
 
   const onConnectQbo = () => {
     // Redirect to backend auth route to start OAuth flow
@@ -246,11 +259,25 @@ export default function ConnectPage() {
             </div>
             <h4 className="font-medium text-slate-900 mb-3 text-sm">QuickBooks</h4>
             {qboConnected ? (
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-sm font-semibold text-green-700 flex items-center gap-1.5 bg-green-50 rounded-full px-3 py-1">
-                  <CheckCircle2 className="w-4 h-4" /> Connected
-                </span>
-                <span className="text-xs text-slate-500">{qboTxnCount} invoices synced</span>
+              <div className="w-full flex flex-col items-center gap-2">
+                <div className="flex items-center justify-center gap-2 text-green-700 bg-green-50 rounded-md py-2 border border-green-200 text-sm font-medium w-full">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{qboTxnCount} invoices synced</span>
+                </div>
+                <button
+                  onClick={onSyncQbo}
+                  disabled={isQboSyncing}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-4 transition-colors disabled:opacity-50 mt-1"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isQboSyncing ? 'animate-spin' : ''}`} />
+                  {isQboSyncing ? "Syncing..." : "Re-sync"}
+                </button>
+                <button
+                  onClick={onDisconnectQbo}
+                  className="w-full text-xs font-medium text-slate-400 hover:text-slate-600 underline underline-offset-4 transition-colors"
+                >
+                  Disconnect
+                </button>
               </div>
             ) : (
               <Button 
@@ -264,46 +291,52 @@ export default function ConnectPage() {
             )}
           </div>
 
-          {/* Zoho Books */}
-          <div
-            onClick={() => setLedgerSource("zoho")}
-            className={`border rounded-lg p-5 flex flex-col items-center text-center cursor-pointer transition-all ${ledgerSource === "zoho"
-              ? 'border-green-500 bg-green-50/50 shadow-sm ring-1 ring-green-500'
-              : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white'
-              }`}
-          >
+          {/* Zoho Books — Coming Soon */}
+          <div className="relative border rounded-lg p-5 flex flex-col items-center text-center bg-white border-slate-200 opacity-60 cursor-not-allowed">
+            <span className="absolute top-2 right-2 text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-semibold tracking-wide">Soon</span>
             <div className="w-10 h-10 rounded-xl bg-[#004ada] flex items-center justify-center text-white font-bold text-lg mb-3 shadow-sm">
               Z
             </div>
             <h4 className="font-medium text-slate-900 mb-3 text-sm">Zoho Books</h4>
-            {ledgerSource === "zoho" ? (
-              <span className="text-sm font-semibold text-green-700 flex items-center gap-1.5 bg-green-50 rounded-full px-3 py-1">
-                <CheckCircle2 className="w-4 h-4" /> Connected
-              </span>
-            ) : (
-              <Button variant="outline" size="sm" className="w-full text-xs font-medium">Connect</Button>
-            )}
+            <Button disabled variant="outline" size="sm" className="w-full text-xs font-medium">Coming soon</Button>
           </div>
 
           {/* Manual CSV */}
           <div
-            onClick={() => setLedgerSource("csv")}
-            className={`border rounded-lg p-5 flex flex-col items-center text-center cursor-pointer transition-all ${ledgerSource === "csv"
-              ? 'border-green-500 bg-green-50/50 shadow-sm ring-1 ring-green-500'
-              : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white'
-              }`}
+            className={`border rounded-lg p-5 flex flex-col items-center text-center cursor-pointer transition-all ${
+              ledgerCsvFilename
+                ? 'border-green-500 bg-green-50/50 shadow-sm ring-1 ring-green-500'
+                : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white'
+            }`}
+            onClick={() => ledgerCsvInputRef.current?.click()}
           >
             <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 mb-3 border border-slate-200">
               <Upload className="w-4 h-4" />
             </div>
             <h4 className="font-medium text-slate-900 mb-3 text-sm">Manual CSV</h4>
-            {ledgerSource === "csv" ? (
-              <span className="text-sm font-semibold text-green-700 flex items-center gap-1.5 bg-green-50 rounded-full px-3 py-1">
-                <CheckCircle2 className="w-4 h-4" /> Uploaded
-              </span>
+            {ledgerCsvFilename ? (
+              <div className="flex flex-col items-center gap-1.5">
+                <span className="text-sm font-semibold text-green-700 flex items-center gap-1.5 bg-green-50 rounded-full px-3 py-1">
+                  <CheckCircle2 className="w-4 h-4" /> Uploaded
+                </span>
+                <span className="text-[11px] text-slate-400 truncate max-w-[140px]">{ledgerCsvFilename}</span>
+              </div>
             ) : (
-              <Button variant="outline" size="sm" className="w-full text-xs font-medium">Upload</Button>
+              <Button variant="outline" size="sm" className="w-full text-xs font-medium pointer-events-none">Upload CSV</Button>
             )}
+            <input
+              ref={ledgerCsvInputRef}
+              type="file"
+              className="hidden"
+              accept=".csv,.xls,.xlsx"
+              onChange={(e) => {
+                if (e.target.files?.[0]) {
+                  setLedgerCsvFilename(e.target.files[0].name);
+                  setLedgerSource("csv");
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
 
         </div>

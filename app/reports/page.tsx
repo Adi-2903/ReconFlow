@@ -95,6 +95,25 @@ export default function ReportsPage() {
   });
   const [topExceptions, setTopExceptions] = useState<any[]>([]);
 
+  // Derived display values from real stats
+  const totalNum = Number(stats.total) || 0;
+  const autoNum = Number(stats.autoMatched) || 0;
+  const manualNum = Number(stats.manualReview) || 0;
+  const exceptionNum = Number(stats.exceptions) || 0;
+
+  const autoPercent = totalNum > 0 ? Math.round((autoNum / totalNum) * 100) : 0;
+  const manualPercent = totalNum > 0 ? Math.round((manualNum / totalNum) * 100) : 0;
+  const exceptionPercent = totalNum > 0 ? Math.max(0, 100 - autoPercent - manualPercent) : 0;
+
+  const healthScore = totalNum > 0
+    ? Math.min(100, Math.round(
+        (autoNum / totalNum) * 70 +
+        (1 - Math.min(1, exceptionNum / Math.max(1, totalNum))) * 30
+      ))
+    : null;
+
+  const timeSavedHours = Math.round((autoNum * 3) / 60);
+
   useEffect(() => {
     if (!selectedPeriod) return;
 
@@ -249,8 +268,12 @@ export default function ReportsPage() {
               </div>
               <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-200">
                 <Clock className="w-4 h-4 text-emerald-600" />
-                <span className="text-sm font-medium text-emerald-700">Time saved this month: ~47 hours</span>
-                <span className="text-xs text-slate-400 ml-auto hidden sm:block">Based on 2 accountants × 3 min avg per transaction</span>
+                <span className="text-sm font-medium text-emerald-700">
+                  {timeSavedHours > 0 ? `Time saved this month: ~${timeSavedHours} hours` : "No transactions reconciled yet"}
+                </span>
+                {timeSavedHours > 0 && (
+                  <span className="text-xs text-slate-400 ml-auto hidden sm:block">Based on 2 accountants × 3 min avg per transaction</span>
+                )}
               </div>
             </div>
 
@@ -258,11 +281,21 @@ export default function ReportsPage() {
             <div className="col-span-1 bg-white border border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-center">
               <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-2 w-full text-left">Health Score</h2>
               <div className="flex-1 flex flex-col items-center justify-center">
-                <div className="flex items-baseline mb-2">
-                  <span className="text-6xl font-bold tracking-tighter text-emerald-600">94</span>
-                  <span className="text-xl font-medium text-slate-400 ml-1">/100</span>
-                </div>
-                <p className="text-sm font-medium text-slate-600 mt-2">Excellent — above industry average of 78</p>
+                {healthScore !== null ? (
+                  <>
+                    <div className="flex items-baseline mb-2">
+                      <span className={`text-6xl font-bold tracking-tighter ${
+                        healthScore >= 80 ? 'text-emerald-600' : healthScore >= 60 ? 'text-amber-500' : 'text-rose-500'
+                      }`}>{healthScore}</span>
+                      <span className="text-xl font-medium text-slate-400 ml-1">/100</span>
+                    </div>
+                    <p className="text-sm font-medium text-slate-600 mt-2">
+                      {healthScore >= 80 ? 'Excellent — above industry average of 78' : healthScore >= 60 ? 'Good — near industry average' : 'Needs attention'}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-400">No data for this period</p>
+                )}
               </div>
             </div>
           </div>
@@ -270,16 +303,22 @@ export default function ReportsPage() {
           {/* Section 2 - Match Rate Breakdown */}
           <div className="bg-white border border-slate-200 rounded-xl p-6">
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4">Match Rate Breakdown</h2>
-            <div className="flex h-6 w-full rounded-full overflow-hidden mb-3 shadow-inner">
-              <div className="bg-emerald-500 h-full" style={{ width: "96%" }}></div>
-              <div className="bg-amber-400 h-full" style={{ width: "3%" }}></div>
-              <div className="bg-rose-500 h-full" style={{ width: "1%" }}></div>
-            </div>
-            <div className="flex justify-between text-xs font-medium">
-              <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500"></div>Auto-matched (96%)</div>
-              <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-400"></div>Manual approval (3%)</div>
-              <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500"></div>Exceptions (1%)</div>
-            </div>
+            {totalNum > 0 ? (
+              <>
+                <div className="flex h-6 w-full rounded-full overflow-hidden mb-3 shadow-inner">
+                  <div className="bg-emerald-500 h-full transition-all" style={{ width: `${autoPercent}%` }} />
+                  <div className="bg-amber-400 h-full transition-all" style={{ width: `${manualPercent}%` }} />
+                  <div className="bg-rose-500 h-full transition-all" style={{ width: `${exceptionPercent}%` }} />
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium">
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" />Auto-matched ({autoPercent}%)</div>
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-400" />Manual approval ({manualPercent}%)</div>
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500" />Exceptions ({exceptionPercent}%)</div>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-slate-400">No reconciliation data for this period.</p>
+            )}
           </div>
 
           {/* Section 3 - Top Exceptions Table */}

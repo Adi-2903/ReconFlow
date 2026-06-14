@@ -26,7 +26,7 @@ export function AppShell({ children }: AppShellProps) {
 
   const reconciledPercent = matches.length > 0 
     ? Math.round((matches.filter(m => m.matchType === "exact" || m.status === "approved").length / matches.length) * 100)
-    : 94;
+    : 0;
 
   // Close mobile menu on route change
   // In a real app we'd use useEffect, but doing it in click handlers for simplicity
@@ -115,31 +115,33 @@ export function AppShell({ children }: AppShellProps) {
             ))}
           </nav>
           
-          <Link href="/reports" className="block absolute bottom-0 left-0 right-0 p-3 transition-colors hover:opacity-95" style={{ backgroundColor: "hsl(222 47% 11%)" }}>
-            <div className="group relative">
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-[11px] text-white rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
-                You&apos;ve reconciled {reconciledPercent}% of this month&apos;s transactions
-              </div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                PRO PLAN
-              </div>
-              <div 
-                className="font-medium tracking-tight mb-2 text-white/95" 
-                style={{ fontSize: "13px", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
-              >
-                {reconciledPercent}% Reconciliation
-              </div>
-              <div className="w-full h-1 rounded-[2px] overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.15)" }}>
+          {matches.length > 0 && (
+            <Link href="/reports" className="block absolute bottom-0 left-0 right-0 p-3 transition-colors hover:opacity-95" style={{ backgroundColor: "hsl(222 47% 11%)" }}>
+              <div className="group relative">
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-900 border border-slate-800 text-[11px] text-white rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                  You&apos;ve reconciled {reconciledPercent}% of this month&apos;s transactions
+                </div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  PRO PLAN
+                </div>
                 <div 
-                  className="h-full rounded-[2px]" 
-                  style={{ 
-                    width: `${reconciledPercent}%`,
-                    backgroundImage: "linear-gradient(to right, #22c55e, #16a34a)" 
-                  }} 
-                />
+                  className="font-medium tracking-tight mb-2 text-white/95" 
+                  style={{ fontSize: "13px", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                >
+                  {reconciledPercent}% Reconciliation
+                </div>
+                <div className="w-full h-1 rounded-[2px] overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.15)" }}>
+                  <div 
+                    className="h-full rounded-[2px]" 
+                    style={{ 
+                      width: `${reconciledPercent}%`,
+                      backgroundImage: "linear-gradient(to right, #22c55e, #16a34a)" 
+                    }} 
+                  />
+                </div>
               </div>
-            </div>
-          </Link>
+            </Link>
+          )}
         </aside>
 
         {/* Main Content Area */}

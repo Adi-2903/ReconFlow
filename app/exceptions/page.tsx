@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Search, Filter, ArrowUpDown, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -25,7 +25,19 @@ export default function ExceptionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
   const { exceptionCount, refreshExceptions, isDemoMode } = useData();
+
+  const displayedItems = useMemo(() => {
+    if (!searchQuery.trim()) return items;
+    const q = searchQuery.toLowerCase();
+    return items.filter(item =>
+      item.reference.toLowerCase().includes(q) ||
+      item.reasonTag.toLowerCase().includes(q) ||
+      item.reasonText.toLowerCase().includes(q) ||
+      item.amount.toString().includes(q)
+    );
+  }, [items, searchQuery]);
 
   useEffect(() => {
     const fetchExceptions = async () => {
@@ -133,12 +145,6 @@ export default function ExceptionsPage() {
         <button className="px-3 py-1 text-sm font-medium rounded-full border transition-colors bg-slate-900 text-white border-slate-900">
           All ({exceptionCount})
         </button>
-        <button className="px-3 py-1 text-sm font-medium rounded-full border transition-colors bg-white text-slate-600 border-slate-200 hover:bg-slate-50">
-          High value (3)
-        </button>
-        <button className="px-3 py-1 text-sm font-medium rounded-full border transition-colors bg-white text-slate-600 border-slate-200 hover:bg-slate-50">
-          Duplicates (1)
-        </button>
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
@@ -146,8 +152,10 @@ export default function ExceptionsPage() {
           <div className="relative w-full max-w-sm">
             <Search className="absolute left-2.5 top-2 h-4 w-4 text-slate-400" />
             <input 
-              type="text" 
-              placeholder="Search exceptions by ID, reason, or amount..." 
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by ID, reason, or amount..." 
               className="w-full h-8 pl-9 pr-3 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all placeholder:text-slate-400"
             />
           </div>
@@ -155,7 +163,7 @@ export default function ExceptionsPage() {
         
         <div className="flex-1 overflow-auto bg-slate-50/30">
           <div className="flex flex-col">
-            {items.map((item) => {
+            {displayedItems.map((item) => {
               const isResolving = resolvingIds.has(item.id);
               const formattedAmount = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Math.abs(item.amount));
               const amountColor = item.amount < 0 ? "text-red-600" : "text-slate-900";
@@ -212,9 +220,9 @@ export default function ExceptionsPage() {
               );
             })}
             
-            {items.length > 0 && !isLoading && !error && (
-              <div className="p-4 text-center text-sm font-medium text-slate-500 border-t border-slate-200">
-                (+7 more exceptions omitted for display)
+            {searchQuery && displayedItems.length === 0 && !isLoading && (
+              <div className="p-8 text-center text-sm text-slate-400">
+                No exceptions match &ldquo;{searchQuery}&rdquo;
               </div>
             )}
 
