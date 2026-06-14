@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     // Fetch user to get QBO tokens
     const [user] = await db.select().from(users).where(eq(users.id, userId));
-    
+
     if (!user || !user.qboAccessToken || !user.qboRealmId) {
       return NextResponse.json({ error: "QuickBooks is not connected" }, { status: 400 });
     }
@@ -41,13 +41,13 @@ export async function POST(req: NextRequest) {
         const authResponse = await oauthClient.refresh();
         const tokenData = authResponse.getJson();
         const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
-        
+
         await db.update(users).set({
           qboAccessToken: tokenData.access_token,
           qboRefreshToken: tokenData.refresh_token,
           qboTokenExpiresAt: expiresAt,
         }).where(eq(users.id, userId));
-        
+
       } catch (refreshErr) {
         console.error("Failed to refresh QBO token:", refreshErr);
         return NextResponse.json({ error: "QuickBooks session expired. Please reconnect." }, { status: 401 });
@@ -61,7 +61,9 @@ export async function POST(req: NextRequest) {
       method: "GET"
     });
 
-    const qboData = (qboResponse as any).getJson();
+    const qboData = typeof (qboResponse as any).json === 'function' 
+      ? await (qboResponse as any).json() 
+      : (qboResponse as any).data;
     const invoices = qboData?.QueryResponse?.Invoice || [];
 
     if (invoices.length === 0) {
@@ -70,11 +72,6 @@ export async function POST(req: NextRequest) {
 
     // Map QBO Invoices to our ledgerEntries schema
     const newLedgers = invoices.map((inv: any) => {
-      // QBO amounts are decimal strings (e.g. "150.00"). Our DB expects paise/cents.
-      // E.g. "150.00" -> 15000. Wait, our DB expects strings but Stripe sends them in paise.
-      // Wait, Stripe gave us cents as string, our DB `amount` is `numeric()`.
-      // Stripe: `amount` (e.g., 800000) -> inserted as "800000".
-      // QBO: `TotalAmt` (e.g., 8000.00) -> we should insert as "800000" to match.
       const amountPaise = Math.round(Number(inv.TotalAmt) * 100).toString();
 
       return {
@@ -83,7 +80,6 @@ export async function POST(req: NextRequest) {
         date: inv.TxnDate || new Date().toISOString().split('T')[0],
         memo: inv.CustomerRef?.name ? `Invoice for ${inv.CustomerRef.name}` : "QuickBooks Invoice",
         invoiceRef: inv.DocNumber || inv.Id,
-        source: "quickbooks",
         status: "unmatched",
       };
     });
@@ -95,6 +91,10 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error("Error syncing QBO data:", error);
-    return NextResponse.json({ error: error.message || "Failed to sync QuickBooks data" }, { status: 500 });
+    return NextResponse.json({ 
+      error: error.message || "Failed to sync QuickBooks data",
+      stack: error.stack,
+      details: error.response?.data || error
+    }, { status: 500 });
   }
 }
