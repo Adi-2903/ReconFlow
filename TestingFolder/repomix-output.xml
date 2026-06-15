@@ -1,0 +1,4021 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+data/bank_transactions.csv
+data/expected_matches.csv
+data/quickbooks_book_transactions.xlsx
+data/tally_transactions.xml
+matching/candidateGenerator.ts
+matching/feeMatcher.ts
+matching/manyToOneMatcher.ts
+matching/runMatcher.ts
+matching/scorer.ts
+matching/subsetMatcher.ts
+matching/utils.ts
+parsers/bankParser.ts
+parsers/quickBooksParser.ts
+parsers/tallyParser.ts
+scripts/validate-import.ts
+tests/matching.test.ts
+types/BookTransaction.ts
+types/BookTransactionLine.ts
+types/CanonicalTransaction.ts
+types/EvaluationResult.ts
+types/ExpectedMatch.ts
+types/Match.ts
+validators/accountingValidator.ts
+validators/importValidator.ts
+validators/reconciliationValidator.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="data/bank_transactions.csv">
+bank_transaction_id,transaction_date,value_date,counterparty,narration,amount,direction,reference_number,source_system
+BANK0001,2026-03-01,2026-03-01,ABC Corp,NEFT ABC CORP INV1001,2500,CREDIT,INV1001,HDFC Bank
+BANK0002,2026-03-02,2026-03-02,TechNova Solutions,NEFT TECHNOVA SOLUTIONS INV1002,4000,CREDIT,INV1002,ICICI Bank
+BANK0003,2026-03-03,2026-03-03,GreenLeaf Enterprises,NEFT GREENLEAF ENTERPRISES INV1003,5000,CREDIT,INV1003,HDFC Bank
+BANK0004,2026-03-04,2026-03-04,Sunrise Logistics,NEFT SUNRISE LOGISTICS INV1004,7500,CREDIT,INV1004,ICICI Bank
+BANK0005,2026-03-05,2026-03-05,Alpha Retail,NEFT ALPHA RETAIL INV1005,10000,CREDIT,INV1005,HDFC Bank
+BANK0006,2026-03-06,2026-03-06,BlueSky Traders,NEFT BLUESKY TRADERS INV1006,12500,CREDIT,INV1006,ICICI Bank
+BANK0007,2026-03-07,2026-03-07,ABC Corp,NEFT ABC CORP INV1007,15000,CREDIT,INV1007,HDFC Bank
+BANK0008,2026-03-08,2026-03-08,TechNova Solutions,NEFT TECHNOVA SOLUTIONS INV1008,25000,CREDIT,INV1008,ICICI Bank
+BANK0009,2026-03-09,2026-03-09,GreenLeaf Enterprises,NEFT GREENLEAF ENTERPRISES INV1009,50000,CREDIT,INV1009,HDFC Bank
+BANK0010,2026-03-10,2026-03-10,Sunrise Logistics,NEFT SUNRISE LOGISTICS INV1010,2500,CREDIT,INV1010,ICICI Bank
+BANK0011,2026-03-11,2026-03-11,Alpha Retail,NEFT ALPHA RETAIL INV1011,4000,CREDIT,INV1011,HDFC Bank
+BANK0012,2026-03-12,2026-03-12,BlueSky Traders,NEFT BLUESKY TRADERS INV1012,5000,CREDIT,INV1012,ICICI Bank
+BANK0013,2026-03-13,2026-03-13,ABC Corp,NEFT ABC CORP INV1013,7500,CREDIT,INV1013,HDFC Bank
+BANK0014,2026-03-14,2026-03-14,TechNova Solutions,NEFT TECHNOVA SOLUTIONS INV1014,10000,CREDIT,INV1014,ICICI Bank
+BANK0015,2026-03-15,2026-03-15,GreenLeaf Enterprises,NEFT GREENLEAF ENTERPRISES INV1015,12500,CREDIT,INV1015,HDFC Bank
+BANK0016,2026-03-16,2026-03-16,Sunrise Logistics,NEFT SUNRISE LOGISTICS INV1016,15000,CREDIT,INV1016,ICICI Bank
+BANK0017,2026-03-17,2026-03-17,Alpha Retail,NEFT ALPHA RETAIL INV1017,25000,CREDIT,INV1017,HDFC Bank
+BANK0018,2026-03-18,2026-03-18,BlueSky Traders,NEFT BLUESKY TRADERS INV1018,50000,CREDIT,INV1018,ICICI Bank
+BANK0019,2026-03-19,2026-03-19,ABC Corp,NEFT ABC CORP INV1019,2500,CREDIT,INV1019,HDFC Bank
+BANK0020,2026-03-20,2026-03-20,TechNova Solutions,NEFT TECHNOVA SOLUTIONS INV1020,4000,CREDIT,INV1020,ICICI Bank
+BANK0021,2026-03-21,2026-03-21,GreenLeaf Enterprises,NEFT GREENLEAF ENTERPRISES INV1021,5000,CREDIT,INV1021,HDFC Bank
+BANK0022,2026-03-22,2026-03-22,Sunrise Logistics,NEFT SUNRISE LOGISTICS INV1022,7500,CREDIT,INV1022,ICICI Bank
+BANK0023,2026-03-23,2026-03-23,Alpha Retail,NEFT ALPHA RETAIL INV1023,10000,CREDIT,INV1023,HDFC Bank
+BANK0024,2026-03-24,2026-03-24,BlueSky Traders,NEFT BLUESKY TRADERS INV1024,12500,CREDIT,INV1024,ICICI Bank
+BANK0025,2026-03-25,2026-03-25,ABC Corp,NEFT ABC CORP INV1025,15000,CREDIT,INV1025,HDFC Bank
+BANK0026,2026-03-26,2026-03-26,TechNova Solutions,NEFT TECHNOVA SOLUTIONS INV1026,25000,CREDIT,INV1026,ICICI Bank
+BANK0027,2026-03-27,2026-03-27,GreenLeaf Enterprises,NEFT GREENLEAF ENTERPRISES INV1027,50000,CREDIT,INV1027,HDFC Bank
+BANK0028,2026-03-28,2026-03-28,Sunrise Logistics,NEFT SUNRISE LOGISTICS INV1028,2500,CREDIT,INV1028,ICICI Bank
+BANK0029,2026-03-01,2026-03-01,Alpha Retail,NEFT ALPHA RETAIL INV1029,4000,CREDIT,INV1029,HDFC Bank
+BANK0030,2026-03-02,2026-03-02,BlueSky Traders,NEFT BLUESKY TRADERS INV1030,5000,CREDIT,INV1030,ICICI Bank
+BANK0031,2026-03-03,2026-03-03,ABC Corp,NEFT ABC CORP INV1031,7500,CREDIT,INV1031,HDFC Bank
+BANK0032,2026-03-04,2026-03-04,TechNova Solutions,NEFT TECHNOVA SOLUTIONS INV1032,10000,CREDIT,INV1032,ICICI Bank
+BANK0033,2026-03-05,2026-03-05,GreenLeaf Enterprises,NEFT GREENLEAF ENTERPRISES INV1033,12500,CREDIT,INV1033,HDFC Bank
+BANK0034,2026-03-06,2026-03-06,Sunrise Logistics,NEFT SUNRISE LOGISTICS INV1034,15000,CREDIT,INV1034,ICICI Bank
+BANK0035,2026-03-07,2026-03-07,Alpha Retail,NEFT ALPHA RETAIL INV1035,25000,CREDIT,INV1035,HDFC Bank
+BANK0036,2026-03-08,2026-03-08,BlueSky Traders,NEFT BLUESKY TRADERS INV1036,50000,CREDIT,INV1036,ICICI Bank
+BANK0037,2026-03-09,2026-03-09,ABC Corp,NEFT ABC CORP INV1037,2500,CREDIT,INV1037,HDFC Bank
+BANK0038,2026-03-10,2026-03-10,TechNova Solutions,NEFT TECHNOVA SOLUTIONS INV1038,4000,CREDIT,INV1038,ICICI Bank
+BANK0039,2026-03-11,2026-03-11,GreenLeaf Enterprises,NEFT GREENLEAF ENTERPRISES INV1039,5000,CREDIT,INV1039,HDFC Bank
+BANK0040,2026-03-12,2026-03-12,Sunrise Logistics,NEFT SUNRISE LOGISTICS INV1040,7500,CREDIT,INV1040,ICICI Bank
+BANK0041,2026-03-04,2026-03-04,AWS India,NEFT AWS INDIA AWS-INV-3001,5000,DEBIT,AWS-INV-3001,ICICI Bank
+BANK0042,2026-03-05,2026-03-05,Zoho,NEFT ZOHO ZOHO-3002,7500,DEBIT,ZOHO-3002,HDFC Bank
+BANK0043,2026-03-06,2026-03-06,Razorpay,NEFT RAZORPAY RZP3003,10000,DEBIT,RZP3003,ICICI Bank
+BANK0044,2026-03-07,2026-03-07,Stripe,NEFT STRIPE STR3004,12500,DEBIT,STR3004,HDFC Bank
+BANK0045,2026-03-08,2026-03-08,HDFC Bank,NEFT HDFC BANK EMI3005,15000,DEBIT,EMI3005,ICICI Bank
+BANK0046,2026-03-09,2026-03-09,ICICI Bank,NEFT ICICI BANK EMI3006,25000,DEBIT,EMI3006,HDFC Bank
+BANK0047,2026-03-10,2026-03-10,AWS India,NEFT AWS INDIA AWS-INV-3007,50000,DEBIT,AWS-INV-3007,ICICI Bank
+BANK0048,2026-03-11,2026-03-11,Zoho,NEFT ZOHO ZOHO-3008,2500,DEBIT,ZOHO-3008,HDFC Bank
+BANK0049,2026-03-12,2026-03-12,Razorpay,NEFT RAZORPAY RZP3009,4000,DEBIT,RZP3009,ICICI Bank
+BANK0050,2026-03-13,2026-03-13,Stripe,NEFT STRIPE STR3010,5000,DEBIT,STR3010,HDFC Bank
+BANK0051,2026-03-14,2026-03-14,HDFC Bank,NEFT HDFC BANK EMI3011,7500,DEBIT,EMI3011,ICICI Bank
+BANK0052,2026-03-15,2026-03-15,ICICI Bank,NEFT ICICI BANK EMI3012,10000,DEBIT,EMI3012,HDFC Bank
+BANK0053,2026-03-16,2026-03-16,AWS India,NEFT AWS INDIA AWS-INV-3013,12500,DEBIT,AWS-INV-3013,ICICI Bank
+BANK0054,2026-03-17,2026-03-17,Zoho,NEFT ZOHO ZOHO-3014,15000,DEBIT,ZOHO-3014,HDFC Bank
+BANK0055,2026-03-18,2026-03-18,Razorpay,NEFT RAZORPAY RZP3015,25000,DEBIT,RZP3015,ICICI Bank
+BANK0056,2026-03-19,2026-03-19,Stripe,NEFT STRIPE STR3016,50000,DEBIT,STR3016,HDFC Bank
+BANK0057,2026-03-20,2026-03-20,HDFC Bank,NEFT HDFC BANK EMI3017,2500,DEBIT,EMI3017,ICICI Bank
+BANK0058,2026-03-21,2026-03-21,ICICI Bank,NEFT ICICI BANK EMI3018,4000,DEBIT,EMI3018,HDFC Bank
+BANK0059,2026-03-22,2026-03-22,AWS India,NEFT AWS INDIA AWS-INV-3019,5000,DEBIT,AWS-INV-3019,ICICI Bank
+BANK0060,2026-03-23,2026-03-23,Zoho,NEFT ZOHO ZOHO-3020,7500,DEBIT,ZOHO-3020,HDFC Bank
+BANK0061,2026-03-07,2026-03-07,Vibha Vora,UPI VIBHA VORA,10000,CREDIT,UPI9001,HDFC Bank
+BANK0062,2026-03-08,2026-03-08,Haresh Vora,UPI HARESH VORA,12500,CREDIT,UPI9002,ICICI Bank
+BANK0063,2026-03-09,2026-03-09,Siddharth Gandhi,UPI SIDDHARTH GANDHI,15000,CREDIT,UPI9003,HDFC Bank
+BANK0064,2026-03-10,2026-03-10,Apexa Parekh,UPI APEXA PAREKH,25000,CREDIT,UPI9004,ICICI Bank
+BANK0065,2026-03-11,2026-03-11,Vibha Vora,UPI VIBHA VORA,50000,CREDIT,UPI9005,HDFC Bank
+BANK0066,2026-03-12,2026-03-12,Haresh Vora,UPI HARESH VORA,2500,CREDIT,UPI9006,ICICI Bank
+BANK0067,2026-03-13,2026-03-13,Siddharth Gandhi,UPI SIDDHARTH GANDHI,4000,CREDIT,UPI9007,HDFC Bank
+BANK0068,2026-03-14,2026-03-14,Apexa Parekh,UPI APEXA PAREKH,5000,CREDIT,UPI9008,ICICI Bank
+BANK0069,2026-03-04,2026-03-04,ABC Corp,NEFT ABC CORP INV1100,2500,CREDIT,INV1100,HDFC Bank
+BANK0070,2026-03-06,2026-03-06,TechNova Solutions,NEFT TECHNOVA SOLUTIONS INV1101,4000,CREDIT,INV1101,ICICI Bank
+BANK0071,2026-03-08,2026-03-08,GreenLeaf Enterprises,NEFT GREENLEAF ENTERPRISES INV1102,5000,CREDIT,INV1102,HDFC Bank
+BANK0072,2026-03-07,2026-03-07,Sunrise Logistics,NEFT SUNRISE LOGISTICS INV1103,7500,CREDIT,INV1103,ICICI Bank
+BANK0073,2026-03-09,2026-03-09,Alpha Retail,NEFT ALPHA RETAIL INV1104,10000,CREDIT,INV1104,HDFC Bank
+BANK0074,2026-03-09,2026-03-09,ABC CORPORATION,NEFT ABC CORPORATION INV1110,7500,CREDIT,INV1110,HDFC Bank
+BANK0075,2026-03-10,2026-03-10,TECHNOVA SOLUTNS,NEFT TECHNOVA SOLUTNS INV1111,10000,CREDIT,INV1111,ICICI Bank
+BANK0076,2026-03-11,2026-03-11,VIBHAVORA,UPI VIBHAVORA,12500,CREDIT,INV1112,HDFC Bank
+BANK0077,2026-03-12,2026-03-12,GREEN LEAF ENTERPRISES,NEFT GREEN LEAF ENTERPRISES INV1113,15000,CREDIT,INV1113,ICICI Bank
+BANK0078,2026-03-13,2026-03-13,SUNRISE LOGISTIC,NEFT SUNRISE LOGISTIC INV1114,25000,CREDIT,INV1114,HDFC Bank
+BANK0079,2026-03-14,2026-03-14,ABC Corp,NEFT ABC CORP INV-1201,12500,CREDIT,INV-1201,HDFC Bank
+BANK0080,2026-03-15,2026-03-15,TechNova Solutions,NEFT TECHNOVA SOLUTIONS INV 1202 PARTIAL,15000,CREDIT,INV 1202 PARTIAL,ICICI Bank
+BANK0081,2026-03-16,2026-03-16,GreenLeaf Enterprises,NEFT GREENLEAF ENTERPRISES 1203,25000,CREDIT,1203,HDFC Bank
+BANK0082,2026-03-17,2026-03-17,AWS India,NEFT AWS INDIA AWSINV3201,50000,DEBIT,AWSINV3201,ICICI Bank
+BANK0083,2026-03-18,2026-03-18,Zoho,NEFT ZOHO ZOHO3202-SUB,2500,DEBIT,ZOHO3202-SUB,HDFC Bank
+BANK0084,2026-03-19,2026-03-19,Razorpay,RAZORPAY SETTLEMENT 2026-03-19 RZP1001,4764,CREDIT,RZP1001,Razorpay
+BANK0085,2026-03-20,2026-03-20,Razorpay,RAZORPAY SETTLEMENT 2026-03-20 RZP1002,7205,CREDIT,RZP1002,Razorpay
+BANK0086,2026-03-21,2026-03-21,Stripe,STRIPE SETTLEMENT 2026-03-21 STR1001,9882,CREDIT,STR1001,Stripe
+BANK0087,2026-03-22,2026-03-22,Stripe,STRIPE SETTLEMENT 2026-03-22 STR1002,12028,CREDIT,STR1002,Stripe
+BANK0088,2026-03-23,2026-03-23,Razorpay,RAZORPAY SETTLEMENT 2026-03-23 RZP1003,14646,CREDIT,RZP1003,Razorpay
+BANK0089,2026-03-22,2026-03-22,GreenLeaf Enterprises,NEFT GREENLEAF ENTERPRISES INV1301+INV1302,10000,CREDIT,INV1301/INV1302,HDFC Bank
+BANK0090,2026-03-23,2026-03-23,Sunrise Logistics,NEFT SUNRISE LOGISTICS INV1303+INV1304,15000,CREDIT,INV1303/INV1304,ICICI Bank
+BANK0091,2026-03-24,2026-03-24,Alpha Retail,NEFT ALPHA RETAIL INV1305+INV1306,12500,CREDIT,INV1305/INV1306,HDFC Bank
+BANK0092,2026-03-25,2026-03-25,BlueSky Traders,NEFT BLUESKY TRADERS INV1307+INV1308,25000,CREDIT,INV1307/INV1308,ICICI Bank
+BANK0093,2026-03-26,2026-03-26,AWS India,NEFT AWS INDIA AWS-INV-3301 TRANCHE1,2000,DEBIT,AWS-INV-3301,HDFC Bank
+BANK0094,2026-03-26,2026-03-26,AWS India,NEFT AWS INDIA AWS-INV-3301 TRANCHE2,3000,DEBIT,AWS-INV-3301,HDFC Bank
+BANK0095,2026-03-27,2026-03-27,Zoho,NEFT ZOHO ZOHO-3302 TRANCHE1,4000,DEBIT,ZOHO-3302,ICICI Bank
+BANK0096,2026-03-27,2026-03-27,Zoho,NEFT ZOHO ZOHO-3302 TRANCHE2,6000,DEBIT,ZOHO-3302,ICICI Bank
+BANK0097,2026-03-28,2026-03-28,Razorpay,NEFT RAZORPAY RZP1004 TRANCHE1,2500,DEBIT,RZP1004,HDFC Bank
+BANK0098,2026-03-28,2026-03-28,Razorpay,NEFT RAZORPAY RZP1004 TRANCHE2,5000,DEBIT,RZP1004,HDFC Bank
+BANK0099,2026-03-29,2026-03-29,Stripe,NEFT STRIPE STR1003 TRANCHE1,5000,DEBIT,STR1003,ICICI Bank
+BANK0100,2026-03-29,2026-03-29,Stripe,NEFT STRIPE STR1003 TRANCHE2,10000,DEBIT,STR1003,ICICI Bank
+BANK0101,2026-03-04,2026-03-04,ICICI Bank,ICICI BANK - 231301001109:Int.Pd:Q1 2026,319,CREDIT,INTPD-Q1-2026,ICICI Bank
+BANK0102,2026-03-06,2026-03-06,HDFC Bank,HDFC BANK SERVICE CHARGES MAR 2026,150,DEBIT,SVC-CHG-0326,HDFC Bank
+BANK0103,2026-03-08,2026-03-08,ABC Corp,NEFT ABC CORP INV1001,10000,CREDIT,INV1001,HDFC Bank
+BANK0104,2026-03-10,2026-03-10,Unknown Sender,NEFT TRANSFER UNIDENTIFIED REF8847,3000,CREDIT,REF8847,ICICI Bank
+BANK0105,2026-03-12,2026-03-12,ICICI Bank,ICICI BANK ATM CASH WITHDRAWAL,5000,DEBIT,ATMWD-0311,ICICI Bank
+BANK0106,2026-03-15,2026-03-15,HDFC Bank,HDFC BANK RTGS CHARGES,75,DEBIT,RTGS-CHG-0314,HDFC Bank
+BANK0107,2026-03-17,2026-03-17,Income Tax Dept,TDS REVERSAL CREDIT,6000,CREDIT,TDSREV-0316,ICICI Bank
+BANK0108,2026-03-20,2026-03-20,TechNova Solutions,NEFT TECHNOVA SOLUTIONS INV1099,4000,CREDIT,INV1099,HDFC Bank
+BANK0109,2026-03-23,2026-03-23,Razorpay,RAZORPAY SETTLEMENT 2026-03-22 RZP9999,1850,CREDIT,RZP9999,Razorpay
+BANK0110,2026-03-27,2026-03-27,ICICI Bank,ICICI BANK CHEQUE BOUNCE CHARGES,590,DEBIT,CHQ-BNC-0326,ICICI Bank
+</file>
+
+<file path="data/expected_matches.csv">
+match_id,match_type,bank_transaction_ids,book_transaction_ids,expected_confidence,explanation
+MATCH001,exact,BANK0001,BOOK0001,99,"Reference number (INV1001), amount (2500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH002,exact,BANK0002,BOOK0002,99,"Reference number (INV1002), amount (4000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH003,exact,BANK0003,BOOK0003,99,"Reference number (INV1003), amount (5000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH004,exact,BANK0004,BOOK0004,99,"Reference number (INV1004), amount (7500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH005,exact,BANK0005,BOOK0005,99,"Reference number (INV1005), amount (10000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH006,exact,BANK0006,BOOK0006,99,"Reference number (INV1006), amount (12500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH007,exact,BANK0007,BOOK0007,99,"Reference number (INV1007), amount (15000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH008,exact,BANK0008,BOOK0008,99,"Reference number (INV1008), amount (25000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH009,exact,BANK0009,BOOK0009,99,"Reference number (INV1009), amount (50000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH010,exact,BANK0010,BOOK0010,99,"Reference number (INV1010), amount (2500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH011,exact,BANK0011,BOOK0011,99,"Reference number (INV1011), amount (4000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH012,exact,BANK0012,BOOK0012,99,"Reference number (INV1012), amount (5000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH013,exact,BANK0013,BOOK0013,99,"Reference number (INV1013), amount (7500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH014,exact,BANK0014,BOOK0014,99,"Reference number (INV1014), amount (10000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH015,exact,BANK0015,BOOK0015,99,"Reference number (INV1015), amount (12500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH016,exact,BANK0016,BOOK0016,99,"Reference number (INV1016), amount (15000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH017,exact,BANK0017,BOOK0017,99,"Reference number (INV1017), amount (25000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH018,exact,BANK0018,BOOK0018,99,"Reference number (INV1018), amount (50000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH019,exact,BANK0019,BOOK0019,99,"Reference number (INV1019), amount (2500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH020,exact,BANK0020,BOOK0020,99,"Reference number (INV1020), amount (4000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH021,exact,BANK0021,BOOK0021,99,"Reference number (INV1021), amount (5000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH022,exact,BANK0022,BOOK0022,99,"Reference number (INV1022), amount (7500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH023,exact,BANK0023,BOOK0023,99,"Reference number (INV1023), amount (10000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH024,exact,BANK0024,BOOK0024,99,"Reference number (INV1024), amount (12500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH025,exact,BANK0025,BOOK0025,99,"Reference number (INV1025), amount (15000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH026,exact,BANK0026,BOOK0026,99,"Reference number (INV1026), amount (25000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH027,exact,BANK0027,BOOK0027,99,"Reference number (INV1027), amount (50000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH028,exact,BANK0028,BOOK0028,99,"Reference number (INV1028), amount (2500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH029,exact,BANK0029,BOOK0029,99,"Reference number (INV1029), amount (4000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH030,exact,BANK0030,BOOK0030,99,"Reference number (INV1030), amount (5000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH031,exact,BANK0031,BOOK0031,99,"Reference number (INV1031), amount (7500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH032,exact,BANK0032,BOOK0032,99,"Reference number (INV1032), amount (10000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH033,exact,BANK0033,BOOK0033,99,"Reference number (INV1033), amount (12500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH034,exact,BANK0034,BOOK0034,99,"Reference number (INV1034), amount (15000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH035,exact,BANK0035,BOOK0035,99,"Reference number (INV1035), amount (25000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH036,exact,BANK0036,BOOK0036,99,"Reference number (INV1036), amount (50000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH037,exact,BANK0037,BOOK0037,99,"Reference number (INV1037), amount (2500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH038,exact,BANK0038,BOOK0038,99,"Reference number (INV1038), amount (4000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH039,exact,BANK0039,BOOK0039,99,"Reference number (INV1039), amount (5000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH040,exact,BANK0040,BOOK0040,99,"Reference number (INV1040), amount (7500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH041,exact,BANK0041,BOOK0041,99,"Reference number (AWS-INV-3001), amount (5000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH042,exact,BANK0042,BOOK0042,99,"Reference number (ZOHO-3002), amount (7500), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH043,exact,BANK0043,BOOK0043,99,"Reference number (RZP3003), amount (10000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH044,exact,BANK0044,BOOK0044,99,"Reference number (STR3004), amount (12500), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH045,exact,BANK0045,BOOK0045,99,"Reference number (EMI3005), amount (15000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH046,exact,BANK0046,BOOK0046,99,"Reference number (EMI3006), amount (25000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH047,exact,BANK0047,BOOK0047,99,"Reference number (AWS-INV-3007), amount (50000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH048,exact,BANK0048,BOOK0048,99,"Reference number (ZOHO-3008), amount (2500), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH049,exact,BANK0049,BOOK0049,99,"Reference number (RZP3009), amount (4000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH050,exact,BANK0050,BOOK0050,99,"Reference number (STR3010), amount (5000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH051,exact,BANK0051,BOOK0051,99,"Reference number (EMI3011), amount (7500), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH052,exact,BANK0052,BOOK0052,99,"Reference number (EMI3012), amount (10000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH053,exact,BANK0053,BOOK0053,99,"Reference number (AWS-INV-3013), amount (12500), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH054,exact,BANK0054,BOOK0054,99,"Reference number (ZOHO-3014), amount (15000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH055,exact,BANK0055,BOOK0055,99,"Reference number (RZP3015), amount (25000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH056,exact,BANK0056,BOOK0056,99,"Reference number (STR3016), amount (50000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH057,exact,BANK0057,BOOK0057,99,"Reference number (EMI3017), amount (2500), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH058,exact,BANK0058,BOOK0058,99,"Reference number (EMI3018), amount (4000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH059,exact,BANK0059,BOOK0059,99,"Reference number (AWS-INV-3019), amount (5000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH060,exact,BANK0060,BOOK0060,99,"Reference number (ZOHO-3020), amount (7500), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH061,exact,BANK0061,BOOK0061,98,"Amount (10000), date and counterparty name match exactly; UPI reference UPI9001 recorded in the books corresponds to this UPI credit."
+MATCH062,exact,BANK0062,BOOK0062,98,"Amount (12500), date and counterparty name match exactly; UPI reference UPI9002 recorded in the books corresponds to this UPI credit."
+MATCH063,exact,BANK0063,BOOK0063,98,"Amount (15000), date and counterparty name match exactly; UPI reference UPI9003 recorded in the books corresponds to this UPI credit."
+MATCH064,exact,BANK0064,BOOK0064,98,"Amount (25000), date and counterparty name match exactly; UPI reference UPI9004 recorded in the books corresponds to this UPI credit."
+MATCH065,exact,BANK0065,BOOK0065,98,"Amount (50000), date and counterparty name match exactly; UPI reference UPI9005 recorded in the books corresponds to this UPI credit."
+MATCH066,exact,BANK0066,BOOK0066,98,"Amount (2500), date and counterparty name match exactly; UPI reference UPI9006 recorded in the books corresponds to this UPI credit."
+MATCH067,exact,BANK0067,BOOK0067,98,"Amount (4000), date and counterparty name match exactly; UPI reference UPI9007 recorded in the books corresponds to this UPI credit."
+MATCH068,exact,BANK0068,BOOK0068,98,"Amount (5000), date and counterparty name match exactly; UPI reference UPI9008 recorded in the books corresponds to this UPI credit."
+MATCH069,near,BANK0069,BOOK0069,88,"Amount (2500) and reference number (INV1100) match exactly, but the bank value date (2026-03-04) is 1 day(s) after the book posting date (03/03/2026), consistent with normal NEFT clearing delay."
+MATCH070,near,BANK0070,BOOK0070,88,"Amount (4000) and reference number (INV1101) match exactly, but the bank value date (2026-03-06) is 2 day(s) after the book posting date (03/04/2026), consistent with normal NEFT clearing delay."
+MATCH071,near,BANK0071,BOOK0071,88,"Amount (5000) and reference number (INV1102) match exactly, but the bank value date (2026-03-08) is 3 day(s) after the book posting date (03/05/2026), consistent with normal NEFT clearing delay."
+MATCH072,near,BANK0072,BOOK0072,88,"Amount (7500) and reference number (INV1103) match exactly, but the bank value date (2026-03-07) is 1 day(s) after the book posting date (03/06/2026), consistent with normal NEFT clearing delay."
+MATCH073,near,BANK0073,BOOK0073,88,"Amount (10000) and reference number (INV1104) match exactly, but the bank value date (2026-03-09) is 2 day(s) after the book posting date (03/07/2026), consistent with normal NEFT clearing delay."
+MATCH074,near,BANK0074,BOOK0074,90,"Amount (7500), date and reference number (INV1110) match exactly, but the counterparty name differs ('ABC Corp' in the books vs 'ABC CORPORATION' on the bank statement) due to abbreviation/formatting differences."
+MATCH075,near,BANK0075,BOOK0075,90,"Amount (10000), date and reference number (INV1111) match exactly, but the counterparty name differs ('TechNova Solutions' in the books vs 'TECHNOVA SOLUTNS' on the bank statement) due to abbreviation/formatting differences."
+MATCH076,near,BANK0076,BOOK0076,90,"Amount (12500), date and reference number (INV1112) match exactly, but the counterparty name differs ('Vibha Vora' in the books vs 'VIBHAVORA' on the bank statement) due to abbreviation/formatting differences."
+MATCH077,near,BANK0077,BOOK0077,90,"Amount (15000), date and reference number (INV1113) match exactly, but the counterparty name differs ('GreenLeaf Enterprises' in the books vs 'GREEN LEAF ENTERPRISES' on the bank statement) due to abbreviation/formatting differences."
+MATCH078,near,BANK0078,BOOK0078,90,"Amount (25000), date and reference number (INV1114) match exactly, but the counterparty name differs ('Sunrise Logistics' in the books vs 'SUNRISE LOGISTIC' on the bank statement) due to abbreviation/formatting differences."
+MATCH079,near,BANK0079,BOOK0079,85,"Amount (12500), date and counterparty match exactly, but the reference number in the bank narration ('INV-1201') is a partial/reformatted version of the book reference number ('INV1201')."
+MATCH080,near,BANK0080,BOOK0080,85,"Amount (15000), date and counterparty match exactly, but the reference number in the bank narration ('INV 1202 PARTIAL') is a partial/reformatted version of the book reference number ('INV1202')."
+MATCH081,near,BANK0081,BOOK0081,85,"Amount (25000), date and counterparty match exactly, but the reference number in the bank narration ('1203') is a partial/reformatted version of the book reference number ('INV1203')."
+MATCH082,near,BANK0082,BOOK0082,85,"Amount (50000), date and counterparty match exactly, but the reference number in the bank narration ('AWSINV3201') is a partial/reformatted version of the book reference number ('AWS-INV-3201')."
+MATCH083,near,BANK0083,BOOK0083,85,"Amount (2500), date and counterparty match exactly, but the reference number in the bank narration ('ZOHO3202-SUB') is a partial/reformatted version of the book reference number ('ZOHO-3202')."
+MATCH084,fee_adjustment,BANK0084,BOOK0084,92,Book amount (5000) is the gross invoice value recorded for RZP1001; bank settlement (4764) is net of a Razorpay processing fee of 236. Difference (236) matches the known Razorpay fee pattern for this transaction size.
+MATCH085,fee_adjustment,BANK0085,BOOK0085,92,Book amount (7500) is the gross invoice value recorded for RZP1002; bank settlement (7205) is net of a Razorpay processing fee of 295. Difference (295) matches the known Razorpay fee pattern for this transaction size.
+MATCH086,fee_adjustment,BANK0086,BOOK0086,92,Book amount (10000) is the gross invoice value recorded for STR1001; bank settlement (9882) is net of a Stripe processing fee of 118. Difference (118) matches the known Stripe fee pattern for this transaction size.
+MATCH087,fee_adjustment,BANK0087,BOOK0087,92,Book amount (12500) is the gross invoice value recorded for STR1002; bank settlement (12028) is net of a Stripe processing fee of 472. Difference (472) matches the known Stripe fee pattern for this transaction size.
+MATCH088,fee_adjustment,BANK0088,BOOK0088,92,Book amount (15000) is the gross invoice value recorded for RZP1003; bank settlement (14646) is net of a Razorpay processing fee of 354. Difference (354) matches the known Razorpay fee pattern for this transaction size.
+MATCH089,one_to_many,BANK0089,BOOK0089;BOOK0090,93,GreenLeaf Enterprises sent a single consolidated NEFT of 10000 covering two separate invoices (INV1301=4000 and INV1302=6000). The sum of the two book entries equals the single bank credit.
+MATCH090,one_to_many,BANK0090,BOOK0091;BOOK0092,93,Sunrise Logistics sent a single consolidated NEFT of 15000 covering two separate invoices (INV1303=7500 and INV1304=7500). The sum of the two book entries equals the single bank credit.
+MATCH091,one_to_many,BANK0091,BOOK0093;BOOK0094,93,Alpha Retail sent a single consolidated NEFT of 12500 covering two separate invoices (INV1305=5000 and INV1306=7500). The sum of the two book entries equals the single bank credit.
+MATCH092,one_to_many,BANK0092,BOOK0095;BOOK0096,93,BlueSky Traders sent a single consolidated NEFT of 25000 covering two separate invoices (INV1307=12500 and INV1308=12500). The sum of the two book entries equals the single bank credit.
+MATCH093,many_to_one,BANK0093;BANK0094,BOOK0097,93,The bank processed the payment to AWS India for AWS-INV-3301 as two separate debits (2000 and 3000) on the same day. Their sum (5000) equals the single book Bill Payment entry.
+MATCH094,many_to_one,BANK0095;BANK0096,BOOK0098,93,The bank processed the payment to Zoho for ZOHO-3302 as two separate debits (4000 and 6000) on the same day. Their sum (10000) equals the single book Bill Payment entry.
+MATCH095,many_to_one,BANK0097;BANK0098,BOOK0099,93,The bank processed the payment to Razorpay for RZP1004 as two separate debits (2500 and 5000) on the same day. Their sum (7500) equals the single book Bill Payment entry.
+MATCH096,many_to_one,BANK0099;BANK0100,BOOK0100,93,The bank processed the payment to Stripe for STR1003 as two separate debits (5000 and 10000) on the same day. Their sum (15000) equals the single book Bill Payment entry.
+MATCH097,unmatched,BANK0101,,0,Bank-credited savings account interest with no corresponding entry yet recorded in the books (unidentified credit).
+MATCH098,unmatched,BANK0102,,0,Bank service charge debited automatically by the bank; no corresponding book entry exists (unknown bank fee).
+MATCH099,unmatched,BANK0103,,0,Duplicate payment: this NEFT credit for INV1001 duplicates the amount already matched to BOOK0001/BANK0001; the customer appears to have paid twice and this credit remains unmatched pending refund/adjustment.
+MATCH100,unmatched,BANK0104,,0,Unidentified credit from an unknown sender with no matching invoice or customer record in the books.
+MATCH101,unmatched,BANK0105,,0,ATM cash withdrawal recorded only on the bank statement; no corresponding book entry has been created for this petty cash movement.
+MATCH102,unmatched,BANK0106,,0,Small RTGS processing charge debited by the bank; not yet booked as a bank charges expense.
+MATCH103,unmatched,BANK0107,,0,Income tax department TDS refund credited to the bank account; no corresponding receivable entry has been recorded in the books.
+MATCH104,unmatched,BANK0108,,0,Customer payment received for an invoice (INV1099) that does not exist in the book transactions extract provided - likely an invoice from a prior period not included in this dataset (missing book transaction).
+MATCH105,unmatched,BANK0109,,0,Razorpay settlement for a payment gateway transaction with no matching sales invoice in the book transactions extract (unidentified gateway credit).
+MATCH106,unmatched,BANK0110,,0,Cheque bounce charges levied by the bank; not yet recorded as an expense in the books.
+</file>
+
+<file path="data/tally_transactions.xml">
+<ENVELOPE>
+ <HEADER>
+  <TALLYREQUEST>Import Data</TALLYREQUEST>
+ </HEADER>
+ <BODY>
+  <IMPORTDATA>
+   <REQUESTDESC>
+    <REPORTNAME>Vouchers</REPORTNAME>
+    <STATICVARIABLES>
+     <SVCURRENTCOMPANY>Reconciliation Benchmark Company</SVCURRENTCOMPANY>
+    </STATICVARIABLES>
+   </REQUESTDESC>
+   <REQUESTDATA>
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+     <VOUCHER REMOTEID="BENCH-0001" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1001</VOUCHERNUMBER>
+      <DATE>20260301</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>ABC Corp</PARTYLEDGERNAME>
+      <NARRATION>Payment received from ABC Corp against INV1001</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-2500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ABC Corp</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>2500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0002" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1002</VOUCHERNUMBER>
+      <DATE>20260302</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>TechNova Solutions</PARTYLEDGERNAME>
+      <NARRATION>Payment received from TechNova Solutions against INV1002</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-4000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>TechNova Solutions</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>4000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0003" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1003</VOUCHERNUMBER>
+      <DATE>20260303</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>GreenLeaf Enterprises</PARTYLEDGERNAME>
+      <NARRATION>Payment received from GreenLeaf Enterprises against INV1003</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-5000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>GreenLeaf Enterprises</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>5000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0004" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1004</VOUCHERNUMBER>
+      <DATE>20260304</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Sunrise Logistics</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Sunrise Logistics against INV1004</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Sunrise Logistics</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0005" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1005</VOUCHERNUMBER>
+      <DATE>20260305</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Alpha Retail</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Alpha Retail against INV1005</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-10000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Alpha Retail</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>10000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0006" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1006</VOUCHERNUMBER>
+      <DATE>20260306</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>BlueSky Traders</PARTYLEDGERNAME>
+      <NARRATION>Payment received from BlueSky Traders against INV1006</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-12500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>BlueSky Traders</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>12500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0007" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1007</VOUCHERNUMBER>
+      <DATE>20260307</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>ABC Corp</PARTYLEDGERNAME>
+      <NARRATION>Payment received from ABC Corp against INV1007</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-15000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ABC Corp</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>15000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0008" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1008</VOUCHERNUMBER>
+      <DATE>20260308</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>TechNova Solutions</PARTYLEDGERNAME>
+      <NARRATION>Payment received from TechNova Solutions against INV1008</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-25000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>TechNova Solutions</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>25000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0009" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1009</VOUCHERNUMBER>
+      <DATE>20260309</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>GreenLeaf Enterprises</PARTYLEDGERNAME>
+      <NARRATION>Payment received from GreenLeaf Enterprises against INV1009</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-50000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>GreenLeaf Enterprises</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>50000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0010" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1010</VOUCHERNUMBER>
+      <DATE>20260310</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Sunrise Logistics</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Sunrise Logistics against INV1010</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-2500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Sunrise Logistics</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>2500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0011" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1011</VOUCHERNUMBER>
+      <DATE>20260311</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Alpha Retail</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Alpha Retail against INV1011</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-4000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Alpha Retail</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>4000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0012" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1012</VOUCHERNUMBER>
+      <DATE>20260312</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>BlueSky Traders</PARTYLEDGERNAME>
+      <NARRATION>Payment received from BlueSky Traders against INV1012</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-5000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>BlueSky Traders</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>5000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0013" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1013</VOUCHERNUMBER>
+      <DATE>20260313</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>ABC Corp</PARTYLEDGERNAME>
+      <NARRATION>Payment received from ABC Corp against INV1013</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ABC Corp</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0014" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1014</VOUCHERNUMBER>
+      <DATE>20260314</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>TechNova Solutions</PARTYLEDGERNAME>
+      <NARRATION>Payment received from TechNova Solutions against INV1014</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-10000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>TechNova Solutions</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>10000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0015" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1015</VOUCHERNUMBER>
+      <DATE>20260315</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>GreenLeaf Enterprises</PARTYLEDGERNAME>
+      <NARRATION>Payment received from GreenLeaf Enterprises against INV1015</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-12500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>GreenLeaf Enterprises</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>12500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0016" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1016</VOUCHERNUMBER>
+      <DATE>20260316</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Sunrise Logistics</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Sunrise Logistics against INV1016</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-15000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Sunrise Logistics</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>15000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0017" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1017</VOUCHERNUMBER>
+      <DATE>20260317</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Alpha Retail</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Alpha Retail against INV1017</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-25000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Alpha Retail</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>25000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0018" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1018</VOUCHERNUMBER>
+      <DATE>20260318</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>BlueSky Traders</PARTYLEDGERNAME>
+      <NARRATION>Payment received from BlueSky Traders against INV1018</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-50000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>BlueSky Traders</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>50000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0019" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1019</VOUCHERNUMBER>
+      <DATE>20260319</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>ABC Corp</PARTYLEDGERNAME>
+      <NARRATION>Payment received from ABC Corp against INV1019</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-2500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ABC Corp</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>2500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0020" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1020</VOUCHERNUMBER>
+      <DATE>20260320</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>TechNova Solutions</PARTYLEDGERNAME>
+      <NARRATION>Payment received from TechNova Solutions against INV1020</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-4000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>TechNova Solutions</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>4000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0021" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1021</VOUCHERNUMBER>
+      <DATE>20260321</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>GreenLeaf Enterprises</PARTYLEDGERNAME>
+      <NARRATION>Payment received from GreenLeaf Enterprises against INV1021</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-5000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>GreenLeaf Enterprises</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>5000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0022" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1022</VOUCHERNUMBER>
+      <DATE>20260322</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Sunrise Logistics</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Sunrise Logistics against INV1022</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Sunrise Logistics</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0023" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1023</VOUCHERNUMBER>
+      <DATE>20260323</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Alpha Retail</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Alpha Retail against INV1023</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-10000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Alpha Retail</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>10000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0024" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1024</VOUCHERNUMBER>
+      <DATE>20260324</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>BlueSky Traders</PARTYLEDGERNAME>
+      <NARRATION>Payment received from BlueSky Traders against INV1024</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-12500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>BlueSky Traders</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>12500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0025" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1025</VOUCHERNUMBER>
+      <DATE>20260325</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>ABC Corp</PARTYLEDGERNAME>
+      <NARRATION>Payment received from ABC Corp against INV1025</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-15000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ABC Corp</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>15000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0026" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1026</VOUCHERNUMBER>
+      <DATE>20260326</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>TechNova Solutions</PARTYLEDGERNAME>
+      <NARRATION>Payment received from TechNova Solutions against INV1026</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-25000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>TechNova Solutions</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>25000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0027" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1027</VOUCHERNUMBER>
+      <DATE>20260327</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>GreenLeaf Enterprises</PARTYLEDGERNAME>
+      <NARRATION>Payment received from GreenLeaf Enterprises against INV1027</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-50000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>GreenLeaf Enterprises</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>50000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0028" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1028</VOUCHERNUMBER>
+      <DATE>20260328</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Sunrise Logistics</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Sunrise Logistics against INV1028</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-2500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Sunrise Logistics</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>2500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0029" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1029</VOUCHERNUMBER>
+      <DATE>20260301</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Alpha Retail</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Alpha Retail against INV1029</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-4000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Alpha Retail</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>4000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0030" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1030</VOUCHERNUMBER>
+      <DATE>20260302</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>BlueSky Traders</PARTYLEDGERNAME>
+      <NARRATION>Payment received from BlueSky Traders against INV1030</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-5000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>BlueSky Traders</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>5000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0031" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1031</VOUCHERNUMBER>
+      <DATE>20260303</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>ABC Corp</PARTYLEDGERNAME>
+      <NARRATION>Payment received from ABC Corp against INV1031</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ABC Corp</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0032" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1032</VOUCHERNUMBER>
+      <DATE>20260304</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>TechNova Solutions</PARTYLEDGERNAME>
+      <NARRATION>Payment received from TechNova Solutions against INV1032</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-10000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>TechNova Solutions</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>10000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0033" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1033</VOUCHERNUMBER>
+      <DATE>20260305</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>GreenLeaf Enterprises</PARTYLEDGERNAME>
+      <NARRATION>Payment received from GreenLeaf Enterprises against INV1033</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-12500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>GreenLeaf Enterprises</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>12500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0034" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1034</VOUCHERNUMBER>
+      <DATE>20260306</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Sunrise Logistics</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Sunrise Logistics against INV1034</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-15000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Sunrise Logistics</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>15000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0035" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1035</VOUCHERNUMBER>
+      <DATE>20260307</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Alpha Retail</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Alpha Retail against INV1035</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-25000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Alpha Retail</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>25000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0036" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1036</VOUCHERNUMBER>
+      <DATE>20260308</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>BlueSky Traders</PARTYLEDGERNAME>
+      <NARRATION>Payment received from BlueSky Traders against INV1036</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-50000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>BlueSky Traders</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>50000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0037" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1037</VOUCHERNUMBER>
+      <DATE>20260309</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>ABC Corp</PARTYLEDGERNAME>
+      <NARRATION>Payment received from ABC Corp against INV1037</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-2500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ABC Corp</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>2500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0038" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1038</VOUCHERNUMBER>
+      <DATE>20260310</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>TechNova Solutions</PARTYLEDGERNAME>
+      <NARRATION>Payment received from TechNova Solutions against INV1038</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-4000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>TechNova Solutions</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>4000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0039" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1039</VOUCHERNUMBER>
+      <DATE>20260311</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>GreenLeaf Enterprises</PARTYLEDGERNAME>
+      <NARRATION>Payment received from GreenLeaf Enterprises against INV1039</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-5000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>GreenLeaf Enterprises</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>5000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0040" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1040</VOUCHERNUMBER>
+      <DATE>20260312</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Sunrise Logistics</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Sunrise Logistics against INV1040</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Sunrise Logistics</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0041" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>AWS-INV-3001</VOUCHERNUMBER>
+      <DATE>20260304</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>AWS India</PARTYLEDGERNAME>
+      <NARRATION>Payment made to AWS India - AWS-INV-3001</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>AWS India</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-5000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>5000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0042" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>ZOHO-3002</VOUCHERNUMBER>
+      <DATE>20260305</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Zoho</PARTYLEDGERNAME>
+      <NARRATION>Payment made to Zoho - ZOHO-3002</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>Zoho</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0043" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>RZP3003</VOUCHERNUMBER>
+      <DATE>20260306</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Razorpay</PARTYLEDGERNAME>
+      <NARRATION>Payment made to Razorpay - RZP3003</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>Razorpay</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-10000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>10000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0044" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>STR3004</VOUCHERNUMBER>
+      <DATE>20260307</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Stripe</PARTYLEDGERNAME>
+      <NARRATION>Payment made to Stripe - STR3004</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>Stripe</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-12500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>12500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0045" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>EMI3005</VOUCHERNUMBER>
+      <DATE>20260308</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>HDFC Bank</PARTYLEDGERNAME>
+      <NARRATION>Payment made to HDFC Bank - EMI3005</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-15000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>15000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0046" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>EMI3006</VOUCHERNUMBER>
+      <DATE>20260309</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>ICICI Bank</PARTYLEDGERNAME>
+      <NARRATION>Payment made to ICICI Bank - EMI3006</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-25000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>25000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0047" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>AWS-INV-3007</VOUCHERNUMBER>
+      <DATE>20260310</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>AWS India</PARTYLEDGERNAME>
+      <NARRATION>Payment made to AWS India - AWS-INV-3007</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>AWS India</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-50000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>50000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0048" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>ZOHO-3008</VOUCHERNUMBER>
+      <DATE>20260311</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Zoho</PARTYLEDGERNAME>
+      <NARRATION>Payment made to Zoho - ZOHO-3008</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>Zoho</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-2500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>2500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0049" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>RZP3009</VOUCHERNUMBER>
+      <DATE>20260312</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Razorpay</PARTYLEDGERNAME>
+      <NARRATION>Payment made to Razorpay - RZP3009</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>Razorpay</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-4000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>4000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0050" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>STR3010</VOUCHERNUMBER>
+      <DATE>20260313</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Stripe</PARTYLEDGERNAME>
+      <NARRATION>Payment made to Stripe - STR3010</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>Stripe</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-5000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>5000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0051" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>EMI3011</VOUCHERNUMBER>
+      <DATE>20260314</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>HDFC Bank</PARTYLEDGERNAME>
+      <NARRATION>Payment made to HDFC Bank - EMI3011</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0052" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>EMI3012</VOUCHERNUMBER>
+      <DATE>20260315</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>ICICI Bank</PARTYLEDGERNAME>
+      <NARRATION>Payment made to ICICI Bank - EMI3012</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-10000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>10000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0053" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>AWS-INV-3013</VOUCHERNUMBER>
+      <DATE>20260316</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>AWS India</PARTYLEDGERNAME>
+      <NARRATION>Payment made to AWS India - AWS-INV-3013</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>AWS India</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-12500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>12500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0054" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>ZOHO-3014</VOUCHERNUMBER>
+      <DATE>20260317</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Zoho</PARTYLEDGERNAME>
+      <NARRATION>Payment made to Zoho - ZOHO-3014</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>Zoho</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-15000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>15000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0055" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>RZP3015</VOUCHERNUMBER>
+      <DATE>20260318</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Razorpay</PARTYLEDGERNAME>
+      <NARRATION>Payment made to Razorpay - RZP3015</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>Razorpay</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-25000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>25000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0056" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>STR3016</VOUCHERNUMBER>
+      <DATE>20260319</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Stripe</PARTYLEDGERNAME>
+      <NARRATION>Payment made to Stripe - STR3016</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>Stripe</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-50000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>50000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0057" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>EMI3017</VOUCHERNUMBER>
+      <DATE>20260320</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>HDFC Bank</PARTYLEDGERNAME>
+      <NARRATION>Payment made to HDFC Bank - EMI3017</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-2500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>2500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0058" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>EMI3018</VOUCHERNUMBER>
+      <DATE>20260321</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>ICICI Bank</PARTYLEDGERNAME>
+      <NARRATION>Payment made to ICICI Bank - EMI3018</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-4000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>4000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0059" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>AWS-INV-3019</VOUCHERNUMBER>
+      <DATE>20260322</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>AWS India</PARTYLEDGERNAME>
+      <NARRATION>Payment made to AWS India - AWS-INV-3019</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>AWS India</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-5000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>5000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0060" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>ZOHO-3020</VOUCHERNUMBER>
+      <DATE>20260323</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Zoho</PARTYLEDGERNAME>
+      <NARRATION>Payment made to Zoho - ZOHO-3020</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>Zoho</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0061" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>UPI9001</VOUCHERNUMBER>
+      <DATE>20260307</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Vibha Vora</PARTYLEDGERNAME>
+      <NARRATION>UPI transfer received from Vibha Vora</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-10000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Vibha Vora</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>10000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0062" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>UPI9002</VOUCHERNUMBER>
+      <DATE>20260308</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Haresh Vora</PARTYLEDGERNAME>
+      <NARRATION>UPI transfer received from Haresh Vora</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-12500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Haresh Vora</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>12500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0063" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>UPI9003</VOUCHERNUMBER>
+      <DATE>20260309</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Siddharth Gandhi</PARTYLEDGERNAME>
+      <NARRATION>UPI transfer received from Siddharth Gandhi</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-15000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Siddharth Gandhi</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>15000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0064" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>UPI9004</VOUCHERNUMBER>
+      <DATE>20260310</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Apexa Parekh</PARTYLEDGERNAME>
+      <NARRATION>UPI transfer received from Apexa Parekh</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-25000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Apexa Parekh</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>25000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0065" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>UPI9005</VOUCHERNUMBER>
+      <DATE>20260311</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Vibha Vora</PARTYLEDGERNAME>
+      <NARRATION>UPI transfer received from Vibha Vora</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-50000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Vibha Vora</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>50000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0066" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>UPI9006</VOUCHERNUMBER>
+      <DATE>20260312</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Haresh Vora</PARTYLEDGERNAME>
+      <NARRATION>UPI transfer received from Haresh Vora</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-2500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Haresh Vora</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>2500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0067" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>UPI9007</VOUCHERNUMBER>
+      <DATE>20260313</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Siddharth Gandhi</PARTYLEDGERNAME>
+      <NARRATION>UPI transfer received from Siddharth Gandhi</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-4000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Siddharth Gandhi</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>4000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0068" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>UPI9008</VOUCHERNUMBER>
+      <DATE>20260314</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Apexa Parekh</PARTYLEDGERNAME>
+      <NARRATION>UPI transfer received from Apexa Parekh</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-5000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Apexa Parekh</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>5000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0069" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1100</VOUCHERNUMBER>
+      <DATE>20260303</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>ABC Corp</PARTYLEDGERNAME>
+      <NARRATION>Payment received from ABC Corp against INV1100</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-2500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ABC Corp</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>2500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0070" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1101</VOUCHERNUMBER>
+      <DATE>20260304</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>TechNova Solutions</PARTYLEDGERNAME>
+      <NARRATION>Payment received from TechNova Solutions against INV1101</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-4000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>TechNova Solutions</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>4000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0071" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1102</VOUCHERNUMBER>
+      <DATE>20260305</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>GreenLeaf Enterprises</PARTYLEDGERNAME>
+      <NARRATION>Payment received from GreenLeaf Enterprises against INV1102</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-5000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>GreenLeaf Enterprises</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>5000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0072" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1103</VOUCHERNUMBER>
+      <DATE>20260306</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Sunrise Logistics</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Sunrise Logistics against INV1103</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Sunrise Logistics</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0073" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1104</VOUCHERNUMBER>
+      <DATE>20260307</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Alpha Retail</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Alpha Retail against INV1104</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-10000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Alpha Retail</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>10000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0074" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1110</VOUCHERNUMBER>
+      <DATE>20260309</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>ABC Corp</PARTYLEDGERNAME>
+      <NARRATION>Payment received from ABC Corp against INV1110</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ABC Corp</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0075" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1111</VOUCHERNUMBER>
+      <DATE>20260310</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>TechNova Solutions</PARTYLEDGERNAME>
+      <NARRATION>Payment received from TechNova Solutions against INV1111</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-10000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>TechNova Solutions</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>10000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0076" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1112</VOUCHERNUMBER>
+      <DATE>20260311</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Vibha Vora</PARTYLEDGERNAME>
+      <NARRATION>UPI transfer received from Vibha Vora</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-12500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Vibha Vora</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>12500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0077" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1113</VOUCHERNUMBER>
+      <DATE>20260312</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>GreenLeaf Enterprises</PARTYLEDGERNAME>
+      <NARRATION>Payment received from GreenLeaf Enterprises against INV1113</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-15000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>GreenLeaf Enterprises</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>15000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0078" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1114</VOUCHERNUMBER>
+      <DATE>20260313</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Sunrise Logistics</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Sunrise Logistics against INV1114</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-25000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Sunrise Logistics</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>25000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0079" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1201</VOUCHERNUMBER>
+      <DATE>20260314</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>ABC Corp</PARTYLEDGERNAME>
+      <NARRATION>Payment received from ABC Corp against INV1201</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-12500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ABC Corp</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>12500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0080" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1202</VOUCHERNUMBER>
+      <DATE>20260315</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>TechNova Solutions</PARTYLEDGERNAME>
+      <NARRATION>Payment received from TechNova Solutions against INV1202</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-15000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>TechNova Solutions</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>15000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0081" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1203</VOUCHERNUMBER>
+      <DATE>20260316</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>GreenLeaf Enterprises</PARTYLEDGERNAME>
+      <NARRATION>Payment received from GreenLeaf Enterprises against INV1203</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-25000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>GreenLeaf Enterprises</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>25000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0082" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>AWS-INV-3201</VOUCHERNUMBER>
+      <DATE>20260317</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>AWS India</PARTYLEDGERNAME>
+      <NARRATION>Payment made to AWS India - AWS-INV-3201</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>AWS India</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-50000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>50000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0083" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>ZOHO-3202</VOUCHERNUMBER>
+      <DATE>20260318</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Zoho</PARTYLEDGERNAME>
+      <NARRATION>Payment made to Zoho - ZOHO-3202</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>Zoho</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-2500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>2500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0084" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>RZP1001</VOUCHERNUMBER>
+      <DATE>20260319</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>ABC Corp</PARTYLEDGERNAME>
+      <NARRATION>Razorpay settlement for RZP1001 (gross amount, fee not yet recorded)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-5000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ABC Corp</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>5000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0085" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>RZP1002</VOUCHERNUMBER>
+      <DATE>20260320</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>TechNova Solutions</PARTYLEDGERNAME>
+      <NARRATION>Razorpay settlement for RZP1002 (gross amount, fee not yet recorded)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>TechNova Solutions</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0086" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>STR1001</VOUCHERNUMBER>
+      <DATE>20260321</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>GreenLeaf Enterprises</PARTYLEDGERNAME>
+      <NARRATION>Stripe settlement for STR1001 (gross amount, fee not yet recorded)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-10000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>GreenLeaf Enterprises</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>10000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0087" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>STR1002</VOUCHERNUMBER>
+      <DATE>20260322</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Sunrise Logistics</PARTYLEDGERNAME>
+      <NARRATION>Stripe settlement for STR1002 (gross amount, fee not yet recorded)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-12500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Sunrise Logistics</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>12500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0088" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>RZP1003</VOUCHERNUMBER>
+      <DATE>20260323</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Alpha Retail</PARTYLEDGERNAME>
+      <NARRATION>Razorpay settlement for RZP1003 (gross amount, fee not yet recorded)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-15000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Alpha Retail</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>15000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0089" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1301</VOUCHERNUMBER>
+      <DATE>20260322</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>GreenLeaf Enterprises</PARTYLEDGERNAME>
+      <NARRATION>Payment received from GreenLeaf Enterprises against INV1301 (part of consolidated transfer)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-4000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>GreenLeaf Enterprises</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>4000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0090" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1302</VOUCHERNUMBER>
+      <DATE>20260322</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>GreenLeaf Enterprises</PARTYLEDGERNAME>
+      <NARRATION>Payment received from GreenLeaf Enterprises against INV1302 (part of consolidated transfer)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-6000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>GreenLeaf Enterprises</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>6000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0091" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1303</VOUCHERNUMBER>
+      <DATE>20260323</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Sunrise Logistics</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Sunrise Logistics against INV1303 (part of consolidated transfer)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Sunrise Logistics</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0092" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1304</VOUCHERNUMBER>
+      <DATE>20260323</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Sunrise Logistics</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Sunrise Logistics against INV1304 (part of consolidated transfer)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Sunrise Logistics</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0093" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1305</VOUCHERNUMBER>
+      <DATE>20260324</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Alpha Retail</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Alpha Retail against INV1305 (part of consolidated transfer)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-5000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Alpha Retail</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>5000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0094" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1306</VOUCHERNUMBER>
+      <DATE>20260324</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Alpha Retail</PARTYLEDGERNAME>
+      <NARRATION>Payment received from Alpha Retail against INV1306 (part of consolidated transfer)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>Alpha Retail</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0095" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1307</VOUCHERNUMBER>
+      <DATE>20260325</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>BlueSky Traders</PARTYLEDGERNAME>
+      <NARRATION>Payment received from BlueSky Traders against INV1307 (part of consolidated transfer)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-12500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>BlueSky Traders</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>12500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0096" VCHTYPE="Receipt" ACTION="Create">
+      <VOUCHERNUMBER>INV1308</VOUCHERNUMBER>
+      <DATE>20260325</DATE>
+      <VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>BlueSky Traders</PARTYLEDGERNAME>
+      <NARRATION>Payment received from BlueSky Traders against INV1308 (part of consolidated transfer)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-12500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>BlueSky Traders</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>12500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0097" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>AWS-INV-3301</VOUCHERNUMBER>
+      <DATE>20260326</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>AWS India</PARTYLEDGERNAME>
+      <NARRATION>Payment made to AWS India - AWS-INV-3301 (settled by the bank in two tranches)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>AWS India</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-5000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>5000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0098" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>ZOHO-3302</VOUCHERNUMBER>
+      <DATE>20260327</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Zoho</PARTYLEDGERNAME>
+      <NARRATION>Payment made to Zoho - ZOHO-3302 (settled by the bank in two tranches)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>Zoho</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-10000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>10000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0099" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>RZP1004</VOUCHERNUMBER>
+      <DATE>20260328</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Razorpay</PARTYLEDGERNAME>
+      <NARRATION>Payment made to Razorpay - RZP1004 (settled by the bank in two tranches)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>Razorpay</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-7500.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>HDFC Bank - Current A/c 5021</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>7500.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+     <VOUCHER REMOTEID="BENCH-0100" VCHTYPE="Payment" ACTION="Create">
+      <VOUCHERNUMBER>STR1003</VOUCHERNUMBER>
+      <DATE>20260329</DATE>
+      <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+      <PARTYLEDGERNAME>Stripe</PARTYLEDGERNAME>
+      <NARRATION>Payment made to Stripe - STR1003 (settled by the bank in two tranches)</NARRATION>
+      <ALLLEDGERENTRIES.LIST>
+       <LEDGERENTRY>
+        <LEDGERNAME>Stripe</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+        <AMOUNT>-15000.00</AMOUNT>
+       </LEDGERENTRY>
+       <LEDGERENTRY>
+        <LEDGERNAME>ICICI Bank - 231301001109</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+        <AMOUNT>15000.00</AMOUNT>
+       </LEDGERENTRY>
+      </ALLLEDGERENTRIES.LIST>
+     </VOUCHER>
+    </TALLYMESSAGE>
+   </REQUESTDATA>
+  </IMPORTDATA>
+ </BODY>
+</ENVELOPE>
+</file>
+
+<file path="matching/candidateGenerator.ts">
+import { CanonicalTransaction } from "../types/CanonicalTransaction";
+import { daysBetween } from "./utils";
+
+export function generateCandidates(
+    bankTxn: CanonicalTransaction,
+    bookTxns: CanonicalTransaction[]
+): CanonicalTransaction[] {
+
+    return bookTxns.filter(
+        (bookTxn) => {
+
+            const amountDiff =
+                Math.abs(
+                    bankTxn.amount -
+                    bookTxn.amount
+                );
+
+            const dayDiff =
+                daysBetween(
+                    bankTxn.transactionDate,
+                    bookTxn.transactionDate
+                );
+
+            const amountTolerance =
+                Math.max(
+                    500,
+                    Math.abs(bankTxn.amount) * 0.15
+                );
+
+            const maxDateDifference = 7;
+
+            return (
+                amountDiff <= amountTolerance &&
+                dayDiff <= maxDateDifference
+            );
+        }
+    );
+}
+</file>
+
+<file path="matching/feeMatcher.ts">
+// matching/feeMatcher.ts
+
+export function isFeeAdjustment(
+    bankAmount: number,
+    bookAmount: number
+): boolean {
+
+    const diff =
+        Math.abs(
+            bookAmount -
+            bankAmount
+        );
+
+    return (
+        diff >= 50 &&
+        diff <= 500
+    );
+}
+</file>
+
+<file path="matching/manyToOneMatcher.ts">
+// matching/manyToOneMatcher.ts
+
+import { CanonicalTransaction }
+    from "../types/CanonicalTransaction";
+
+export function findManyToOne(
+    bookTxn: CanonicalTransaction,
+    bankCandidates: CanonicalTransaction[]
+): CanonicalTransaction[] {
+
+    for (
+        let i = 0;
+        i < bankCandidates.length;
+        i++
+    ) {
+        for (
+            let j = i + 1;
+            j < bankCandidates.length;
+            j++
+        ) {
+
+            const total =
+                bankCandidates[i].amount +
+                bankCandidates[j].amount;
+
+            if (
+                Math.abs(
+                    total -
+                    bookTxn.amount
+                ) <= 1
+            ) {
+                return [
+                    bankCandidates[i],
+                    bankCandidates[j]
+                ];
+            }
+        }
+    }
+
+    return [];
+}
+</file>
+
+<file path="matching/runMatcher.ts">
+// matching/runMatcher.ts
+
+import { Match } from "../types/Match";
+import { CanonicalTransaction } from "../types/CanonicalTransaction";
+
+import { generateCandidates } from "./candidateGenerator";
+import { score } from "./scorer";
+import { findOneToMany } from "./subsetMatcher";
+
+export function runMatcher(
+    bankTxns: CanonicalTransaction[],
+    bookTxns: CanonicalTransaction[]
+): Match[] {
+
+    const matches: Match[] = [];
+
+    const consumedBookIds =
+        new Set<string>();
+
+    for (const bankTxn of bankTxns) {
+
+        const availableBooks =
+            bookTxns.filter(
+                (b) =>
+                    !consumedBookIds.has(
+                        b.id
+                    )
+            );
+
+        const candidates =
+            generateCandidates(
+                bankTxn,
+                availableBooks
+            );
+
+        let bestCandidate:
+            CanonicalTransaction | undefined;
+
+        let bestScore = 0;
+
+        for (const candidate of candidates) {
+
+            const currentScore =
+                score(
+                    bankTxn,
+                    candidate
+                );
+
+            if (
+                currentScore >
+                bestScore
+            ) {
+                bestScore =
+                    currentScore;
+
+                bestCandidate =
+                    candidate;
+            }
+        }
+
+        if (
+            bestCandidate &&
+            bestScore >= 60
+        ) {
+
+            consumedBookIds.add(
+                bestCandidate.id
+            );
+
+            matches.push({
+                bankTransactionIds: [
+                    bankTxn.id
+                ],
+
+                bookTransactionIds: [
+                    bestCandidate.id
+                ],
+
+                score: bestScore,
+
+                matchType:
+                    bestScore >= 95
+                        ? "exact"
+                        : "near"
+            });
+
+            continue;
+        }
+
+        const grouped =
+            findOneToMany(
+                bankTxn,
+                candidates
+            );
+
+        if (
+            grouped.length > 0
+        ) {
+
+            grouped.forEach(
+                (g) =>
+                    consumedBookIds.add(
+                        g.id
+                    )
+            );
+
+            matches.push({
+                bankTransactionIds: [
+                    bankTxn.id
+                ],
+
+                bookTransactionIds:
+                    grouped.map(
+                        (g) => g.id
+                    ),
+
+                score: 93,
+
+                matchType:
+                    "one_to_many"
+            });
+        }
+    }
+
+    return matches;
+}
+</file>
+
+<file path="matching/scorer.ts">
+import { CanonicalTransaction } from "../types/CanonicalTransaction";
+
+import {
+    daysBetween,
+    referenceMatches,
+    nameMatches,
+    directionMatches
+} from "./utils";
+
+export function score(
+    bankTxn: CanonicalTransaction,
+    bookTxn: CanonicalTransaction
+): number {
+
+    let score = 0;
+
+    const amountDiff =
+        Math.abs(
+            bankTxn.amount -
+            bookTxn.amount
+        );
+
+    if (amountDiff === 0)
+        score += 40;
+    else if (amountDiff <= 50)
+        score += 35;
+    else if (amountDiff <= 500)
+        score += 20;
+
+    const dayDiff =
+        daysBetween(
+            bankTxn.transactionDate,
+            bookTxn.transactionDate
+        );
+
+    score += Math.max(
+        0,
+        20 - dayDiff * 5
+    );
+
+    if (
+        referenceMatches(
+            bankTxn.referenceNumber,
+            bookTxn.referenceNumber
+        )
+    ) {
+        score += 30;
+    }
+
+    if (
+        nameMatches(
+            bankTxn.counterparty,
+            bookTxn.counterparty
+        )
+    ) {
+        score += 10;
+    }
+
+    // Direction is a hint, not a gate
+    if (
+        directionMatches(
+            bankTxn,
+            bookTxn
+        )
+    ) {
+        score += 5;
+    }
+
+    return Math.min(
+        score,
+        100
+    );
+}
+</file>
+
+<file path="matching/subsetMatcher.ts">
+// matching/subsetMatcher.ts
+
+import { CanonicalTransaction }
+    from "../types/CanonicalTransaction";
+
+export function findOneToMany(
+    bankTxn: CanonicalTransaction,
+    candidates: CanonicalTransaction[]
+): CanonicalTransaction[] {
+
+    for (
+        let i = 0;
+        i < candidates.length;
+        i++
+    ) {
+
+        for (
+            let j = i + 1;
+            j < candidates.length;
+            j++
+        ) {
+
+            const total =
+                candidates[i].amount +
+                candidates[j].amount;
+
+            if (
+                Math.abs(
+                    total -
+                    bankTxn.amount
+                ) <= 1
+            ) {
+                return [
+                    candidates[i],
+                    candidates[j]
+                ];
+            }
+        }
+    }
+
+    return [];
+}
+</file>
+
+<file path="matching/utils.ts">
+// matching/utils.ts
+
+import { CanonicalTransaction } from "../types/CanonicalTransaction";
+
+export function normalizeReference(
+    ref?: string
+): string {
+    if (!ref) return "";
+
+    return ref
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
+}
+
+export function normalizeName(
+    name?: string
+): string {
+    if (!name) return "";
+
+    return name
+        .toUpperCase()
+        .replace(
+            /\b(CORPORATION|CORP|PVT|PRIVATE|LTD|LIMITED|SOLUTIONS|SOLUTION)\b/g,
+            ""
+        )
+        .replace(/[^A-Z0-9]/g, "");
+}
+
+export function daysBetween(
+    a: Date,
+    b: Date
+): number {
+    return Math.abs(
+        (
+            a.getTime() -
+            b.getTime()
+        ) / 86400000
+    );
+}
+
+export function referenceMatches(
+    bankRef?: string,
+    bookRef?: string
+): boolean {
+    const a =
+        normalizeReference(bankRef);
+
+    const b =
+        normalizeReference(bookRef);
+
+    if (!a || !b)
+        return false;
+
+    return (
+        a === b ||
+        a.includes(b) ||
+        b.includes(a)
+    );
+}
+
+export function nameMatches(
+    bank?: string,
+    book?: string
+): boolean {
+    const a =
+        normalizeName(bank);
+
+    const b =
+        normalizeName(book);
+
+    if (!a || !b)
+        return false;
+
+    return (
+        a === b ||
+        a.includes(b) ||
+        b.includes(a)
+    );
+}
+
+export function directionMatches(
+    a: CanonicalTransaction,
+    b: CanonicalTransaction
+): boolean {
+    return a.direction === b.direction;
+}
+</file>
+
+<file path="parsers/bankParser.ts">
+// parsers/bankParser.ts
+
+import fs from "fs";
+import csv from "csv-parser";
+
+import { CanonicalTransaction }
+    from "../types/CanonicalTransaction";
+
+export async function parseBankCsv(
+    path: string
+): Promise<CanonicalTransaction[]> {
+
+    const results: CanonicalTransaction[] = [];
+
+    return new Promise<
+        CanonicalTransaction[]
+    >((resolve, reject) => {
+
+        fs.createReadStream(path)
+            .pipe(csv())
+
+            .on("data", (row) => {
+
+                results.push({
+                    id:
+                        row.bank_transaction_id,
+
+                    source: "bank",
+
+                    transactionDate:
+                        new Date(
+                            row.transaction_date
+                        ),
+
+                    amount:
+                        Number(
+                            row.amount
+                        ),
+
+                    direction:
+                        row.direction
+                            .toLowerCase(),
+
+                    counterparty:
+                        row.counterparty,
+
+                    referenceNumber:
+                        row.reference_number,
+
+                    description:
+                        row.narration,
+
+                    sourceId:
+                        row.bank_transaction_id,
+
+                    rawPayload: row
+                });
+            })
+
+            .on("end", () =>
+                resolve(results)
+            )
+
+            .on("error", reject);
+    });
+}
+</file>
+
+<file path="parsers/quickBooksParser.ts">
+// parsers/quickBooksParser.ts
+
+import XLSX from "xlsx";
+import { CanonicalTransaction } from "../types/CanonicalTransaction";
+
+export function parseQuickBooks(
+    path: string
+): CanonicalTransaction[] {
+
+    const workbook =
+        XLSX.readFile(path);
+
+    const sheet =
+        workbook.Sheets[
+        "Book Transactions"
+        ];
+
+    const rows =
+        XLSX.utils.sheet_to_json(sheet);
+
+    // TEMP DEBUG
+    console.log(
+        "\nQUICKBOOKS TRANSACTION TYPES"
+    );
+
+    console.log(
+        rows.reduce(
+            (
+                acc: Record<
+                    string,
+                    number
+                >,
+                row: any
+            ) => {
+
+                const type =
+                    String(
+                        row.transaction_type ||
+                        "UNKNOWN"
+                    );
+
+                acc[type] =
+                    (acc[type] || 0) + 1;
+
+                return acc;
+
+            },
+            {}
+        )
+    );
+
+    return rows.map(
+        (
+            row: any
+        ): CanonicalTransaction => {
+
+            const txnType =
+                String(
+                    row.transaction_type ||
+                    ""
+                ).toLowerCase();
+
+            let direction:
+                "credit" |
+                "debit";
+
+            switch (txnType) {
+
+                case "deposit":
+                case "sales receipt":
+                case "receive payment":
+                case "invoice":
+                    direction = "credit";
+                    break;
+
+                case "payment":
+                case "bill payment":
+                case "expense":
+                case "check":
+                    direction = "debit";
+                    break;
+
+                default:
+                    direction = "debit";
+            }
+
+            return {
+
+                id:
+                    row.transaction_id,
+
+                source:
+                    "quickbooks",
+
+                transactionDate:
+                    new Date(
+                        row.transaction_date
+                    ),
+
+                amount:
+                    Number(
+                        row.amount
+                    ),
+
+                direction,
+
+                counterparty:
+                    row.customer_vendor_name,
+
+                referenceNumber:
+                    row.reference_number,
+
+                description:
+                    row.memo,
+
+                sourceId:
+                    row.transaction_id,
+
+                rawPayload:
+                    row
+            };
+        }
+    );
+}
+</file>
+
+<file path="parsers/tallyParser.ts">
+import fs from "fs";
+import { parseStringPromise } from "xml2js";
+import { randomUUID } from "crypto";
+
+import type { BookTransaction } from "../types/BookTransaction";
+import type { BookTransactionLine } from "../types/BookTransactionLine";
+
+interface ParseResult {
+    transactions: BookTransaction[];
+    lines: BookTransactionLine[];
+}
+
+function normalizeVoucherType(
+    voucherType: string
+): string {
+    const type =
+        voucherType.toLowerCase();
+
+    if (type.includes("receipt"))
+        return "bank_receipt";
+
+    if (type.includes("payment"))
+        return "bank_payment";
+
+    if (type.includes("journal"))
+        return "journal_adjustment";
+
+    if (type.includes("sales"))
+        return "customer_invoice";
+
+    if (type.includes("purchase"))
+        return "vendor_bill";
+
+    return "other";
+}
+
+function extractReference(
+    narration?: string
+): string | undefined {
+    if (!narration) return undefined;
+
+    const match =
+        narration.match(/\d{6,}/);
+
+    return match?.[0];
+}
+
+function parseDate(
+    tallyDate?: string
+): Date {
+    if (!tallyDate) {
+        return new Date(); // Fallback to current date or handle as needed
+    }
+
+    const year =
+        tallyDate.slice(0, 4);
+
+    const month =
+        tallyDate.slice(4, 6);
+
+    const day =
+        tallyDate.slice(6, 8);
+
+    return new Date(
+        `${year}-${month}-${day}`
+    );
+}
+
+export async function parseTallyFile(
+    filePath: string
+): Promise<ParseResult> {
+    const xml =
+        fs.readFileSync(
+            filePath,
+            "utf-8"
+        );
+
+    const parsed =
+        await parseStringPromise(
+            xml,
+            {
+                explicitArray: false,
+                mergeAttrs: true
+            }
+        );
+
+    const tallyMessages =
+        parsed?.ENVELOPE?.BODY
+            ?.IMPORTDATA
+            ?.REQUESTDATA
+            ?.TALLYMESSAGE;
+
+    const messages =
+        Array.isArray(
+            tallyMessages
+        )
+            ? tallyMessages
+            : [tallyMessages];
+
+    const transactions: BookTransaction[] =
+        [];
+
+    const lines: BookTransactionLine[] =
+        [];
+
+    for (const message of messages) {
+
+        const vouchers =
+            Array.isArray(message?.VOUCHER)
+                ? message.VOUCHER
+                : message?.VOUCHER
+                    ? [message.VOUCHER]
+                    : [];
+
+        for (const voucher of vouchers) {
+
+            const transactionId =
+                randomUUID();
+
+            const voucherType =
+                voucher.VOUCHERTYPENAME ||
+                "Unknown";
+
+            const narration =
+                voucher.NARRATION || "";
+
+            const rawEntries =
+                voucher["ALLLEDGERENTRIES.LIST"] ||
+                voucher["LEDGERENTRIES.LIST"] ||
+                [];
+
+            const ledgerEntries =
+                Array.isArray(rawEntries)
+                    ? rawEntries
+                    : [rawEntries];
+
+            let debitTotal = 0;
+            let creditTotal = 0;
+            let lineNumber = 1;
+
+            for (const entry of ledgerEntries) {
+
+                const ledgers =
+                    Array.isArray(entry.LEDGERENTRY)
+                        ? entry.LEDGERENTRY
+                        : entry.LEDGERENTRY
+                            ? [entry.LEDGERENTRY]
+                            : [entry];
+
+                for (const ledger of ledgers) {
+
+                    const amount =
+                        Number(
+                            ledger.AMOUNT || 0
+                        );
+
+                    const debitAmount =
+                        amount < 0
+                            ? Math.abs(amount)
+                            : 0;
+
+                    const creditAmount =
+                        amount > 0
+                            ? amount
+                            : 0;
+
+                    debitTotal += debitAmount;
+                    creditTotal += creditAmount;
+
+                    lines.push({
+                        id: randomUUID(),
+                        transactionId,
+                        lineNumber:
+                            lineNumber++,
+                        accountName:
+                            ledger.LEDGERNAME || "",
+                        partyName:
+                            voucher.PARTYLEDGERNAME,
+                        debitAmount,
+                        creditAmount,
+                        rawLedgerName:
+                            ledger.LEDGERNAME
+                    });
+                }
+            }
+
+            transactions.push({
+                id: transactionId,
+
+                sourceSystem: "tally",
+
+                sourceTransactionId:
+                    voucher.REMOTEID ||
+                    voucher.VOUCHERNUMBER ||
+                    transactionId,
+
+                transactionDate:
+                    parseDate(
+                        voucher.DATE
+                    ),
+
+                transactionTypeRaw:
+                    voucherType,
+
+                transactionTypeNormalized:
+                    normalizeVoucherType(
+                        voucherType
+                    ),
+
+                referenceNumber:
+                    voucher.VOUCHERNUMBER,
+
+                description:
+                    narration,
+
+                currency: "INR",
+
+                lineCount:
+                    lineNumber - 1,
+
+                debitTotal,
+
+                creditTotal,
+
+                reconciliationAmount:
+                    Math.max(
+                        debitTotal,
+                        creditTotal
+                    ),
+
+                isBalanced:
+                    Math.abs(
+                        debitTotal -
+                        creditTotal
+                    ) < 0.01,
+
+                rawPayload:
+                    voucher
+            });
+        }
+    }
+
+    return {
+        transactions,
+        lines
+    };
+}
+</file>
+
+<file path="scripts/validate-import.ts">
+import path from "path";
+import fs from "fs";
+import csv from "csv-parser";
+
+import { parseTallyFile } from "../parsers/tallyParser";
+import { parseQuickBooks } from "../parsers/quickBooksParser";
+import { parseBankCsv } from "../parsers/bankParser";
+
+import { runMatcher } from "../matching/runMatcher.js";
+
+import { validateImport } from "../validators/importValidator";
+import { validateTotals } from "../validators/accountingValidator";
+import { evaluate } from "../validators/reconciliationValidator";
+
+import { ExpectedMatch } from "../types/ExpectedMatch";
+
+async function loadExpectedMatches(): Promise<
+    ExpectedMatch[]
+> {
+    const results: ExpectedMatch[] = [];
+
+    return new Promise((resolve, reject) => {
+        fs.createReadStream(
+            path.join(
+                __dirname,
+                "..",
+                "data",
+                "expected_matches.csv"
+            )
+        )
+            .pipe(csv())
+            .on("data", (row) => {
+                results.push({
+                    match_id: row.match_id,
+                    match_type: row.match_type,
+                    bank_transaction_ids:
+                        row.bank_transaction_ids,
+                    book_transaction_ids:
+                        row.book_transaction_ids,
+                    expected_confidence:
+                        row.expected_confidence,
+                    explanation:
+                        row.explanation
+                });
+            })
+            .on("end", () => resolve(results))
+            .on("error", reject);
+    });
+}
+
+async function main() {
+    console.log(
+        "\n====================================="
+    );
+    console.log(
+        "RECONFLOW VALIDATION HARNESS"
+    );
+    console.log(
+        "=====================================\n"
+    );
+
+    const tallyPath = path.join(
+        __dirname,
+        "..",
+        "data",
+        "tally_transactions.xml"
+    );
+
+    const quickbooksPath = path.join(
+        __dirname,
+        "..",
+        "data",
+        "quickbooks_book_transactions.xlsx"
+    );
+
+    const bankPath = path.join(
+        __dirname,
+        "..",
+        "data",
+        "bank_transactions.csv"
+    );
+
+    console.log(
+        "Loading source files...\n"
+    );
+
+    const tally =
+        await parseTallyFile(
+            tallyPath
+        );
+
+    const quickbooks =
+        parseQuickBooks(
+            quickbooksPath
+        );
+
+    const bank =
+        await parseBankCsv(
+            bankPath
+        );
+
+    console.log(
+        "Files Loaded Successfully\n"
+    );
+
+    console.log("\nBANK DIRECTIONS");
+
+    const bankDirections = bank.reduce(
+        (acc, txn) => {
+            acc[txn.direction] =
+                (acc[txn.direction] || 0) + 1;
+            return acc;
+        },
+        {} as Record<string, number>
+    );
+
+    console.log(bankDirections);
+
+    console.log("\nQUICKBOOKS DIRECTIONS");
+
+    const qbDirections = quickbooks.reduce(
+        (acc, txn) => {
+            acc[txn.direction] =
+                (acc[txn.direction] || 0) + 1;
+            return acc;
+        },
+        {} as Record<string, number>
+    );
+
+    console.log(qbDirections);
+
+    console.log(
+        "Tally Transactions:",
+        tally.transactions.length
+    );
+
+    console.log(
+        "Tally Lines:",
+        tally.lines.length
+    );
+
+    console.log(
+        "QuickBooks Transactions:",
+        quickbooks.length
+    );
+
+    console.log(
+        "Bank Transactions:",
+        bank.length
+    );
+
+    // =====================
+    // ACCOUNTING VALIDATION
+    // =====================
+
+    console.log(
+        "\n====================================="
+    );
+    console.log(
+        "IMPORT VALIDATION"
+    );
+    console.log(
+        "=====================================\n"
+    );
+
+    const importErrors =
+        validateImport(
+            tally.transactions,
+            tally.lines
+        );
+
+    if (
+        importErrors.length > 0
+    ) {
+        console.log(
+            `Found ${importErrors.length} import errors`
+        );
+
+        console.table(
+            importErrors.slice(
+                0,
+                20
+            )
+        );
+    } else {
+        console.log(
+            "No import errors found"
+        );
+    }
+
+    console.log(
+        "\n====================================="
+    );
+    console.log(
+        "ACCOUNTING TOTALS"
+    );
+    console.log(
+        "=====================================\n"
+    );
+
+    const totals =
+        validateTotals(
+            tally.transactions
+        );
+
+    console.table([
+        totals
+    ]);
+
+    // =====================
+    // RECONCILIATION
+    // =====================
+
+    console.log(
+        "\n====================================="
+    );
+    console.log(
+        "RUNNING MATCH ENGINE"
+    );
+    console.log(
+        "=====================================\n"
+    );
+
+    const generatedMatches =
+        runMatcher(
+            bank,
+            quickbooks
+        );
+
+    console.log(
+        "Generated Matches:",
+        generatedMatches.length
+    );
+
+    console.log(
+        "\n====================================="
+    );
+    console.log(
+        "LOADING EXPECTED MATCHES"
+    );
+    console.log(
+        "=====================================\n"
+    );
+
+    const expectedMatches =
+        await loadExpectedMatches();
+
+    console.log(
+        "Expected Matches:",
+        expectedMatches.length
+    );
+
+    console.log(
+        "\n====================================="
+    );
+    console.log(
+        "MATCH EVALUATION"
+    );
+    console.log(
+        "=====================================\n"
+    );
+
+    const metrics =
+        evaluate(
+            generatedMatches,
+            expectedMatches
+        );
+    const generatedSet =
+        new Set(
+            generatedMatches.map(
+                (m) =>
+                    `${m.bankTransactionIds.join(",")}:${m.bookTransactionIds.join(",")}`
+            )
+        );
+
+    const missedMatches =
+        expectedMatches.filter(
+            (m) =>
+                !generatedSet.has(
+                    `${m.bank_transaction_ids}:${m.book_transaction_ids}`
+                )
+        );
+
+    console.log(
+        "\nMISSED MATCHES:",
+        missedMatches.length
+    );
+
+    console.table(
+        missedMatches.slice(
+            0,
+            30
+        )
+    );
+
+    console.table([
+        metrics
+    ]);
+
+    console.log(
+        "\n====================================="
+    );
+    console.log(
+        "TOP GENERATED MATCHES"
+    );
+    console.log(
+        "=====================================\n"
+    );
+
+    console.table(
+        generatedMatches
+            .sort(
+                (a, b) =>
+                    b.score -
+                    a.score
+            )
+            .slice(
+                0,
+                20
+            )
+    );
+
+    const expectedSet =
+        new Set(
+            expectedMatches.map(
+                (m) =>
+                    `${m.bank_transaction_ids}:${m.book_transaction_ids}`
+            )
+        );
+
+    const falsePositives =
+        generatedMatches.filter(
+            (match) =>
+                !expectedSet.has(
+                    `${match.bankTransactionIds.join(",")}:${match.bookTransactionIds.join(",")}`
+                )
+        );
+
+    console.log(
+        "\n====================================="
+    );
+    console.log(
+        "FALSE POSITIVE ANALYSIS"
+    );
+    console.log(
+        "=====================================\n"
+    );
+
+    console.log(
+        "False Positives:",
+        falsePositives.length
+    );
+
+    console.table(
+        falsePositives.slice(
+            0,
+            10
+        )
+    );
+
+    console.log(
+        "\n====================================="
+    );
+    console.log(
+        "SUMMARY"
+    );
+    console.log(
+        "=====================================\n"
+    );
+
+    console.log(
+        `Tally Transactions: ${tally.transactions.length}`
+    );
+
+    console.log(
+        `Tally Lines: ${tally.lines.length}`
+    );
+
+    console.log(
+        `QuickBooks Transactions: ${quickbooks.length}`
+    );
+
+    console.log(
+        `Bank Transactions: ${bank.length}`
+    );
+
+    console.log(
+        `Generated Matches: ${generatedMatches.length}`
+    );
+
+    console.log(
+        `Expected Matches: ${expectedMatches.length}`
+    );
+
+    console.log(
+        `Precision: ${(metrics.precision * 100).toFixed(2)}%`
+    );
+
+    console.log(
+        `Recall: ${(metrics.recall * 100).toFixed(2)}%`
+    );
+
+    console.log(
+        `F1 Score: ${(metrics.f1 * 100).toFixed(2)}%`
+    );
+}
+
+main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+});
+</file>
+
+<file path="tests/matching.test.ts">
+// tests/matching.test.ts
+
+import fs from "fs";
+import csv from "csv-parser";
+
+export async function loadExpected() {
+    const rows: any[] = [];
+
+    return new Promise((resolve) => {
+        fs.createReadStream(
+            "./expected_matches.csv"
+        )
+            .pipe(csv())
+            .on("data", (row) =>
+                rows.push(row)
+            )
+            .on("end", () =>
+                resolve(rows)
+            );
+    });
+}
+</file>
+
+<file path="types/BookTransaction.ts">
+export interface BookTransaction {
+    id: string;
+
+    sourceSystem: "tally";
+
+    sourceTransactionId: string;
+
+    transactionDate: Date;
+
+    transactionTypeRaw: string;
+
+    transactionTypeNormalized: string;
+
+    referenceNumber?: string;
+
+    description?: string;
+
+    currency: string;
+
+    lineCount: number;
+
+    debitTotal: number;
+
+    creditTotal: number;
+
+    reconciliationAmount: number;
+
+    isBalanced: boolean;
+
+    rawPayload?: unknown;
+}
+</file>
+
+<file path="types/BookTransactionLine.ts">
+export interface BookTransactionLine {
+    id: string;
+
+    transactionId: string;
+
+    lineNumber: number;
+
+    accountName: string;
+
+    partyName?: string;
+
+    debitAmount: number;
+
+    creditAmount: number;
+
+    rawLedgerName?: string;
+}
+</file>
+
+<file path="types/CanonicalTransaction.ts">
+// src/types/CanonicalTransaction.ts
+
+export interface CanonicalTransaction {
+    id: string;
+
+    source:
+    | "bank"
+    | "tally"
+    | "quickbooks";
+
+    transactionDate: Date;
+
+    amount: number;
+
+    direction:
+    | "credit"
+    | "debit";
+
+    counterparty?: string;
+
+    referenceNumber?: string;
+
+    description?: string;
+
+    sourceId: string;
+
+    rawPayload?: any;
+}
+</file>
+
+<file path="types/EvaluationResult.ts">
+export interface EvaluationResult {
+    tp: number;
+
+    fp: number;
+
+    fn: number;
+
+    precision: number;
+
+    recall: number;
+
+    f1: number;
+}
+</file>
+
+<file path="types/ExpectedMatch.ts">
+export interface ExpectedMatch {
+    match_id: string;
+
+    match_type: string;
+
+    bank_transaction_ids: string;
+
+    book_transaction_ids: string;
+
+    expected_confidence: string;
+
+    explanation: string;
+}
+</file>
+
+<file path="types/Match.ts">
+// types/Match.ts
+
+export type MatchType =
+    | "exact"
+    | "near"
+    | "fee_adjustment"
+    | "one_to_many"
+    | "many_to_one";
+
+export interface Match {
+    bankTransactionIds: string[];
+    bookTransactionIds: string[];
+
+    score: number;
+
+    matchType: MatchType;
+
+    explanation?: string;
+}
+</file>
+
+<file path="validators/accountingValidator.ts">
+// src/validators/accountingValidator.ts
+
+import { BookTransaction } from "../types/BookTransaction";
+import { BookTransactionLine } from "../types/BookTransactionLine";
+
+export interface BalanceValidationResult {
+    transactionId: string;
+
+    debitTotal: number;
+
+    creditTotal: number;
+
+    difference: number;
+
+    isBalanced: boolean;
+}
+
+export interface TotalsValidationResult {
+    totalTransactions: number;
+
+    totalDebit: number;
+
+    totalCredit: number;
+
+    difference: number;
+
+    balanced: boolean;
+}
+
+export function validateTransactionBalance(
+    transaction: BookTransaction,
+    lines: BookTransactionLine[]
+): BalanceValidationResult {
+    const debitTotal = lines.reduce(
+        (sum, line) => sum + line.debitAmount,
+        0
+    );
+
+    const creditTotal = lines.reduce(
+        (sum, line) => sum + line.creditAmount,
+        0
+    );
+
+    const difference = Math.abs(
+        debitTotal - creditTotal
+    );
+
+    return {
+        transactionId: transaction.id,
+
+        debitTotal,
+
+        creditTotal,
+
+        difference,
+
+        isBalanced: difference < 0.01
+    };
+}
+
+export function validateTotals(
+    transactions: BookTransaction[]
+): TotalsValidationResult {
+    const totalDebit = transactions.reduce(
+        (sum, txn) => sum + txn.debitTotal,
+        0
+    );
+
+    const totalCredit = transactions.reduce(
+        (sum, txn) => sum + txn.creditTotal,
+        0
+    );
+
+    const difference = Math.abs(
+        totalDebit - totalCredit
+    );
+
+    return {
+        totalTransactions:
+            transactions.length,
+
+        totalDebit,
+
+        totalCredit,
+
+        difference,
+
+        balanced: difference < 0.01
+    };
+}
+</file>
+
+<file path="validators/importValidator.ts">
+// src/validators/importValidator.ts
+
+import { BookTransaction } from "../types/BookTransaction";
+import { BookTransactionLine } from "../types/BookTransactionLine";
+
+import {
+    validateTransactionBalance
+} from "./accountingValidator";
+
+export interface ImportError {
+    transactionId: string;
+
+    error: string;
+}
+
+export function validateImport(
+    transactions: BookTransaction[],
+    lines: BookTransactionLine[]
+): ImportError[] {
+    const errors: ImportError[] = [];
+
+    for (const transaction of transactions) {
+        const txnLines = lines.filter(
+            (line) =>
+                line.transactionId ===
+                transaction.id
+        );
+
+        if (txnLines.length === 0) {
+            errors.push({
+                transactionId:
+                    transaction.id,
+
+                error:
+                    "Transaction has no lines"
+            });
+
+            continue;
+        }
+
+        if (txnLines.length < 2) {
+            errors.push({
+                transactionId:
+                    transaction.id,
+
+                error:
+                    "Transaction contains less than 2 accounting lines"
+            });
+        }
+
+        const balance =
+            validateTransactionBalance(
+                transaction,
+                txnLines
+            );
+
+        if (!balance.isBalanced) {
+            errors.push({
+                transactionId:
+                    transaction.id,
+
+                error: `Transaction not balanced (Debit=${balance.debitTotal}, Credit=${balance.creditTotal})`
+            });
+        }
+
+        if (
+            !transaction.transactionDate
+        ) {
+            errors.push({
+                transactionId:
+                    transaction.id,
+
+                error:
+                    "Missing transaction date"
+            });
+        }
+
+        if (
+            !transaction.transactionTypeRaw
+        ) {
+            errors.push({
+                transactionId:
+                    transaction.id,
+
+                error:
+                    "Missing transaction type"
+            });
+        }
+
+        if (
+            transaction.reconciliationAmount <=
+            0
+        ) {
+            errors.push({
+                transactionId:
+                    transaction.id,
+
+                error:
+                    "Invalid reconciliation amount"
+            });
+        }
+
+        if (
+            transaction.lineCount !==
+            txnLines.length
+        ) {
+            errors.push({
+                transactionId:
+                    transaction.id,
+
+                error:
+                    `Line count mismatch. Stored=${transaction.lineCount}, Actual=${txnLines.length}`
+            });
+        }
+
+        const debitTotal =
+            txnLines.reduce(
+                (sum, line) =>
+                    sum + line.debitAmount,
+                0
+            );
+
+        const creditTotal =
+            txnLines.reduce(
+                (sum, line) =>
+                    sum + line.creditAmount,
+                0
+            );
+
+        if (
+            Math.abs(
+                debitTotal -
+                transaction.debitTotal
+            ) > 0.01
+        ) {
+            errors.push({
+                transactionId:
+                    transaction.id,
+
+                error:
+                    "Stored debit total does not match line totals"
+            });
+        }
+
+        if (
+            Math.abs(
+                creditTotal -
+                transaction.creditTotal
+            ) > 0.01
+        ) {
+            errors.push({
+                transactionId:
+                    transaction.id,
+
+                error:
+                    "Stored credit total does not match line totals"
+            });
+        }
+    }
+
+    return errors;
+}
+</file>
+
+<file path="validators/reconciliationValidator.ts">
+import { Match } from "../types/Match";
+import { ExpectedMatch } from "../types/ExpectedMatch";
+import { EvaluationResult } from "../types/EvaluationResult";
+
+export function evaluate(
+    generated: Match[],
+    expected: ExpectedMatch[]
+): EvaluationResult {
+
+    const expectedPairs =
+        new Set(
+            expected.map(
+                (m) =>
+                    `${m.bank_transaction_ids}:${m.book_transaction_ids}`
+            )
+        );
+
+    const generatedPairs =
+        new Set(
+            generated.map(
+                (m) =>
+                    `${m.bankTransactionIds.join(",")}:${m.bookTransactionIds.join(",")}`
+            )
+        );
+
+    let tp = 0;
+
+    for (const pair of generatedPairs) {
+        if (
+            expectedPairs.has(pair)
+        ) {
+            tp++;
+        }
+    }
+
+    const fp =
+        generatedPairs.size - tp;
+
+    const fn =
+        expectedPairs.size - tp;
+
+    const precision =
+        tp === 0
+            ? 0
+            : tp / (tp + fp);
+
+    const recall =
+        tp === 0
+            ? 0
+            : tp / (tp + fn);
+
+    const f1 =
+        precision + recall === 0
+            ? 0
+            : (
+                2 *
+                precision *
+                recall
+            ) /
+            (
+                precision +
+                recall
+            );
+
+    return {
+        tp,
+        fp,
+        fn,
+        precision,
+        recall,
+        f1
+    };
+}
+</file>
+
+</files>

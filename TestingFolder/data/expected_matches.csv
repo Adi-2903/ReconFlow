@@ -1,0 +1,107 @@
+match_id,match_type,bank_transaction_ids,book_transaction_ids,expected_confidence,explanation
+MATCH001,exact,BANK0001,BOOK0001,99,"Reference number (INV1001), amount (2500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH002,exact,BANK0002,BOOK0002,99,"Reference number (INV1002), amount (4000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH003,exact,BANK0003,BOOK0003,99,"Reference number (INV1003), amount (5000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH004,exact,BANK0004,BOOK0004,99,"Reference number (INV1004), amount (7500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH005,exact,BANK0005,BOOK0005,99,"Reference number (INV1005), amount (10000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH006,exact,BANK0006,BOOK0006,99,"Reference number (INV1006), amount (12500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH007,exact,BANK0007,BOOK0007,99,"Reference number (INV1007), amount (15000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH008,exact,BANK0008,BOOK0008,99,"Reference number (INV1008), amount (25000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH009,exact,BANK0009,BOOK0009,99,"Reference number (INV1009), amount (50000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH010,exact,BANK0010,BOOK0010,99,"Reference number (INV1010), amount (2500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH011,exact,BANK0011,BOOK0011,99,"Reference number (INV1011), amount (4000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH012,exact,BANK0012,BOOK0012,99,"Reference number (INV1012), amount (5000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH013,exact,BANK0013,BOOK0013,99,"Reference number (INV1013), amount (7500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH014,exact,BANK0014,BOOK0014,99,"Reference number (INV1014), amount (10000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH015,exact,BANK0015,BOOK0015,99,"Reference number (INV1015), amount (12500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH016,exact,BANK0016,BOOK0016,99,"Reference number (INV1016), amount (15000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH017,exact,BANK0017,BOOK0017,99,"Reference number (INV1017), amount (25000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH018,exact,BANK0018,BOOK0018,99,"Reference number (INV1018), amount (50000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH019,exact,BANK0019,BOOK0019,99,"Reference number (INV1019), amount (2500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH020,exact,BANK0020,BOOK0020,99,"Reference number (INV1020), amount (4000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH021,exact,BANK0021,BOOK0021,99,"Reference number (INV1021), amount (5000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH022,exact,BANK0022,BOOK0022,99,"Reference number (INV1022), amount (7500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH023,exact,BANK0023,BOOK0023,99,"Reference number (INV1023), amount (10000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH024,exact,BANK0024,BOOK0024,99,"Reference number (INV1024), amount (12500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH025,exact,BANK0025,BOOK0025,99,"Reference number (INV1025), amount (15000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH026,exact,BANK0026,BOOK0026,99,"Reference number (INV1026), amount (25000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH027,exact,BANK0027,BOOK0027,99,"Reference number (INV1027), amount (50000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH028,exact,BANK0028,BOOK0028,99,"Reference number (INV1028), amount (2500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH029,exact,BANK0029,BOOK0029,99,"Reference number (INV1029), amount (4000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH030,exact,BANK0030,BOOK0030,99,"Reference number (INV1030), amount (5000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH031,exact,BANK0031,BOOK0031,99,"Reference number (INV1031), amount (7500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH032,exact,BANK0032,BOOK0032,99,"Reference number (INV1032), amount (10000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH033,exact,BANK0033,BOOK0033,99,"Reference number (INV1033), amount (12500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH034,exact,BANK0034,BOOK0034,99,"Reference number (INV1034), amount (15000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH035,exact,BANK0035,BOOK0035,99,"Reference number (INV1035), amount (25000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH036,exact,BANK0036,BOOK0036,99,"Reference number (INV1036), amount (50000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH037,exact,BANK0037,BOOK0037,99,"Reference number (INV1037), amount (2500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH038,exact,BANK0038,BOOK0038,99,"Reference number (INV1038), amount (4000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH039,exact,BANK0039,BOOK0039,99,"Reference number (INV1039), amount (5000), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH040,exact,BANK0040,BOOK0040,99,"Reference number (INV1040), amount (7500), date and counterparty name all match exactly between the book entry and the bank credit."
+MATCH041,exact,BANK0041,BOOK0041,99,"Reference number (AWS-INV-3001), amount (5000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH042,exact,BANK0042,BOOK0042,99,"Reference number (ZOHO-3002), amount (7500), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH043,exact,BANK0043,BOOK0043,99,"Reference number (RZP3003), amount (10000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH044,exact,BANK0044,BOOK0044,99,"Reference number (STR3004), amount (12500), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH045,exact,BANK0045,BOOK0045,99,"Reference number (EMI3005), amount (15000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH046,exact,BANK0046,BOOK0046,99,"Reference number (EMI3006), amount (25000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH047,exact,BANK0047,BOOK0047,99,"Reference number (AWS-INV-3007), amount (50000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH048,exact,BANK0048,BOOK0048,99,"Reference number (ZOHO-3008), amount (2500), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH049,exact,BANK0049,BOOK0049,99,"Reference number (RZP3009), amount (4000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH050,exact,BANK0050,BOOK0050,99,"Reference number (STR3010), amount (5000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH051,exact,BANK0051,BOOK0051,99,"Reference number (EMI3011), amount (7500), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH052,exact,BANK0052,BOOK0052,99,"Reference number (EMI3012), amount (10000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH053,exact,BANK0053,BOOK0053,99,"Reference number (AWS-INV-3013), amount (12500), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH054,exact,BANK0054,BOOK0054,99,"Reference number (ZOHO-3014), amount (15000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH055,exact,BANK0055,BOOK0055,99,"Reference number (RZP3015), amount (25000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH056,exact,BANK0056,BOOK0056,99,"Reference number (STR3016), amount (50000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH057,exact,BANK0057,BOOK0057,99,"Reference number (EMI3017), amount (2500), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH058,exact,BANK0058,BOOK0058,99,"Reference number (EMI3018), amount (4000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH059,exact,BANK0059,BOOK0059,99,"Reference number (AWS-INV-3019), amount (5000), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH060,exact,BANK0060,BOOK0060,99,"Reference number (ZOHO-3020), amount (7500), date and vendor name all match exactly between the book entry and the bank debit."
+MATCH061,exact,BANK0061,BOOK0061,98,"Amount (10000), date and counterparty name match exactly; UPI reference UPI9001 recorded in the books corresponds to this UPI credit."
+MATCH062,exact,BANK0062,BOOK0062,98,"Amount (12500), date and counterparty name match exactly; UPI reference UPI9002 recorded in the books corresponds to this UPI credit."
+MATCH063,exact,BANK0063,BOOK0063,98,"Amount (15000), date and counterparty name match exactly; UPI reference UPI9003 recorded in the books corresponds to this UPI credit."
+MATCH064,exact,BANK0064,BOOK0064,98,"Amount (25000), date and counterparty name match exactly; UPI reference UPI9004 recorded in the books corresponds to this UPI credit."
+MATCH065,exact,BANK0065,BOOK0065,98,"Amount (50000), date and counterparty name match exactly; UPI reference UPI9005 recorded in the books corresponds to this UPI credit."
+MATCH066,exact,BANK0066,BOOK0066,98,"Amount (2500), date and counterparty name match exactly; UPI reference UPI9006 recorded in the books corresponds to this UPI credit."
+MATCH067,exact,BANK0067,BOOK0067,98,"Amount (4000), date and counterparty name match exactly; UPI reference UPI9007 recorded in the books corresponds to this UPI credit."
+MATCH068,exact,BANK0068,BOOK0068,98,"Amount (5000), date and counterparty name match exactly; UPI reference UPI9008 recorded in the books corresponds to this UPI credit."
+MATCH069,near,BANK0069,BOOK0069,88,"Amount (2500) and reference number (INV1100) match exactly, but the bank value date (2026-03-04) is 1 day(s) after the book posting date (03/03/2026), consistent with normal NEFT clearing delay."
+MATCH070,near,BANK0070,BOOK0070,88,"Amount (4000) and reference number (INV1101) match exactly, but the bank value date (2026-03-06) is 2 day(s) after the book posting date (03/04/2026), consistent with normal NEFT clearing delay."
+MATCH071,near,BANK0071,BOOK0071,88,"Amount (5000) and reference number (INV1102) match exactly, but the bank value date (2026-03-08) is 3 day(s) after the book posting date (03/05/2026), consistent with normal NEFT clearing delay."
+MATCH072,near,BANK0072,BOOK0072,88,"Amount (7500) and reference number (INV1103) match exactly, but the bank value date (2026-03-07) is 1 day(s) after the book posting date (03/06/2026), consistent with normal NEFT clearing delay."
+MATCH073,near,BANK0073,BOOK0073,88,"Amount (10000) and reference number (INV1104) match exactly, but the bank value date (2026-03-09) is 2 day(s) after the book posting date (03/07/2026), consistent with normal NEFT clearing delay."
+MATCH074,near,BANK0074,BOOK0074,90,"Amount (7500), date and reference number (INV1110) match exactly, but the counterparty name differs ('ABC Corp' in the books vs 'ABC CORPORATION' on the bank statement) due to abbreviation/formatting differences."
+MATCH075,near,BANK0075,BOOK0075,90,"Amount (10000), date and reference number (INV1111) match exactly, but the counterparty name differs ('TechNova Solutions' in the books vs 'TECHNOVA SOLUTNS' on the bank statement) due to abbreviation/formatting differences."
+MATCH076,near,BANK0076,BOOK0076,90,"Amount (12500), date and reference number (INV1112) match exactly, but the counterparty name differs ('Vibha Vora' in the books vs 'VIBHAVORA' on the bank statement) due to abbreviation/formatting differences."
+MATCH077,near,BANK0077,BOOK0077,90,"Amount (15000), date and reference number (INV1113) match exactly, but the counterparty name differs ('GreenLeaf Enterprises' in the books vs 'GREEN LEAF ENTERPRISES' on the bank statement) due to abbreviation/formatting differences."
+MATCH078,near,BANK0078,BOOK0078,90,"Amount (25000), date and reference number (INV1114) match exactly, but the counterparty name differs ('Sunrise Logistics' in the books vs 'SUNRISE LOGISTIC' on the bank statement) due to abbreviation/formatting differences."
+MATCH079,near,BANK0079,BOOK0079,85,"Amount (12500), date and counterparty match exactly, but the reference number in the bank narration ('INV-1201') is a partial/reformatted version of the book reference number ('INV1201')."
+MATCH080,near,BANK0080,BOOK0080,85,"Amount (15000), date and counterparty match exactly, but the reference number in the bank narration ('INV 1202 PARTIAL') is a partial/reformatted version of the book reference number ('INV1202')."
+MATCH081,near,BANK0081,BOOK0081,85,"Amount (25000), date and counterparty match exactly, but the reference number in the bank narration ('1203') is a partial/reformatted version of the book reference number ('INV1203')."
+MATCH082,near,BANK0082,BOOK0082,85,"Amount (50000), date and counterparty match exactly, but the reference number in the bank narration ('AWSINV3201') is a partial/reformatted version of the book reference number ('AWS-INV-3201')."
+MATCH083,near,BANK0083,BOOK0083,85,"Amount (2500), date and counterparty match exactly, but the reference number in the bank narration ('ZOHO3202-SUB') is a partial/reformatted version of the book reference number ('ZOHO-3202')."
+MATCH084,fee_adjustment,BANK0084,BOOK0084,92,Book amount (5000) is the gross invoice value recorded for RZP1001; bank settlement (4764) is net of a Razorpay processing fee of 236. Difference (236) matches the known Razorpay fee pattern for this transaction size.
+MATCH085,fee_adjustment,BANK0085,BOOK0085,92,Book amount (7500) is the gross invoice value recorded for RZP1002; bank settlement (7205) is net of a Razorpay processing fee of 295. Difference (295) matches the known Razorpay fee pattern for this transaction size.
+MATCH086,fee_adjustment,BANK0086,BOOK0086,92,Book amount (10000) is the gross invoice value recorded for STR1001; bank settlement (9882) is net of a Stripe processing fee of 118. Difference (118) matches the known Stripe fee pattern for this transaction size.
+MATCH087,fee_adjustment,BANK0087,BOOK0087,92,Book amount (12500) is the gross invoice value recorded for STR1002; bank settlement (12028) is net of a Stripe processing fee of 472. Difference (472) matches the known Stripe fee pattern for this transaction size.
+MATCH088,fee_adjustment,BANK0088,BOOK0088,92,Book amount (15000) is the gross invoice value recorded for RZP1003; bank settlement (14646) is net of a Razorpay processing fee of 354. Difference (354) matches the known Razorpay fee pattern for this transaction size.
+MATCH089,one_to_many,BANK0089,BOOK0089;BOOK0090,93,GreenLeaf Enterprises sent a single consolidated NEFT of 10000 covering two separate invoices (INV1301=4000 and INV1302=6000). The sum of the two book entries equals the single bank credit.
+MATCH090,one_to_many,BANK0090,BOOK0091;BOOK0092,93,Sunrise Logistics sent a single consolidated NEFT of 15000 covering two separate invoices (INV1303=7500 and INV1304=7500). The sum of the two book entries equals the single bank credit.
+MATCH091,one_to_many,BANK0091,BOOK0093;BOOK0094,93,Alpha Retail sent a single consolidated NEFT of 12500 covering two separate invoices (INV1305=5000 and INV1306=7500). The sum of the two book entries equals the single bank credit.
+MATCH092,one_to_many,BANK0092,BOOK0095;BOOK0096,93,BlueSky Traders sent a single consolidated NEFT of 25000 covering two separate invoices (INV1307=12500 and INV1308=12500). The sum of the two book entries equals the single bank credit.
+MATCH093,many_to_one,BANK0093;BANK0094,BOOK0097,93,The bank processed the payment to AWS India for AWS-INV-3301 as two separate debits (2000 and 3000) on the same day. Their sum (5000) equals the single book Bill Payment entry.
+MATCH094,many_to_one,BANK0095;BANK0096,BOOK0098,93,The bank processed the payment to Zoho for ZOHO-3302 as two separate debits (4000 and 6000) on the same day. Their sum (10000) equals the single book Bill Payment entry.
+MATCH095,many_to_one,BANK0097;BANK0098,BOOK0099,93,The bank processed the payment to Razorpay for RZP1004 as two separate debits (2500 and 5000) on the same day. Their sum (7500) equals the single book Bill Payment entry.
+MATCH096,many_to_one,BANK0099;BANK0100,BOOK0100,93,The bank processed the payment to Stripe for STR1003 as two separate debits (5000 and 10000) on the same day. Their sum (15000) equals the single book Bill Payment entry.
+MATCH097,unmatched,BANK0101,,0,Bank-credited savings account interest with no corresponding entry yet recorded in the books (unidentified credit).
+MATCH098,unmatched,BANK0102,,0,Bank service charge debited automatically by the bank; no corresponding book entry exists (unknown bank fee).
+MATCH099,unmatched,BANK0103,,0,Duplicate payment: this NEFT credit for INV1001 duplicates the amount already matched to BOOK0001/BANK0001; the customer appears to have paid twice and this credit remains unmatched pending refund/adjustment.
+MATCH100,unmatched,BANK0104,,0,Unidentified credit from an unknown sender with no matching invoice or customer record in the books.
+MATCH101,unmatched,BANK0105,,0,ATM cash withdrawal recorded only on the bank statement; no corresponding book entry has been created for this petty cash movement.
+MATCH102,unmatched,BANK0106,,0,Small RTGS processing charge debited by the bank; not yet booked as a bank charges expense.
+MATCH103,unmatched,BANK0107,,0,Income tax department TDS refund credited to the bank account; no corresponding receivable entry has been recorded in the books.
+MATCH104,unmatched,BANK0108,,0,Customer payment received for an invoice (INV1099) that does not exist in the book transactions extract provided - likely an invoice from a prior period not included in this dataset (missing book transaction).
+MATCH105,unmatched,BANK0109,,0,Razorpay settlement for a payment gateway transaction with no matching sales invoice in the book transactions extract (unidentified gateway credit).
+MATCH106,unmatched,BANK0110,,0,Cheque bounce charges levied by the bank; not yet recorded as an expense in the books.
