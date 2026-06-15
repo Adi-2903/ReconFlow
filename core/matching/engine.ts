@@ -19,7 +19,7 @@ export interface LedgerEntry {
 export interface MatchResult {
   bankTransactionId: string;
   ledgerEntryIds: string[]; // array supports bulk matches
-  confidenceScore: number; // 0.0 to 1.0, 2 decimal places max
+  confidenceScore: number;  // 0.0 to 1.0, 2 decimal places max
   matchType: "exact" | "fuzzy" | "bulk" | "none";
   scoringBreakdown: {
     amountScore: number;
@@ -28,22 +28,23 @@ export interface MatchResult {
   };
 }
 
-// FIXED: scoreAmount discontinuity at 50000 paise inverted logic [2026-06-12]
+// ── Scoring functions ─────────────────────────────────────────────────────────
+
 export function scoreAmount(bankAmount: number, ledgerAmount: number): number {
-  if (bankAmount === ledgerAmount) return 1.0
+  if (bankAmount === ledgerAmount) return 1.0;
 
-  const diff = Math.abs(bankAmount - ledgerAmount)
-  const larger = Math.max(bankAmount, ledgerAmount)
+  const diff = Math.abs(bankAmount - ledgerAmount);
+  const larger = Math.max(bankAmount, ledgerAmount);
 
-  // Reject if difference exceeds 20% of the larger amount
-  if (diff / larger > 0.20) return 0
+  // Hard reject: difference exceeds 20% of the larger amount
+  if (diff / larger > 0.20) return 0;
 
-  // Single smooth decay curve — no discontinuity
-  // At diff=0: score=1.0
-  // At diff=50000 paise (₹500): score≈0.78
-  // At diff=100000 paise (₹1000): score≈0.61
-  // At diff=200000 paise (₹2000): score≈0.37
-  return Math.exp(-diff / 120000)
+  // Smooth exponential decay
+  // At diff=0        → 1.0
+  // At diff=₹500     → ~0.78
+  // At diff=₹1,000   → ~0.61
+  // At diff=₹2,000   → ~0.37
+  return Math.exp(-diff / 120_000); // 120_000 paise = ₹1200 decay constant
 }
 
 export function scoreDate(bankDate: Date, ledgerDate: Date): number {
@@ -52,39 +53,32 @@ export function scoreDate(bankDate: Date, ledgerDate: Date): number {
   if (diffDays === 1) return 0.85;
   if (diffDays === 2) return 0.70;
   if (diffDays === 3) return 0.55;
-  return 0; // More than 3 days
+  return 0; // More than 3 days → no contribution
 }
 
-// FIXED: scoreText floor of 0.5 artificially inflates unrelated strings [2026-06-12]
 export function scoreText(bankDesc: string, ledgerRef: string): number {
   const normalize = (s: string) =>
-    s.toLowerCase().split(/\W+/).filter(token => token.length > 2)
+    s.toLowerCase().split(/\W+/).filter((token) => token.length > 2);
 
-  const bankTokens = new Set(normalize(bankDesc))
-  const ledgerTokens = new Set(normalize(ledgerRef))
+  const bankTokens = new Set(normalize(bankDesc));
+  const ledgerTokens = new Set(normalize(ledgerRef));
 
-  // Extract numeric sequences (invoice numbers, reference IDs)
-  const bankNums = new Set((bankDesc.match(/\d{4,}/g) || []))
-  const ledgerNums = new Set((ledgerRef.match(/\d{4,}/g) || []))
-
-  // Strong signal: shared numeric sequence (invoice number match)
-  const numericOverlap = [...bankNums].some(n => ledgerNums.has(n))
-  if (numericOverlap) return 0.92
+  // Strong signal: shared numeric sequence (invoice/reference number match)
+  const bankNums = new Set((bankDesc.match(/\d{4,}/g) || []));
+  const ledgerNums = new Set((ledgerRef.match(/\d{4,}/g) || []));
+  const numericOverlap = [...bankNums].some((n) => ledgerNums.has(n));
+  if (numericOverlap) return 0.92;
 
   // Jaccard similarity on word tokens
-  const intersection = new Set([...bankTokens].filter(t => ledgerTokens.has(t)))
-  const union = new Set([...bankTokens, ...ledgerTokens])
+  const intersection = new Set([...bankTokens].filter((t) => ledgerTokens.has(t)));
+  const union = new Set([...bankTokens, ...ledgerTokens]);
 
-  if (union.size === 0) return 0.10  // Both empty strings — low but not zero
+  if (union.size === 0) return 0.10; // Both empty → low but not zero
 
-  const jaccard = intersection.size / union.size
-
-  // NO floor — return actual similarity
-  // Completely unrelated strings will return 0.0–0.15
-  // Partially related will return 0.15–0.60
-  // Strong text match will return 0.60–0.92
-  return Math.round(jaccard * 100) / 100
+  return Math.round((intersection.size / union.size) * 100) / 100;
 }
+
+// ── Utility ───────────────────────────────────────────────────────────────────
 
 const getCombinations = <T>(arr: T[], maxSize: number): T[][] => {
   const result: T[][] = [];
@@ -103,6 +97,8 @@ const getCombinations = <T>(arr: T[], maxSize: number): T[][] => {
   return result;
 };
 
+// ── Main engine ───────────────────────────────────────────────────────────────
+
 export function matchTransactions(
   banks: BankTransaction[],
   ledgers: LedgerEntry[]
@@ -111,13 +107,17 @@ export function matchTransactions(
   const claimedBankIds = new Set<string>();
   const claimedLedgerIds = new Set<string>();
 
-  // Pass 1 - Exact match
+  // ── Pass 1: Exact match ───────────────────────────────────────────────────
+  // Finds the BEST exact candidate (not just the first), so duplicate-amount
+  // invoices are disambiguated by text similarity.
   for (const bank of banks) {
     if (claimedBankIds.has(bank.id)) continue;
 
+    const combinedBankDesc = `${bank.description} ${bank.referenceId}`;
+
     let bestLedgerId: string | null = null;
-    let bestLedgerTextScore = 0;
-    let bestLedgerDateScore = 0;
+    let bestTextScore = -1;
+    let bestDateScore = 0;
 
     for (const ledger of ledgers) {
       if (claimedLedgerIds.has(ledger.id)) continue;
@@ -125,14 +125,17 @@ export function matchTransactions(
       const sAmt = scoreAmount(bank.amount, ledger.amount);
       const sDate = scoreDate(bank.date, ledger.date);
 
-      if (sAmt === 1.0 && sDate >= 0.85) {
+      // Exact pass: amount must be identical, date within 1 day
+      if (sAmt !== 1.0 || sDate < 0.85) continue;
+
+      const combinedLedgerRef = `${ledger.memo} ${ledger.invoiceRef}`;
+      const sText = scoreText(combinedBankDesc, combinedLedgerRef);
+
+      // FIX: pick the candidate with the highest text score, not just the first
+      if (sText > bestTextScore) {
+        bestTextScore = sText;
+        bestDateScore = sDate;
         bestLedgerId = ledger.id;
-        bestLedgerDateScore = sDate;
-        // Text property might be combined between memo and invoiceRef depending on how it's matched
-        const combinedLedgerRef = `${ledger.memo} ${ledger.invoiceRef}`;
-        const combinedBankDesc = `${bank.description} ${bank.referenceId}`;
-        bestLedgerTextScore = scoreText(combinedBankDesc, combinedLedgerRef);
-        break; // found match, break to assign
       }
     }
 
@@ -144,8 +147,8 @@ export function matchTransactions(
         matchType: "exact",
         scoringBreakdown: {
           amountScore: 1.0,
-          dateScore: bestLedgerDateScore,
-          textScore: bestLedgerTextScore,
+          dateScore: bestDateScore,
+          textScore: bestTextScore,
         },
       });
       claimedBankIds.add(bank.id);
@@ -153,10 +156,11 @@ export function matchTransactions(
     }
   }
 
-  // Pass 2 - Bulk match (subset-sum)
+  // ── Pass 2: Bulk match (subset-sum) ──────────────────────────────────────
   for (const bank of banks) {
     if (claimedBankIds.has(bank.id)) continue;
 
+    // Candidate ledgers: unclaimed and within a 5-day window of the bank date
     const candidateLedgers = ledgers.filter(
       (l) =>
         !claimedLedgerIds.has(l.id) &&
@@ -171,35 +175,30 @@ export function matchTransactions(
     let bestConfidence = 0;
     let bestBreakdown = { amountScore: 0, dateScore: 0, textScore: 0 };
 
+    const combinedBankDesc = `${bank.description} ${bank.referenceId}`;
+
     for (const combo of combos) {
       const sumAmount = combo.reduce((s, l) => s + l.amount, 0);
-      const diff = Math.abs(sumAmount - bank.amount);
+      const sAmt = scoreAmount(bank.amount, sumAmount);
+      if (sAmt === 0) continue; // Outside 20% tolerance → skip immediately
 
-      if (diff <= 50000) {
-        const sAmt = scoreAmount(bank.amount, sumAmount);
-        const sDate =
-          combo.reduce((acc, l) => acc + scoreDate(bank.date, l.date), 0) /
-          combo.length;
+      const sDate =
+        combo.reduce((acc, l) => acc + scoreDate(bank.date, l.date), 0) /
+        combo.length;
 
-        const combinedBankDesc = `${bank.description} ${bank.referenceId}`;
-        const sText =
-          combo.reduce(
-            (acc, l) =>
-              acc + scoreText(combinedBankDesc, `${l.memo} ${l.invoiceRef}`),
-            0
-          ) / combo.length;
+      const sText =
+        combo.reduce(
+          (acc, l) =>
+            acc + scoreText(combinedBankDesc, `${l.memo} ${l.invoiceRef}`),
+          0
+        ) / combo.length;
 
-        const confidence = sAmt * 0.5 + sDate * 0.3 + sText * 0.2;
+      const confidence = sAmt * 0.5 + sDate * 0.3 + sText * 0.2;
 
-        if (confidence > bestConfidence) {
-          bestConfidence = confidence;
-          bestCombo = combo;
-          bestBreakdown = {
-            amountScore: sAmt,
-            dateScore: sDate,
-            textScore: sText,
-          };
-        }
+      if (confidence > bestConfidence) {
+        bestConfidence = confidence;
+        bestCombo = combo;
+        bestBreakdown = { amountScore: sAmt, dateScore: sDate, textScore: sText };
       }
     }
 
@@ -216,9 +215,11 @@ export function matchTransactions(
     }
   }
 
-  // Pass 3 - Fuzzy match
+  // ── Pass 3: Fuzzy match ───────────────────────────────────────────────────
   for (const bank of banks) {
     if (claimedBankIds.has(bank.id)) continue;
+
+    const combinedBankDesc = `${bank.description} ${bank.referenceId}`;
 
     let bestLedgerId: string | null = null;
     let bestConfidence = 0;
@@ -228,22 +229,22 @@ export function matchTransactions(
       if (claimedLedgerIds.has(ledger.id)) continue;
 
       const sAmt = scoreAmount(bank.amount, ledger.amount);
-      const sDate = scoreDate(bank.date, ledger.date);
 
-      const combinedBankDesc = `${bank.description} ${bank.referenceId}`;
+      // FIX: hard gate — if amounts are completely unrelated, skip.
+      // Prevents a transaction matching purely on date+text with no amount signal.
+      if (sAmt === 0) continue;
+
+      const sDate = scoreDate(bank.date, ledger.date);
       const combinedLedgerRef = `${ledger.memo} ${ledger.invoiceRef}`;
       const sText = scoreText(combinedBankDesc, combinedLedgerRef);
 
       const confidence = sAmt * 0.5 + sDate * 0.3 + sText * 0.2;
 
-      if (confidence >= 0.6 && confidence > bestConfidence) {
+      // Minimum confidence threshold: 0.60
+      if (confidence >= 0.60 && confidence > bestConfidence) {
         bestConfidence = confidence;
         bestLedgerId = ledger.id;
-        bestBreakdown = {
-          amountScore: sAmt,
-          dateScore: sDate,
-          textScore: sText,
-        };
+        bestBreakdown = { amountScore: sAmt, dateScore: sDate, textScore: sText };
       }
     }
 
@@ -260,7 +261,7 @@ export function matchTransactions(
     }
   }
 
-  // Pass 4 - Unmatched
+  // ── Pass 4: Unmatched / Exceptions ───────────────────────────────────────
   for (const bank of banks) {
     if (!claimedBankIds.has(bank.id)) {
       results.push({
@@ -268,20 +269,25 @@ export function matchTransactions(
         ledgerEntryIds: [],
         confidenceScore: 0,
         matchType: "none",
-        scoringBreakdown: {
-          amountScore: 0,
-          dateScore: 0,
-          textScore: 0,
-        },
+        scoringBreakdown: { amountScore: 0, dateScore: 0, textScore: 0 },
       });
     }
   }
 
-  // Sort results
+  // ── Sort for dashboard ────────────────────────────────────────────────────
+  // FIX: High confidence first, exceptions last.
+  // Original code had this inverted (ascending confidence, none first).
+  const typeOrder: Record<MatchResult["matchType"], number> = {
+    exact: 0,
+    bulk: 1,
+    fuzzy: 2,
+    none: 3,
+  };
+
   results.sort((a, b) => {
-    if (a.matchType === "none" && b.matchType !== "none") return -1;
-    if (b.matchType === "none" && a.matchType !== "none") return 1;
-    return a.confidenceScore - b.confidenceScore;
+    const typeDiff = typeOrder[a.matchType] - typeOrder[b.matchType];
+    if (typeDiff !== 0) return typeDiff;
+    return b.confidenceScore - a.confidenceScore; // descending within type
   });
 
   return results;
