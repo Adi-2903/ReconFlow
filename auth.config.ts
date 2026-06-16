@@ -2,7 +2,10 @@ import type { NextAuthConfig } from "next-auth"
 
 export const authConfig = {
   providers: [], // No providers here to avoid Edge database driver dependencies
-  session: { strategy: "jwt" },
+  session: { 
+    strategy: "jwt",
+    maxAge: 2 * 60 * 60, // 2 hours expiry for financial security
+  },
   pages: {
     signIn: "/sign-in"
   },

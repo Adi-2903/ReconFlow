@@ -1,143 +1,242 @@
 # ReconFlow
 
-**AI-powered bank reconciliation for Indian startups and SMEs.**  
-Built for the [AWS × Vercel Hackathon](https://vercel.com/) — full-stack Next.js deployed on Vercel, backed by Amazon Aurora PostgreSQL.
+**AI-powered bank reconciliation for startups and SMEs.**
+
+ReconFlow is a modern, automated financial reconciliation platform that bridges the gap between your bank statements (like Stripe payouts or bank NEFTs) and your accounting ledger (like QuickBooks). It automatically matches transactions, explains discrepancies using AI, and provides a clear, actionable dashboard for your finance team.
 
 ---
 
-## What it does
+## 🚀 Key Features
 
-ReconFlow automatically matches bank transactions against your accounting ledger entries using a multi-pass reconciliation engine:
-
-- **Exact match** — amount + date within tolerance → auto-approved
-- **Fuzzy match** — partial amount/date/text similarity → flagged for human review
-- **Bulk match** — multiple ledger entries that sum to one bank transaction (e.g., payroll splits)
-- **Exceptions** — unmatched transactions that need manual investigation
-
-An **Evidence Panel** provides explainability for every match, and an **Audit Log** tracks every approve/reject action.
+*   **Multi-Pass Matching Engine:** A deterministic algorithm that handles exact matches, fuzzy matches (date/amount discrepancies), and complex bulk/many-to-one matches (e.g., multiple invoices paid in a single wire transfer).
+*   **AI-Powered Reasoning:** Integrates with Google's Gemini AI to explain *why* transactions matched (or didn't) in plain English. For example, it can detect if a discrepancy is due to a Stripe fee or an FX conversion.
+*   **QuickBooks Integration:** Seamless OAuth 2.0 integration to pull live invoice data directly from QuickBooks Online into the reconciliation engine.
+*   **Beautiful, High-Performance UI:** Built with Next.js App Router and Tailwind CSS, featuring virtualized tables for large datasets, dark-mode glassmorphic aesthetics, and responsive design.
+*   **Enterprise-Grade Database:** Backed by Amazon Aurora PostgreSQL via Drizzle ORM for robust, scalable data persistence.
 
 ---
 
-## Tech Stack
+## 🧠 How the Reconciliation Engine Works
 
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js 15 (App Router), Tailwind CSS |
-| Auth | Auth.js v5 (Credentials provider, JWT sessions) |
-| Database | Amazon Aurora PostgreSQL / Neon PostgreSQL |
-| ORM | Drizzle ORM + Drizzle Kit |
-| UI Components | ShadCN UI |
-| Deployment | Vercel |
+ReconFlow uses a sequential 4-pass engine to maximize automation while minimizing false positives:
+
+1.  **Exact Match:** Looks for identical amounts and identical (or $\le 1$ day) dates. Auto-approved.
+2.  **Bulk Match (Subset-Sum):** Identifies when 2 to 4 ledger entries sum up perfectly to a single bank deposit (within a 5-day window).
+3.  **Fuzzy Match:** Calculates a combined confidence score based on:
+    *   *Amount Similarity:* Smooth decay curve (rejects if $>20\%$ difference).
+    *   *Date Proximity:* Decaying score up to 3 days difference.
+    *   *Text Similarity:* Jaccard index on word tokens and exact overlaps of invoice reference numbers.
+4.  **Exceptions:** Anything that fails passes 1-3 is flagged for manual review.
+
+Following the deterministic engine, an **AI Reasoning Pass (Gemini)** evaluates any non-exact match to provide plain English explanations and tag discrepancies (e.g., "Stripe fee deducted").
 
 ---
 
-## Project Structure
+## 📊 System Architecture & Workflows
 
+### High-Level Architecture
+
+```mermaid
+graph TD
+    Client[Web Client (Next.js)] --> API[Next.js API Routes]
+    
+    subgraph Backend Services
+        API --> Engine[Reconciliation Engine]
+        API --> Auth[NextAuth.js]
+        API --> DBClient[Drizzle ORM]
+    end
+    
+    subgraph External Systems
+        Engine --> Gemini[Google Gemini AI]
+        API --> QBO[QuickBooks API]
+        API --> Stripe[Stripe API / CSV]
+    end
+    
+    DBClient --> DB[(AWS Aurora PostgreSQL)]
 ```
+
+### Reconciliation Workflow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant App
+    participant Engine
+    participant Gemini
+    participant DB
+    
+    User->>App: Click "Run Reconciliation"
+    App->>DB: Fetch unmatched Bank & Ledger rows
+    App->>Engine: matchTransactions(banks, ledgers)
+    
+    rect rgb(20, 30, 40)
+        Note over Engine: Pass 1: Exact Matches
+        Note over Engine: Pass 2: Bulk (Subset-Sum) Matches
+        Note over Engine: Pass 3: Fuzzy Matches
+        Note over Engine: Pass 4: Unmatched (Exceptions)
+    end
+    
+    Engine-->>App: Match Results
+    
+    App->>Gemini: Request explanations for fuzzy/bulk matches
+    Gemini-->>App: JSON Reasoning (Confidence, Reason, Flags)
+    
+    App->>DB: Save Matches & Update Transaction Statuses
+    App-->>User: Display Dashboard with Results
+```
+
+### QuickBooks OAuth Integration Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant App
+    participant Intuit as QuickBooks Auth
+    participant DB
+    
+    User->>App: Click "Connect QuickBooks"
+    App->>Intuit: Redirect to Intuit OAuth URL
+    Intuit-->>User: Prompt Login & Consent
+    User->>Intuit: Approve Access
+    Intuit->>App: Redirect to /api/qbo/callback with Code
+    App->>Intuit: Exchange Code for Access/Refresh Tokens
+    Intuit-->>App: Token Payload
+    App->>DB: Securely store Tokens against User ID
+    App-->>User: Redirect to Connect Dashboard
+```
+
+---
+
+## 🛠️ Tech Stack
+
+| Category | Technology |
+| :--- | :--- |
+| **Framework** | Next.js 15 (App Router) |
+| **Language** | TypeScript |
+| **Styling** | Tailwind CSS, ShadCN UI, Lucide Icons |
+| **Database** | Amazon Aurora PostgreSQL (Serverless) |
+| **ORM** | Drizzle ORM |
+| **Authentication**| NextAuth.js (Auth.js v5) |
+| **AI/ML** | `@google/genai` (Gemini 2.5 Flash) |
+| **Integrations** | `intuit-oauth` (QuickBooks) |
+
+---
+
+## 📁 Project Structure
+
+```text
 reconflow/
 ├── app/                          # Next.js App Router — pages & API routes
 │   ├── api/
 │   │   ├── auth/                 # Auth.js handlers
-│   │   ├── matches/              # GET all matches, POST approve/reject/bulk-approve
-│   │   └── recon/run/            # POST — run the reconciliation engine
-│   ├── connect/                  # Integration setup wizard
+│   │   ├── matches/              # GET all matches, POST approve/reject
+│   │   ├── qbo/                  # QuickBooks OAuth (auth, callback, sync, disconnect)
+│   │   └── recon/run/            # POST — executes the reconciliation engine
+│   ├── connect/                  # Integration setup (Stripe, QBO, CSV)
 │   ├── dashboard/                # Main reconciliation dashboard
 │   ├── exceptions/               # Exceptions management page
-│   ├── reports/                  # Reports & analytics
-│   ├── settings/                 # Settings page
+│   ├── reports/                  # Analytics and health scores
+│   ├── settings/                 # App settings
 │   └── sign-in/                  # Authentication page
 │
 ├── components/                   # UI components (presentation layer)
 │   ├── app-shell.tsx             # Navigation sidebar + top bar
-│   ├── virtual-match-table.tsx   # Virtualized match list (main dashboard table)
-│   ├── evidence-panel/           # Side panel showing match evidence & reasoning
-│   ├── new-run-modal/            # Multi-step modal to configure a reconciliation run
+│   ├── evidence-panel/           # Side panel showing match evidence & AI reasoning
 │   ├── skeletons/                # Loading skeleton components
-│   ├── error-boundary/           # React error boundary
-│   ├── Providers.tsx             # Session & toast providers
-│   └── ui/                       # ShadCN base components (button, dialog, etc.)
+│   └── ui/                       # ShadCN base components (buttons, dialogs, etc.)
 │
-├── core/                         # Business logic — decoupled from Next.js
+├── core/                         # Business logic
 │   ├── db/
-│   │   ├── index.ts              # DB connection (Aurora / Neon auto-detect)
-│   │   └── schema.ts             # Drizzle schema (users, transactions, matches, audit)
-│   ├── matching/
-│   │   └── engine.ts             # Reconciliation algorithm (exact, fuzzy, bulk)
-│   └── adapters/                 # Future: Stripe, QuickBooks, Razorpay adapters
+│   │   ├── index.ts              # DB connection config
+│   │   └── schema.ts             # Drizzle schema (users, bankTransactions, ledgerEntries, matches)
+│   └── matching/
+│   │   └── engine.ts             # The 4-pass reconciliation algorithm
 │
-├── lib/                          # Frontend utilities
-│   ├── data-context.tsx          # App-wide React context for match state
-│   ├── data.ts                   # Fallback mock matches (used when DB is empty)
-│   ├── constants.ts              # Shared constants (e.g., EXCEPTION_COUNT)
-│   ├── toast.ts                  # Toast notification helper
-│   └── utils.ts                  # ShadCN cn() utility
-│
-├── types/
-│   └── match.ts                  # Canonical MatchData type (single source of truth)
+├── lib/                          # Utilities & Helpers
+│   ├── ai-reason.ts              # Gemini prompt generation and JSON parsing
+│   ├── data-context.tsx          # App-wide React context for demo vs live mode
+│   └── utils.ts                  # Shared utility functions
 │
 ├── scripts/
-│   └── seed-stripe-test.ts       # Seeds DB with demo transactions & ledger entries
+│   └── seed-stripe-test.ts       # Database fixture script for local testing
 │
-├── auth.config.ts                # Edge-compatible NextAuth config (for middleware)
-├── auth.ts                       # Full NextAuth config (Node.js runtime, DB adapter)
-├── middleware.ts                 # Route protection (Edge Runtime safe)
-├── drizzle.config.ts             # Drizzle Kit config
-└── .env.example                  # Environment variable reference
+└── drizzle.config.ts             # Drizzle Kit config
 ```
 
----
-
-## Local Development
-
-### Prerequisites
-- Node.js 18+
-- A PostgreSQL database (local, Docker, Neon, or Aurora)
-
-### Setup
-
-1. **Clone and install**
-   ```bash
-   git clone https://github.com/your-username/reconflow
-   cd reconflow
-   npm install
-   ```
-
-2. **Configure environment**
-   ```bash
-   cp .env.example .env
-   ```
-   Edit `.env` with your values:
-   ```env
-   DATABASE_URL=postgres://postgres:password@localhost:5432/reconflow
-   AUTH_SECRET=your-random-secret-here
-   GEMINI_API_KEY=your-gemini-key
-   ```
-
-3. **Push database schema**
-   ```bash
-   npx drizzle-kit push
-   ```
-
-4. **Seed demo data**
-   ```bash
-   npx tsx scripts/seed-stripe-test.ts
-   ```
-
-5. **Start the dev server**
-   ```bash
-   npm run dev
-   ```
-   Open [http://localhost:3000](http://localhost:3000). Log in with `demo@example.com` and any password.
+*(Note: AI Agent specific files and configurations have been intentionally excluded from this tree).*
 
 ---
 
-## Deploying to Vercel
+## 💻 Local Development Setup
 
-1. Push the repo to GitHub.
-2. Import the project in [Vercel](https://vercel.com).
-3. Add environment variables in the Vercel dashboard:
-   - `DATABASE_URL` — your Aurora/Neon connection string
-   - `AUTH_SECRET` — a secure random string
-   - `GEMINI_API_KEY` — your Gemini API key
-   - `NEXTAUTH_URL` — your Vercel deployment URL
-4. Deploy. Vercel handles the rest.
+### 1. Prerequisites
+*   Node.js 18+
+*   A PostgreSQL database instance (local, Docker, or managed like AWS Aurora/Neon)
+
+### 2. Installation
+```bash
+git clone https://github.com/your-username/reconflow.git
+cd reconflow
+npm install
+```
+
+### 3. Environment Configuration
+Create a `.env` file in the root directory:
+```env
+# Database
+DATABASE_URL=postgres://user:password@host:5432/reconflow
+
+# Authentication
+AUTH_SECRET=generate-a-secure-random-string
+
+# AI Integration
+GEMINI_API_KEY=your-gemini-api-key
+
+# QuickBooks Integration (Sandbox or Production)
+QBO_CLIENT_ID=your-qbo-client-id
+QBO_CLIENT_SECRET=your-qbo-client-secret
+QBO_ENVIRONMENT=sandbox
+```
+
+### 4. Database Setup
+Push the Drizzle schema to your database:
+```bash
+npx drizzle-kit push
+```
+
+*(Optional)* Seed the database with curated demo data to test the matching engine without connecting live accounts:
+```bash
+npx tsx scripts/seed-stripe-test.ts
+```
+
+### 5. Run the Application
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
+## 📄 License
+
+MIT License
+
+Copyright (c) 2026 ReconFlow Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

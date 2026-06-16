@@ -9,12 +9,16 @@ import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { signOut, useSession } from "next-auth/react";
 
 type Section = "General" | "Reconciliation Rules" | "Notifications" | "Team" | "Danger Zone";
 
 const SECTIONS: Section[] = ["General", "Reconciliation Rules", "Notifications", "Team", "Danger Zone"];
 
 export default function SettingsPage() {
+  const { data: session } = useSession();
+  const userEmail = session?.user?.email || "your email";
+
   const [activeSection, setActiveSection] = useState<Section>("General");
 
   // General State
@@ -58,12 +62,33 @@ export default function SettingsPage() {
     setInviteEmail("");
   };
 
-  const handleDangerAction = () => {
-    toast.info("Action cancelled — backend not connected yet");
-    setResetOpen(false);
-    setDeleteOpen(false);
-    setResetInput("");
-    setDeleteEmailInput("");
+  const handleResetData = async () => {
+    try {
+      const res = await fetch("/api/settings/reset", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to reset data");
+      toast.success("Data reset successfully");
+    } catch (error) {
+      console.error(error);
+      toast.error("Error resetting data");
+    } finally {
+      setResetOpen(false);
+      setResetInput("");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      const res = await fetch("/api/settings/delete-account", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to delete account");
+      toast.success("Account deleted successfully");
+      signOut({ callbackUrl: "/login" });
+    } catch (error) {
+      console.error(error);
+      toast.error("Error deleting account");
+    } finally {
+      setDeleteOpen(false);
+      setDeleteEmailInput("");
+    }
   };
 
   return (
@@ -425,7 +450,7 @@ export default function SettingsPage() {
                       <DialogFooter>
                         <Button variant="outline" onClick={() => setResetOpen(false)}>Cancel</Button>
                         <Button 
-                          onClick={handleDangerAction} 
+                          onClick={handleResetData} 
                           className="bg-red-600 text-white hover:bg-red-700" 
                           disabled={resetInput !== 'RESET'}
                         >
@@ -449,7 +474,7 @@ export default function SettingsPage() {
                       <DialogHeader>
                         <DialogTitle>Deactivate and delete account?</DialogTitle>
                         <DialogDescription>
-                          This cannot be undone. Type your email (<span className="font-medium text-slate-900">john@acme.com</span>) to confirm.
+                          This cannot be undone. Type your email (<span className="font-medium text-slate-900">{userEmail}</span>) to confirm.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="py-4">
@@ -458,9 +483,9 @@ export default function SettingsPage() {
                       <DialogFooter>
                         <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
                         <Button 
-                          onClick={handleDangerAction} 
+                          onClick={handleDeleteAccount} 
                           className="bg-red-600 text-white hover:bg-red-700" 
-                          disabled={deleteEmailInput !== 'john@acme.com'}
+                          disabled={deleteEmailInput !== userEmail}
                         >
                           Delete account
                         </Button>

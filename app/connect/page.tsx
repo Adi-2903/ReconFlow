@@ -4,21 +4,58 @@ import React, { useState, useRef } from "react";
 import { Lock, Upload, CheckCircle2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+
+function timeAgo(dateParam: string | null) {
+  if (!dateParam) return "";
+  const date = new Date(dateParam);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (diffInSeconds < 60) return "just now";
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+  const diffInDays = Math.floor(diffInHours / 24);
+  return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+}
 
 export default function ConnectPage() {
   const router = useRouter();
 
   // State for bank connection
   const [stripeConnected, setStripeConnected] = useState(false);
+  const [stripeLastSync, setStripeLastSync] = useState<string | null>(null);
+  const [isStripeSyncing, setIsStripeSyncing] = useState(false);
+  const [stripeTxnCount, setStripeTxnCount] = useState(0);
   const [bankCsvFilename, setBankCsvFilename] = useState<string | null>(null);
 
   // State for ledger connection
   const [ledgerSource, setLedgerSource] = useState<"quickbooks" | "zoho" | "csv" | null>(null);
   const [qboConnected, setQboConnected] = useState(false);
+  const [qboLastSync, setQboLastSync] = useState<string | null>(null);
   const [isQboSyncing, setIsQboSyncing] = useState(false);
   const [qboTxnCount, setQboTxnCount] = useState(0);
   const [ledgerCsvFilename, setLedgerCsvFilename] = useState<string | null>(null);
   const ledgerCsvInputRef = useRef<HTMLInputElement>(null);
+
+  const onSyncStripe = React.useCallback(async () => {
+    setIsStripeSyncing(true);
+    try {
+      const res = await fetch("/api/stripe/sync", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to sync Stripe");
+      const data = await res.json();
+      setStripeTxnCount(data.count || 0);
+      setStripeConnected(true);
+      setStripeLastSync(new Date().toISOString());
+      toast.success("Stripe data synced successfully");
+    } catch (error) {
+      console.error(error);
+      toast.error("Error syncing Stripe data");
+    } finally {
+      setIsStripeSyncing(false);
+    }
+  }, []);
 
   const onSyncQbo = React.useCallback(async () => {
     setIsQboSyncing(true);
@@ -27,29 +64,55 @@ export default function ConnectPage() {
       if (!res.ok) throw new Error("Failed to sync QBO");
       const data = await res.json();
       setQboTxnCount(data.count || 0);
+      setQboLastSync(new Date().toISOString());
+      toast.success("QuickBooks data synced successfully");
     } catch (error) {
       console.error(error);
-      alert("Error syncing QuickBooks data");
+      toast.error("Error syncing QuickBooks data");
     } finally {
       setIsQboSyncing(false);
     }
   }, []);
 
   React.useEffect(() => {
-    // Check URL for OAuth callback success
+    // Fetch initial counts and timestamps
+    fetch("/api/recon/counts")
+      .then(res => res.json())
+      .then(data => {
+        if (data.stripeConnected) setStripeConnected(true);
+        if (data.stripeTransactions) setStripeTxnCount(data.stripeTransactions);
+        if (data.stripeLastSync) setStripeLastSync(data.stripeLastSync);
+        
+        if (data.qboConnected) {
+          setQboConnected(true);
+          setLedgerSource("quickbooks");
+        }
+        if (data.ledgerEntries) setQboTxnCount(data.ledgerEntries);
+        if (data.qboLastSync) setQboLastSync(data.qboLastSync);
+      })
+      .catch(console.error);
+
     const params = new URLSearchParams(window.location.search);
+    // Handle QBO OAuth callback
     if (params.get("qbo_connected") === "true") {
       setQboConnected(true);
       setLedgerSource("quickbooks");
-      // Automatically sync data
       onSyncQbo();
-      // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (params.get("qbo_error") === "true") {
-      alert("Failed to connect to QuickBooks. Please try again.");
+      toast.error("Failed to connect to QuickBooks. Please try again.");
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [onSyncQbo]);
+    // Handle Stripe OAuth callback
+    if (params.get("stripe_connected") === "true") {
+      setStripeConnected(true);
+      onSyncStripe();
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (params.get("stripe_error") === "true") {
+      toast.error("Failed to connect to Stripe. Please try again.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [onSyncQbo, onSyncStripe]);
 
   const onDisconnectQbo = async () => {
     try {
@@ -62,34 +125,30 @@ export default function ConnectPage() {
     setLedgerSource(null);
   };
 
+  const onDisconnectStripe = async () => {
+    try {
+      await fetch("/api/stripe/disconnect", { method: "POST" });
+    } catch (e) {
+      console.error("Failed to clear Stripe token on server", e);
+    }
+    setStripeConnected(false);
+    setStripeTxnCount(0);
+  };
+
   const onConnectQbo = () => {
-    // Redirect to backend auth route to start OAuth flow
     window.location.href = "/api/qbo/auth";
+  };
+
+  // Stripe OAuth — redirect to /api/stripe/auth (same pattern as QBO)
+  const onConnectStripe = () => {
+    window.location.href = "/api/stripe/auth";
   };
 
   const isBankConnected = stripeConnected || bankCsvFilename !== null;
   const isLedgerConnected = ledgerSource !== null;
   const isReady = isBankConnected && isLedgerConnected;
 
-  const [isStripeSyncing, setIsStripeSyncing] = useState(false);
-  const [stripeTxnCount, setStripeTxnCount] = useState(0);
 
-  // Handlers for Stripe
-  const onConnectStripe = async () => {
-    setIsStripeSyncing(true);
-    try {
-      const res = await fetch("/api/stripe/sync", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to sync Stripe");
-      const data = await res.json();
-      setStripeTxnCount(data.count || 0);
-      setStripeConnected(true);
-    } catch (error) {
-      console.error(error);
-      alert("Error connecting to Stripe");
-    } finally {
-      setIsStripeSyncing(false);
-    }
-  };
 
   // Drag and Drop handlers for Bank CSV
   const [dragActive, setDragActive] = useState(false);
@@ -156,12 +215,17 @@ export default function ConnectPage() {
 
           {stripeConnected ? (
             <div className="w-full mt-auto">
-              <div className="flex items-center justify-center gap-2 text-green-700 bg-green-50 rounded-md py-2 border border-green-200 text-sm font-medium mb-3">
-                <CheckCircle2 className="w-4 h-4 text-green-600" />
-                <span>Connected · {stripeTxnCount} transactions loaded</span>
+              <div className="flex flex-col items-center justify-center gap-1 text-green-700 bg-green-50 rounded-md py-2 border border-green-200 text-sm font-medium w-full mb-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  <span>Connected · {stripeTxnCount} transactions loaded</span>
+                </div>
+                {stripeLastSync && (
+                  <span className="text-xs text-green-600 font-normal">Last synced {timeAgo(stripeLastSync)}</span>
+                )}
               </div>
               <button
-                onClick={() => setStripeConnected(false)}
+              onClick={onDisconnectStripe}
                 className="w-full text-center text-sm font-medium text-slate-500 hover:text-slate-700 underline underline-offset-4 transition-colors"
               >
                 Disconnect
@@ -260,9 +324,14 @@ export default function ConnectPage() {
             <h4 className="font-medium text-slate-900 mb-3 text-sm">QuickBooks</h4>
             {qboConnected ? (
               <div className="w-full flex flex-col items-center gap-2">
-                <div className="flex items-center justify-center gap-2 text-green-700 bg-green-50 rounded-md py-2 border border-green-200 text-sm font-medium w-full">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>{qboTxnCount} invoices synced</span>
+                <div className="flex flex-col items-center justify-center gap-1 text-green-700 bg-green-50 rounded-md py-2 border border-green-200 text-sm font-medium w-full">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>{qboTxnCount} invoices synced</span>
+                  </div>
+                  {qboLastSync && (
+                    <span className="text-xs text-green-600 font-normal">Last synced {timeAgo(qboLastSync)}</span>
+                  )}
                 </div>
                 <button
                   onClick={onSyncQbo}

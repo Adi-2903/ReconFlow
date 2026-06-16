@@ -18,8 +18,16 @@ export const users = pgTable("users", {
   qboRefreshToken: text("qbo_refresh_token"),
   qboRealmId: text("qbo_realm_id"),
   qboTokenExpiresAt: timestamp("qbo_token_expires_at"),
+  qboLastSync: timestamp("qbo_last_sync"),
+  
+  // Stripe Connect OAuth
+  stripeAccessToken: text("stripe_access_token"),
+  stripeUserId: text("stripe_user_id"),
+  stripeLastSync: timestamp("stripe_last_sync"),
+  
   createdAt: timestamp("created_at").defaultNow(),
 });
+
 
 export const bankTransactions = pgTable("bank_transactions", {
   id: uuid("id").primaryKey().defaultRandom(),
