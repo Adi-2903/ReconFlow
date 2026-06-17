@@ -4,6 +4,7 @@ import {
   rawRecords,
   canonicalTransactions,
   financialAccounts,
+  organizations,
 } from "@/core/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
@@ -11,6 +12,8 @@ import { parseCsv } from "./parsers/csv.parser";
 import { parseExcel } from "./parsers/excel.parser";
 import { NormalizedConnectorRecord } from "./connectors/connector.interface";
 import { saveMappingTemplate } from "./mapping/template-matcher";
+import { findHeaderRowIndex, inferDateFormat } from "./mapping/column-detector";
+import { CleaningService } from "./cleaning.service";
 
 export class IngestionService {
   /**
@@ -158,7 +161,8 @@ export class IngestionService {
     fileName: string,
     fileType: string, // 'bank_csv', 'bank_excel', 'qbo_export', 'tally_export', 'stripe_export'
     columnMap: Record<string, string>,
-    saveTemplate?: { templateName: string; originalHeaders: string[] }
+    saveTemplate?: { templateName: string; originalHeaders: string[] },
+    sheetName?: string
   ): Promise<{ successCount: number; skippedCount: number; failureCount: number }> {
     // 1. Generate sha256 checksum and check for duplicate files
     const sha256 = this.generateChecksum(fileBuffer);
@@ -171,6 +175,28 @@ export class IngestionService {
     if (existingImport) {
       throw new Error(`File ${fileName} has already been uploaded.`);
     }
+
+    // Retrieve Organization and Account to get base currencies and locales
+    const [account] = await db
+      .select()
+      .from(financialAccounts)
+      .where(eq(financialAccounts.id, accountId))
+      .limit(1);
+    if (!account) {
+      throw new Error("Financial account not found.");
+    }
+
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+    if (!org) {
+      throw new Error("Organization not found.");
+    }
+
+    const accountMetadata = (account.metadata as any) || {};
+    const accountLocale = accountMetadata.locale || (account.baseCurrency === "INR" ? "en-IN" : "en-US");
 
     // 2. Insert import record as UPLOADED
     const [importRun] = await db
@@ -199,7 +225,7 @@ export class IngestionService {
         const fileText = fileBuffer.toString("utf8");
         rows = parseCsv(fileText);
       } else {
-        const parsed = parseExcel(fileBuffer);
+        const parsed = parseExcel(fileBuffer, sheetName);
         rows = parsed.rows;
       }
 
@@ -210,8 +236,10 @@ export class IngestionService {
       // 4. Update status to CLEANING
       await db.update(dbImports).set({ status: "CLEANING" }).where(eq(dbImports.id, importRun.id));
 
-      const headers = rows[0].map((h) => h.trim());
-      dataRows = rows.slice(1);
+      // Find best header row dynamically based on scoring matching headers
+      const { index: headerRowIndex } = findHeaderRowIndex(rows);
+      const headers = rows[headerRowIndex].map((h) => h.trim());
+      dataRows = rows.slice(headerRowIndex + 1);
 
       // Find indices of columns in file headers
       const dateIndex = headers.indexOf(columnMap.date);
@@ -227,21 +255,44 @@ export class IngestionService {
         throw new Error("Invalid column mapping. Required columns (Date, Description, Amount) are missing.");
       }
 
+      // Infer the date format format layout from the date column values (first 50 values)
+      const sampleDateStrings: string[] = [];
+      for (const row of dataRows) {
+        if (row && row[dateIndex]) {
+          sampleDateStrings.push(row[dateIndex]);
+        }
+        if (sampleDateStrings.length >= 50) break;
+      }
+      const inferredDateFormat = inferDateFormat(sampleDateStrings, accountLocale);
+
+      // Instantiate cleaning standardizer
+      const cleaningService = new CleaningService({
+        defaultCurrency: org.baseCurrency || "USD",
+        inferredDateFormat,
+        accountLocale,
+        accountCurrency: account.baseCurrency,
+        orgCurrency: org.baseCurrency,
+      });
+
       // 5. Update status to MAPPING
       await db.update(dbImports).set({ status: "MAPPING" }).where(eq(dbImports.id, importRun.id));
 
-      // Fetch existing transactions to handle idempotency by generating row signatures (date + amount + description hash)
+      // Fetch existing transactions to handle idempotency by checking both signatures & sourceTransactionId
       const existingRows = await db
         .select({
           date: canonicalTransactions.transactionDate,
           amount: canonicalTransactions.amountMinor,
           desc: canonicalTransactions.description,
+          sourceTransactionId: canonicalTransactions.sourceTransactionId,
         })
         .from(canonicalTransactions)
         .where(eq(canonicalTransactions.accountId, accountId));
 
       const existingSignatures = new Set(
         existingRows.map((e) => `${e.date}_${e.amount}_${e.desc?.trim().toLowerCase()}`)
+      );
+      const existingTxnIds = new Set(
+        existingRows.map((e) => e.sourceTransactionId).filter(Boolean)
       );
 
       // 6. Loop and insert
@@ -252,57 +303,57 @@ export class IngestionService {
           continue;
         }
 
+        const payload: Record<string, string> = {};
+        headers.forEach((h, index) => {
+          payload[h] = row[index] || "";
+        });
+
+        // Pre-insert raw record log
+        const [rawRec] = await db
+          .insert(rawRecords)
+          .values({
+            organizationId: orgId,
+            importId: importRun.id,
+            rowNumber: headerRowIndex + i + 2, // 1-indexed spreadsheet line number
+            rawPayload: payload,
+          })
+          .returning();
+
         try {
           const rawDateStr = row[dateIndex];
           const rawDescStr = row[descIndex];
           const refStr = refIndex !== -1 ? row[refIndex] : "";
 
-          // Resolve Amount in minor units (paise/cents)
-          let amountMinor = BigInt(0);
-          if (amountIndex !== -1) {
-            const cleanAmt = row[amountIndex].replace(/[^0-9.-]+/g, "");
-            amountMinor = BigInt(Math.round(parseFloat(cleanAmt) * 100));
-          } else {
-            // Debit/Credit columns mapping
-            const cleanDebit = debitIndex !== -1 && row[debitIndex] ? row[debitIndex].replace(/[^0-9.-]+/g, "") : "0";
-            const cleanCredit = creditIndex !== -1 && row[creditIndex] ? row[creditIndex].replace(/[^0-9.-]+/g, "") : "0";
-            const debit = parseFloat(cleanDebit) || 0;
-            const credit = parseFloat(cleanCredit) || 0;
-            
-            // net change
-            amountMinor = BigInt(Math.round((credit - debit) * 100));
-          }
+          // Normalize Date
+          const formattedDate = cleaningService.normalizeDate(rawDateStr);
 
-          // Format Date
-          let dateObj = new Date(rawDateStr);
-          if (isNaN(dateObj.getTime())) {
-            dateObj = new Date(); // Fallback
-          }
-          const formattedDate = dateObj.toISOString().split("T")[0];
+          // Normalize Amount
+          const amountVal = amountIndex !== -1 ? row[amountIndex] : undefined;
+          const debitVal = debitIndex !== -1 ? row[debitIndex] : undefined;
+          const creditVal = creditIndex !== -1 ? row[creditIndex] : undefined;
+          const { amountMinor, direction } = cleaningService.normalizeAmount(amountVal, debitVal, creditVal);
+
+          // Normalize Counterparty
+          const counterpartyName = rawDescStr;
+          const counterpartyNormalized = cleaningService.normalizeCounterparty(rawDescStr);
+
+          // Normalize Currency
+          const currency = cleaningService.detectCurrency(
+            (rawDescStr || "") + " " + (amountVal || debitVal || creditVal || "")
+          );
+
+          // Generate deterministic transaction hash
+          const hashInput = `${formattedDate}_${amountMinor}_${counterpartyNormalized}`;
+          const deterministicTxnId = crypto.createHash("sha256").update(hashInput).digest("hex");
 
           // Check for duplication inside file or database
-          const rowSig = `${formattedDate}_${amountMinor < BigInt(0) ? amountMinor * BigInt(-1) : amountMinor}_${rawDescStr.trim().toLowerCase()}`;
-          if (existingSignatures.has(rowSig)) {
+          const rowSig = `${formattedDate}_${amountMinor}_${rawDescStr.trim().toLowerCase()}`;
+          if (existingSignatures.has(rowSig) || existingTxnIds.has(deterministicTxnId)) {
             skippedCount++;
             continue;
           }
           existingSignatures.add(rowSig);
-
-          // Insert raw record
-          const payload: Record<string, string> = {};
-          headers.forEach((h, index) => {
-            payload[h] = row[index] || "";
-          });
-
-          const [rawRec] = await db
-            .insert(rawRecords)
-            .values({
-              organizationId: orgId,
-              importId: importRun.id,
-              rowNumber: i + 1,
-              rawPayload: payload,
-            })
-            .returning();
+          existingTxnIds.add(deterministicTxnId);
 
           // Determine canonical side:
           // Bank CSV, Bank Excel, Stripe Export -> side: money
@@ -314,20 +365,34 @@ export class IngestionService {
             accountId,
             rawRecordId: rawRec.id,
             side: isMoney ? "money" : "books",
-            direction: amountMinor >= BigInt(0) ? "inflow" : "outflow",
+            direction,
             status: "AVAILABLE",
             transactionDate: formattedDate,
-            amountMinor: amountMinor < BigInt(0) ? amountMinor * BigInt(-1) : amountMinor,
-            currency: "INR", // Default currency for file statements
+            amountMinor,
+            currency,
             referenceNumber: refStr || null,
+            counterpartyName,
+            counterpartyNormalized,
             description: rawDescStr || null,
-            transactionType: fileType.toUpperCase(),
+            transactionType: cleaningService.normalizeTransactionType(fileType, direction),
+            sourceTransactionId: deterministicTxnId,
           });
 
           successCount++;
-        } catch (rowErr) {
-          console.error(`Row ingestion error on line ${i + 1}:`, rowErr);
+        } catch (rowErr: any) {
+          console.error(`Row ingestion error on line ${headerRowIndex + i + 2}:`, rowErr);
           failureCount++;
+          
+          // Log failure status inside raw_payload of rawRecords log row
+          const updatedPayload = {
+            ...payload,
+            _status: "failed",
+            _error: rowErr.message || "Failed processing validation",
+          };
+          await db
+            .update(rawRecords)
+            .set({ rawPayload: updatedPayload })
+            .where(eq(rawRecords.id, rawRec.id));
         }
       }
 

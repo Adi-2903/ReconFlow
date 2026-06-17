@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getOrCreateUserOrganization, getOrCreateFinancialAccount } from "@/core/db/org-helper";
 import { findMatchingTemplate } from "@/services/mapping/template-matcher";
-import { detectColumns } from "@/services/mapping/column-detector";
+import { detectColumns, findHeaderRowIndex } from "@/services/mapping/column-detector";
 import { parseCsv } from "@/services/parsers/csv.parser";
 import { parseExcel } from "@/services/parsers/excel.parser";
 import { IngestionService } from "@/services/ingestion.service";
@@ -35,12 +35,13 @@ export async function POST(req: NextRequest) {
       // --- Action 1: File Layout Preview & Column Mapping Recommendation ---
       let rows: string[][] = [];
       let sheetNames: string[] = [];
+      const sheetName = (formData.get("sheetName") as string) || undefined;
 
       if (fileName.endsWith(".csv")) {
         const fileText = buffer.toString("utf8");
         rows = parseCsv(fileText);
       } else if (fileName.endsWith(".xls") || fileName.endsWith(".xlsx")) {
-        const parsed = parseExcel(buffer);
+        const parsed = parseExcel(buffer, sheetName);
         rows = parsed.rows;
         sheetNames = parsed.sheetNames;
       } else {
@@ -51,8 +52,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Uploaded file is empty." }, { status: 400 });
       }
 
-      const headers = rows[0].map((h) => h.trim());
-      const previewRows = rows.slice(1, 6); // First 5 rows of data
+      const { index: headerRowIndex } = findHeaderRowIndex(rows);
+      const headers = rows[headerRowIndex].map((h) => h.trim());
+      const previewRows = rows.slice(headerRowIndex + 1, headerRowIndex + 6); // First 5 rows of data
 
       // Heuristically detect columns
       const columnHeuristics = detectColumns(headers);
@@ -77,6 +79,7 @@ export async function POST(req: NextRequest) {
       const fileType = formData.get("fileType") as string;
       const columnMappingStr = formData.get("columnMapping") as string;
       const saveTemplateName = formData.get("saveTemplateName") as string;
+      const sheetName = (formData.get("sheetName") as string) || undefined;
 
       if (!fileType || !columnMappingStr) {
         return NextResponse.json({ error: "Missing required import configuration parameters." }, { status: 400 });
@@ -95,11 +98,14 @@ export async function POST(req: NextRequest) {
       // Extract headers to save mapping template if requested
       let originalHeaders: string[] = [];
       if (saveTemplateName) {
+        let tempRows: string[][] = [];
         if (fileName.endsWith(".csv")) {
-          originalHeaders = parseCsv(buffer.toString("utf8"))[0] || [];
+          tempRows = parseCsv(buffer.toString("utf8"));
         } else {
-          originalHeaders = parseExcel(buffer).rows[0] || [];
+          tempRows = parseExcel(buffer, sheetName).rows;
         }
+        const { index: headerRowIndex } = findHeaderRowIndex(tempRows);
+        originalHeaders = tempRows[headerRowIndex] || [];
       }
 
       const saveTemplateParam = saveTemplateName
@@ -113,7 +119,8 @@ export async function POST(req: NextRequest) {
         fileName,
         fileType,
         columnMapping,
-        saveTemplateParam
+        saveTemplateParam,
+        sheetName
       );
 
       return NextResponse.json({

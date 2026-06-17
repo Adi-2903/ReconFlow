@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 
-export function parseExcel(buffer: Buffer): { rows: string[][]; sheetNames: string[] } {
+export function parseExcel(buffer: Buffer, sheetName?: string): { rows: string[][]; sheetNames: string[] } {
   try {
     const workbook = XLSX.read(buffer, { type: "buffer" });
     const sheetNames = workbook.SheetNames;
@@ -8,9 +8,9 @@ export function parseExcel(buffer: Buffer): { rows: string[][]; sheetNames: stri
       throw new Error("Excel workbook contains no sheets.");
     }
     
-    // Default to the first sheet
-    const firstSheetName = sheetNames[0];
-    const sheet = workbook.Sheets[firstSheetName];
+    // Default to the first sheet or selected sheet
+    const targetSheetName = sheetName && sheetNames.includes(sheetName) ? sheetName : sheetNames[0];
+    const sheet = workbook.Sheets[targetSheetName];
     
     // Extract sheet data as an array of arrays of strings
     const rows = XLSX.utils.sheet_to_json<any[]>(sheet, {

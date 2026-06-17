@@ -65,6 +65,7 @@ export default function ConnectPage() {
     matchedTemplate?: { templateName: string; config: { columnMap: Record<string, string> } };
     sheetNames?: string[];
   } | null>(null);
+  const [selectedSheet, setSelectedSheet] = useState<string>("");
 
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({
     date: "",
@@ -236,7 +237,7 @@ export default function ConnectPage() {
   };
 
   // Post selected file to preview endpoint
-  const processSelectedFile = async (file: File) => {
+  const processSelectedFile = async (file: File, sheetName?: string) => {
     if (!selectedFileType) {
       toast.error("Please choose a file type first.");
       return;
@@ -251,6 +252,9 @@ export default function ConnectPage() {
       formData.append("file", file);
       formData.append("action", "preview");
       formData.append("fileType", selectedFileType);
+      if (sheetName) {
+        formData.append("sheetName", sheetName);
+      }
 
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -264,6 +268,10 @@ export default function ConnectPage() {
 
       const data = await res.json();
       setPreviewData(data);
+
+      if (data.sheetNames && data.sheetNames.length > 0) {
+        setSelectedSheet(sheetName || data.sheetNames[0]);
+      }
 
       // Auto-apply matched template OR fallback to column heuristics
       const heuristics = data.columnHeuristics || {};
@@ -303,6 +311,9 @@ export default function ConnectPage() {
       formData.append("action", "import");
       formData.append("fileType", selectedFileType);
       formData.append("columnMapping", JSON.stringify(columnMapping));
+      if (selectedSheet) {
+        formData.append("sheetName", selectedSheet);
+      }
       
       if (saveTemplate && templateName.trim()) {
         formData.append("saveTemplateName", templateName.trim());
@@ -338,6 +349,7 @@ export default function ConnectPage() {
     setWizardError(null);
     setSaveTemplate(false);
     setTemplateName("");
+    setSelectedSheet("");
     setWizardStep("select");
   };
 
@@ -618,6 +630,26 @@ export default function ConnectPage() {
                     </div>
                   )}
 
+                  {/* Worksheet Picker for multi-sheet Excel files */}
+                  {previewData.sheetNames && previewData.sheetNames.length > 1 && (
+                    <div className="flex flex-col gap-1.5 bg-slate-50 border border-slate-200/80 rounded-xl p-4 shadow-sm">
+                      <label className="text-xs font-bold text-slate-700 block">Select Excel Worksheet</label>
+                      <select
+                        value={selectedSheet || previewData.sheetNames[0]}
+                        onChange={(e) => {
+                          const newSheet = e.target.value;
+                          setSelectedSheet(newSheet);
+                          processSelectedFile(fileToUpload!, newSheet);
+                        }}
+                        className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white max-w-[280px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      >
+                        {previewData.sheetNames.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   {/* Header Mapping Form */}
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
                     <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-4">Map Column Header Identifiers</h4>
@@ -630,8 +662,8 @@ export default function ConnectPage() {
                           className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                         >
                           <option value="">-- Select Date --</option>
-                          {previewData.headers.map((h) => (
-                            <option key={h} value={h}>{h}</option>
+                          {previewData.headers.map((h, idx) => (
+                            <option key={`${h}-${idx}`} value={h}>{h || `Column ${idx + 1}`}</option>
                           ))}
                         </select>
                       </div>
@@ -644,8 +676,8 @@ export default function ConnectPage() {
                           className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                         >
                           <option value="">-- Select Description --</option>
-                          {previewData.headers.map((h) => (
-                            <option key={h} value={h}>{h}</option>
+                          {previewData.headers.map((h, idx) => (
+                            <option key={`${h}-${idx}`} value={h}>{h || `Column ${idx + 1}`}</option>
                           ))}
                         </select>
                       </div>
@@ -660,8 +692,8 @@ export default function ConnectPage() {
                               className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                             >
                               <option value="">-- Select Debit --</option>
-                              {previewData.headers.map((h) => (
-                                <option key={h} value={h}>{h}</option>
+                              {previewData.headers.map((h, idx) => (
+                                <option key={`${h}-${idx}`} value={h}>{h || `Column ${idx + 1}`}</option>
                               ))}
                             </select>
                           </div>
@@ -673,8 +705,8 @@ export default function ConnectPage() {
                               className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                             >
                               <option value="">-- Select Credit --</option>
-                              {previewData.headers.map((h) => (
-                                <option key={h} value={h}>{h}</option>
+                              {previewData.headers.map((h, idx) => (
+                                <option key={`${h}-${idx}`} value={h}>{h || `Column ${idx + 1}`}</option>
                               ))}
                             </select>
                           </div>
@@ -689,13 +721,13 @@ export default function ConnectPage() {
                               className="flex-1 text-xs border border-slate-300 rounded-lg p-2 bg-white"
                             >
                               <option value="">-- Select Amount --</option>
-                              {previewData.headers.map((h) => (
-                                <option key={h} value={h}>{h}</option>
+                              {previewData.headers.map((h, idx) => (
+                                <option key={`${h}-${idx}`} value={h}>{h || `Column ${idx + 1}`}</option>
                               ))}
                             </select>
                             <button
                               type="button"
-                              onClick={() => setColumnMapping({ ...columnMapping, amount: "", debit: previewData.headers[0], credit: previewData.headers[0] })}
+                              onClick={() => setColumnMapping({ ...columnMapping, amount: "", debit: previewData.headers[0] || "", credit: previewData.headers[0] || "" })}
                               className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 shrink-0"
                             >
                               Use Debit/Credit cols
@@ -712,8 +744,8 @@ export default function ConnectPage() {
                           className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                         >
                           <option value="">-- Select Reference --</option>
-                          {previewData.headers.map((h) => (
-                            <option key={h} value={h}>{h}</option>
+                          {previewData.headers.map((h, idx) => (
+                            <option key={`${h}-${idx}`} value={h}>{h || `Column ${idx + 1}`}</option>
                           ))}
                         </select>
                       </div>
@@ -751,8 +783,8 @@ export default function ConnectPage() {
                       <table className="w-full text-[11px] text-left border-collapse bg-white">
                         <thead className="bg-slate-50 text-slate-600 uppercase border-b border-slate-200">
                           <tr>
-                            {previewData.headers.map((h) => (
-                              <th key={h} className="px-4 py-2.5 font-bold border-r border-slate-200 last:border-0">{h}</th>
+                            {previewData.headers.map((h, idx) => (
+                              <th key={`${h}-${idx}`} className="px-4 py-2.5 font-bold border-r border-slate-200 last:border-0">{h || `Column ${idx + 1}`}</th>
                             ))}
                           </tr>
                         </thead>

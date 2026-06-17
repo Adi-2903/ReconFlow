@@ -41,3 +41,111 @@ export function detectColumns(headers: string[]): Record<string, string> {
 
   return result;
 }
+
+export function findHeaderRowIndex(rows: string[][]): { index: number; score: number } {
+  let bestIndex = 0;
+  let bestScore = 0;
+
+  const rowsToScan = Math.min(rows.length, 10);
+
+  for (let i = 0; i < rowsToScan; i++) {
+    const row = rows[i];
+    let score = 0;
+
+    let dateMatched = false;
+    let descMatched = false;
+    let amountMatched = false;
+    let debitMatched = false;
+    let creditMatched = false;
+    let refMatched = false;
+
+    for (const cell of row) {
+      const c = cell.trim().toLowerCase();
+      if (!c) continue;
+
+      if (!dateMatched && /date|time|txn\b|value\b|created|dt\b/i.test(c)) {
+        score += 0.35;
+        dateMatched = true;
+      }
+      if (!descMatched && /desc|narrat|particular|memo|details|description/i.test(c)) {
+        score += 0.35;
+        descMatched = true;
+      }
+      if (!amountMatched && /^amount\b|amount$|total|net|val\b/i.test(c)) {
+        score += 0.30;
+        amountMatched = true;
+      }
+      if (!debitMatched && /debit|withdrawal|outflow|payment|paid|dr\b/i.test(c)) {
+        score += 0.25;
+        debitMatched = true;
+      }
+      if (!creditMatched && /credit|deposit|inflow|receipt|received|cr\b/i.test(c)) {
+        score += 0.25;
+        creditMatched = true;
+      }
+      if (!refMatched && /ref|reference|id|doc|num|vch/i.test(c)) {
+        score += 0.15;
+        refMatched = true;
+      }
+    }
+
+    const finalScore = Math.round(score * 100) / 100;
+
+    if (finalScore > bestScore) {
+      bestScore = finalScore;
+      bestIndex = i;
+    }
+  }
+
+  if (bestScore === 0) {
+    return { index: 0, score: 0 };
+  }
+
+  return { index: bestIndex, score: bestScore };
+}
+
+export function inferDateFormat(dateStrings: string[], locale?: string): string {
+  let hasDayGreaterThan12 = false;
+  let hasMonthGreaterThan12 = false;
+  let hasYearFirst = false;
+
+  for (const dateStr of dateStrings) {
+    if (!dateStr) continue;
+    const cleanStr = dateStr.replace(/[-/.]/g, "-").trim();
+    
+    const yyyymmddMatch = cleanStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (yyyymmddMatch) {
+      hasYearFirst = true;
+      continue;
+    }
+
+    const segments = cleanStr.split("-").map(s => parseInt(s, 10));
+    if (segments.length >= 3) {
+      const first = segments[0];
+      const second = segments[1];
+
+      if (first > 12 && first <= 31) {
+        hasDayGreaterThan12 = true;
+      }
+      if (second > 12 && second <= 31) {
+        hasMonthGreaterThan12 = true;
+      }
+    }
+  }
+
+  if (hasYearFirst) {
+    return "YYYY-MM-DD";
+  }
+  if (hasDayGreaterThan12) {
+    return "DD/MM/YYYY";
+  }
+  if (hasMonthGreaterThan12) {
+    return "MM/DD/YYYY";
+  }
+
+  if (locale && (locale.includes("US") || locale.includes("en-US"))) {
+    return "MM/DD/YYYY";
+  }
+  return "DD/MM/YYYY";
+}
+
