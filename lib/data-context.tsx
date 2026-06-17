@@ -26,13 +26,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [matches, setMatches] = useState<MatchData[]>([]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const demoParam = new URLSearchParams(window.location.search).get("demo") === "true";
-      setIsDemoMode(demoParam);
-      if (demoParam) {
-        setMatches(initialMatches);
+    let active = true;
+    const init = async () => {
+      await Promise.resolve();
+      if (!active) return;
+      if (typeof window !== "undefined") {
+        const demoParam = new URLSearchParams(window.location.search).get("demo") === "true";
+        setIsDemoMode(demoParam);
+        if (demoParam) {
+          setMatches(initialMatches);
+        }
       }
-    }
+    };
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const refreshMatches = useCallback(async () => {

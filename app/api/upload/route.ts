@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { db } from "@/core/db";
-import { bankTransactions } from "@/core/db/schema";
-import { parse } from "csv-parse/sync";
+import { getOrCreateUserOrganization, getOrCreateFinancialAccount } from "@/core/db/org-helper";
+import { findMatchingTemplate } from "@/services/mapping/template-matcher";
+import { detectColumns } from "@/services/mapping/column-detector";
+import { parseCsv } from "@/services/parsers/csv.parser";
+import { parseExcel } from "@/services/parsers/excel.parser";
+import { IngestionService } from "@/services/ingestion.service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,72 +15,118 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const searchParams = req.nextUrl.searchParams;
     const formData = await req.formData();
-    const file = formData.get("file") as File;
     
+    const action = searchParams.get("action") || (formData.get("action") as string) || "import";
+    const file = formData.get("file") as File;
+
     if (!file) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    const fileContent = await file.text();
+    const fileName = file.name;
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    // Basic CSV parsing
-    // Expects headers like: Date, Description, Amount
-    const records = parse(fileContent, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-      relax_quotes: true,
-      relax_column_count: true
-    });
+    const orgId = await getOrCreateUserOrganization(userId);
 
-    if (!records || records.length === 0) {
-      return NextResponse.json({ error: "CSV file is empty or improperly formatted" }, { status: 400 });
-    }
+    if (action === "preview") {
+      // --- Action 1: File Layout Preview & Column Mapping Recommendation ---
+      let rows: string[][] = [];
+      let sheetNames: string[] = [];
 
-    const newTxns = records.map((record: any) => {
-      // Find keys ignoring case
-      const keys = Object.keys(record);
-      const getVal = (possibleNames: string[]) => {
-        const key = keys.find(k => possibleNames.includes(k.toLowerCase()));
-        return key ? record[key] : null;
-      };
-
-      const date = getVal(["date", "txn date", "transaction date", "value date"]);
-      const description = getVal(["description", "narration", "particulars", "memo"]);
-      const amountStr = getVal(["amount", "withdrawal", "deposit", "credit", "debit", "total"]);
-
-      // Cleanup amount
-      let amountNum = 0;
-      if (amountStr) {
-        // Remove currency symbols and commas
-        const cleanStr = amountStr.replace(/[^0-9.-]+/g, "");
-        amountNum = parseFloat(cleanStr);
+      if (fileName.endsWith(".csv")) {
+        const fileText = buffer.toString("utf8");
+        rows = parseCsv(fileText);
+      } else if (fileName.endsWith(".xls") || fileName.endsWith(".xlsx")) {
+        const parsed = parseExcel(buffer);
+        rows = parsed.rows;
+        sheetNames = parsed.sheetNames;
+      } else {
+        return NextResponse.json({ error: "Unsupported file format. Please upload a CSV or Excel file." }, { status: 400 });
       }
 
-      // We need amount in paise/cents
-      const amountPaise = Math.round(amountNum * 100).toString();
+      if (rows.length === 0) {
+        return NextResponse.json({ error: "Uploaded file is empty." }, { status: 400 });
+      }
 
-      return {
-        userId,
-        amount: amountPaise,
-        date: date ? new Date(date).toISOString() : new Date().toISOString(),
-        description: description || "CSV Upload Transaction",
-        source: "CSV Upload",
-        status: "unmatched",
-      };
-    });
+      const headers = rows[0].map((h) => h.trim());
+      const previewRows = rows.slice(1, 6); // First 5 rows of data
 
-    // Bulk insert
-    await db.insert(bankTransactions).values(newTxns);
+      // Heuristically detect columns
+      const columnHeuristics = detectColumns(headers);
 
-    return NextResponse.json({ 
-      count: newTxns.length, 
-      message: "CSV imported successfully" 
-    });
+      // Check for template match based on header fingerprint
+      const fileType = (formData.get("fileType") as string) || "bank_csv";
+      const matchedTemplate = await findMatchingTemplate(orgId, fileType, headers);
+
+      return NextResponse.json({
+        success: true,
+        fileName,
+        fileSize: file.size,
+        headers,
+        previewRows,
+        columnHeuristics,
+        matchedTemplate,
+        sheetNames,
+      });
+
+    } else if (action === "import") {
+      // --- Action 2: Process & Map Complete File ---
+      const fileType = formData.get("fileType") as string;
+      const columnMappingStr = formData.get("columnMapping") as string;
+      const saveTemplateName = formData.get("saveTemplateName") as string;
+
+      if (!fileType || !columnMappingStr) {
+        return NextResponse.json({ error: "Missing required import configuration parameters." }, { status: 400 });
+      }
+
+      const columnMapping = JSON.parse(columnMappingStr);
+
+      // Resolve matching account ID
+      const accountName = `${fileType.replace("_", " ").toUpperCase()} Account`;
+      const type = ["bank_csv", "bank_excel", "stripe_export"].includes(fileType)
+        ? "bank"
+        : (fileType.includes("qbo") ? "quickbooks" : "tally");
+
+      const accountId = await getOrCreateFinancialAccount(orgId, type as any, accountName);
+
+      // Extract headers to save mapping template if requested
+      let originalHeaders: string[] = [];
+      if (saveTemplateName) {
+        if (fileName.endsWith(".csv")) {
+          originalHeaders = parseCsv(buffer.toString("utf8"))[0] || [];
+        } else {
+          originalHeaders = parseExcel(buffer).rows[0] || [];
+        }
+      }
+
+      const saveTemplateParam = saveTemplateName
+        ? { templateName: saveTemplateName, originalHeaders }
+        : undefined;
+
+      const stats = await IngestionService.importFileTransactions(
+        orgId,
+        accountId,
+        buffer,
+        fileName,
+        fileType,
+        columnMapping,
+        saveTemplateParam
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: `Import complete. Imported: ${stats.successCount}, Skipped (Duplicate): ${stats.skippedCount}, Failed: ${stats.failureCount}`,
+        metrics: stats,
+      });
+    }
+
+    return NextResponse.json({ error: "Invalid action." }, { status: 400 });
 
   } catch (error: any) {
-    console.error("CSV Upload Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to process CSV" }, { status: 500 });
+    console.error("Upload API Error:", error);
+    return NextResponse.json({ error: error.message || "Failed to process upload." }, { status: 500 });
   }
 }

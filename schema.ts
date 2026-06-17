@@ -7,7 +7,7 @@ import { relations, sql } from "drizzle-orm";
 import type {
     TransactionMetadata, ScoreBreakdown, AIReasoning,
     ConnectorSettings, FeeRuleConfig, MappingTemplateConfig
-} from "./types";
+} from "./types"; // Assuming types are in a separate file
 
 // ============================================================================
 // 1. STATE MACHINES & ENUMS
@@ -142,11 +142,6 @@ export const imports = pgTable("imports", {
     filename: text("filename"),
     status: importStatusEnum("status").notNull().default("UPLOADED"),
     rowCount: integer("row_count"),
-    sha256: text("sha256"),
-    errorMessage: text("error_message"),
-    successCount: integer("success_count").default(0),
-    failureCount: integer("failure_count").default(0),
-    skippedCount: integer("skipped_count").default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -205,26 +200,23 @@ export const canonicalTransactions = pgTable("canonical_transactions", {
     return {
         orgDateStatusIdx: index("idx_txn_org_date_status").on(table.organizationId, table.transactionDate, table.status),
         matchingIdx: index("idx_txn_matching").on(table.organizationId, table.amountMinor, table.transactionDate, table.direction),
-        uniqueAccountSourceTxn: unique("uq_account_source_txn").on(table.accountId, table.sourceTransactionId)
     };
 });
 
-
 // ISOLATED EMBEDDINGS (Performance Upgrade)
-// export const transactionEmbeddings = pgTable("transaction_embeddings", {
-//     id: uuid("id").primaryKey().defaultRandom(),
-//     organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-//     transactionId: uuid("transaction_id").notNull().references(() => canonicalTransactions.id, { onDelete: "cascade" }),
-//     model: text("model").notNull().default("all-MiniLM-L6-v2"),
-//     embedding: vector("embedding", { dimensions: 384 }).notNull(),
-//     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-// }, (table) => {
-//     return {
-//         embeddingIdx: index("idx_txn_embedding").using("hnsw", table.embedding.op("vector_cosine_ops")),
-//         txnUniqueIdx: uniqueIndex("idx_unique_txn_embedding").on(table.transactionId),
-//     };
-// });
-
+export const transactionEmbeddings = pgTable("transaction_embeddings", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    transactionId: uuid("transaction_id").notNull().references(() => canonicalTransactions.id, { onDelete: "cascade" }),
+    model: text("model").notNull().default("all-MiniLM-L6-v2"),
+    embedding: vector("embedding", { dimensions: 384 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+    return {
+        embeddingIdx: index("idx_txn_embedding").using("hnsw", table.embedding.op("vector_cosine_ops")),
+        txnUniqueIdx: uniqueIndex("idx_unique_txn_embedding").on(table.transactionId),
+    };
+});
 
 export const counterpartyProfiles = pgTable("counterparty_profiles", {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -401,6 +393,10 @@ export const feeRules = pgTable("fee_rules", {
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// Note on Partitioning: 
+// In production Postgres, run a raw SQL migration to partition this table by range (created_at).
+// e.g., CREATE TABLE audit_logs (...) PARTITION BY RANGE (created_at);
+// Drizzle handles the types properly here regardless of underlying PG partitions.
 export const auditLogs = pgTable("audit_logs", {
     id: uuid("id").primaryKey().defaultRandom(),
     organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
@@ -430,10 +426,10 @@ export const canonicalTransactionsRelations = relations(canonicalTransactions, (
         fields: [canonicalTransactions.lockedByMatchGroupId],
         references: [matchGroups.id]
     }),
-    // embedding: one(transactionEmbeddings, {
-    //     fields: [canonicalTransactions.id],
-    //     references: [transactionEmbeddings.transactionId],
-    // }),
+    embedding: one(transactionEmbeddings, {
+        fields: [canonicalTransactions.id],
+        references: [transactionEmbeddings.transactionId],
+    }),
     runHistory: many(reconciliationRunTransactions),
 }));
 
@@ -461,68 +457,3 @@ export const matchItemsRelations = relations(matchItems, ({ one }) => ({
         references: [canonicalTransactions.id],
     }),
 }));
-
-// Legacy table definitions kept for compatibility with untouched services
-export const bankTransactions = pgTable("bank_transactions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").references(() => users.id),
-  amount: numeric("amount").notNull(),
-  currency: text("currency").default("INR"),
-  date: date("date").notNull(),
-  description: text("description"),
-  referenceId: text("reference_id"),
-  source: text("source"),
-  status: text("status").default("unmatched"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const ledgerEntries = pgTable("ledger_entries", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").references(() => users.id),
-  amount: numeric("amount").notNull(),
-  date: date("date").notNull(),
-  memo: text("memo"),
-  invoiceRef: text("invoice_ref"),
-  accountCode: text("account_code"),
-  status: text("status").default("unmatched"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const matches = pgTable("matches", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").references(() => users.id),
-  bankTransactionId: uuid("bank_transaction_id").references(() => bankTransactions.id),
-  ledgerEntryIds: text("ledger_entry_ids").array(),
-  confidenceScore: numeric("confidence_score"),
-  matchType: text("match_type"),
-  reasonText: text("reason_text"),
-  evidence: jsonb("evidence"), // Added for AI explanations
-  status: text("status").default("pending"),
-  approvedBy: text("approved_by"),
-  approvedAt: timestamp("approved_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const auditEvents = pgTable("audit_events", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").references(() => users.id),
-  matchId: uuid("match_id").references(() => matches.id),
-  action: text("action").notNull(),
-  actorEmail: text("actor_email"),
-  timestamp: timestamp("timestamp").defaultNow(),
-  metadata: jsonb("metadata"),
-});
-
-export const reconRuns = pgTable("recon_runs", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").references(() => users.id),
-  periodStart: date("period_start"),
-  periodEnd: date("period_end"),
-  totalTransactions: integer("total_transactions"),
-  autoMatched: integer("auto_matched"),
-  needsReview: integer("needs_review"),
-  exceptions: integer("exceptions"),
-  status: text("status").default("running"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-

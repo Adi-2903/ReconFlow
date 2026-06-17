@@ -64,10 +64,15 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
   // Fetch real counts when modal opens
   useEffect(() => {
     if (!open) return;
-    setCountsLoading(true);
-    fetch("/api/recon/counts")
-      .then((r) => r.json())
-      .then((data) => {
+    let active = true;
+    const fetchCounts = async () => {
+      await Promise.resolve();
+      if (!active) return;
+      setCountsLoading(true);
+      try {
+        const r = await fetch("/api/recon/counts");
+        const data = await r.json();
+        if (!active) return;
         setCounts({
           bankTransactions: data.bankTransactions ?? 0,
           stripeTransactions: data.stripeTransactions ?? 0,
@@ -76,9 +81,16 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
           stripeConnected: data.stripeConnected ?? false,
         });
         setSources((s) => ({ ...s, quickbooks: data.qboConnected ?? false, stripe: data.stripeConnected ?? false }));
-      })
-      .catch(() => {/* silently fail — counts stay at 0 */})
-      .finally(() => setCountsLoading(false));
+      } catch (e) {
+        /* silently fail — counts stay at 0 */
+      } finally {
+        if (active) setCountsLoading(false);
+      }
+    };
+    fetchCounts();
+    return () => {
+      active = false;
+    };
   }, [open]);
 
   // Build dynamic processing steps based on real counts

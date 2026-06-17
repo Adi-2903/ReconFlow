@@ -15,7 +15,7 @@ export function EmptyDashboardState() {
         Welcome to ReconFlow!
       </h2>
       <p className="text-slate-500 max-w-[500px] mb-10 text-base sm:text-lg">
-        You haven't connected any data sources yet. How would you like to get started?
+        You haven&apos;t connected any data sources yet. How would you like to get started?
       </p>
 
       <div className="grid sm:grid-cols-2 gap-4 w-full max-w-[600px]">
