@@ -5,10 +5,12 @@ import {
   ledgerEntries,
   reconRuns,
   matches,
+  connectors,
 } from "@/core/db/schema";
 import { eq, and, gte, lte, count } from "drizzle-orm";
 import { matchTransactions } from "@/core/matching/engine";
 import { generateMatchReason, DEFAULT_FEE_PATTERNS } from "@/lib/ai-reason";
+import { getOrCreateUserOrganization } from "@/core/db/org-helper";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -212,25 +214,43 @@ export async function getReconCounts(userId: string): Promise<ReconCounts> {
     .from(ledgerEntries)
     .where(eq(ledgerEntries.userId, userId));
 
-  const [user] = await db
-    .select({
-      qboAccessToken: users.qboAccessToken,
-      stripeAccessToken: users.stripeAccessToken,
-      qboLastSync: users.qboLastSync,
-      stripeLastSync: users.stripeLastSync,
-    })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
+  let qboConnected = false;
+  let stripeConnected = false;
+  let qboLastSync: Date | null = null;
+  let stripeLastSync: Date | null = null;
+
+  try {
+    const orgId = await getOrCreateUserOrganization(userId);
+    const userConnectors = await db
+      .select()
+      .from(connectors)
+      .where(
+        and(
+          eq(connectors.organizationId, orgId),
+          eq(connectors.status, "connected")
+        )
+      );
+
+    for (const conn of userConnectors) {
+      if (conn.connectorType === "quickbooks" && conn.accessToken) {
+        qboConnected = true;
+      }
+      if (conn.connectorType === "stripe" && conn.accessToken) {
+        stripeConnected = true;
+      }
+    }
+  } catch (err) {
+    console.error("Error fetching connector states:", err);
+  }
 
   return {
     bankTransactions: Number(totalBankCount?.count ?? 0),
     stripeTransactions: Number(stripeCount?.count ?? 0),
     ledgerEntries: Number(ledgerCount?.count ?? 0),
-    qboConnected: !!user?.qboAccessToken,
-    stripeConnected: !!user?.stripeAccessToken,
-    qboLastSync: user?.qboLastSync ?? null,
-    stripeLastSync: user?.stripeLastSync ?? null,
+    qboConnected,
+    stripeConnected,
+    qboLastSync,
+    stripeLastSync,
   };
 }
 
@@ -238,9 +258,9 @@ export async function getReconCounts(userId: string): Promise<ReconCounts> {
 
 function fallbackReason(matchType: string): string {
   switch (matchType) {
-    case "exact":  return "Exact match on amount and date.";
-    case "bulk":   return "Multiple ledger entries sum precisely to this bank transaction.";
-    case "fuzzy":  return "Partial match based on similar amount, date, or text references.";
-    default:       return "No matching ledger entries found.";
+    case "exact": return "Exact match on amount and date.";
+    case "bulk": return "Multiple ledger entries sum precisely to this bank transaction.";
+    case "fuzzy": return "Partial match based on similar amount, date, or text references.";
+    default: return "No matching ledger entries found.";
   }
 }

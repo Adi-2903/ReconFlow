@@ -65,7 +65,6 @@ export default function ConnectPage() {
     matchedTemplate?: { templateName: string; config: { columnMap: Record<string, string> } };
     sheetNames?: string[];
   } | null>(null);
-  const [selectedSheet, setSelectedSheet] = useState<string>("");
 
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({
     date: "",
@@ -84,6 +83,7 @@ export default function ConnectPage() {
     failureCount: number;
   } | null>(null);
   const [wizardError, setWizardError] = useState<string | null>(null);
+  const [importProgress, setImportProgress] = useState(0);
 
   // --- Upload History State ---
   const [historyList, setHistoryList] = useState<any[]>([]);
@@ -117,28 +117,17 @@ export default function ConnectPage() {
       if (historyRes.ok) {
         const data = await historyRes.json();
         setHistoryList(data || []);
+      } else {
+        console.warn("History API not yet implemented or returned error:", historyRes.status);
+        setHistoryList([]);
       }
     } catch (e) {
       console.error("Failed to load upload history", e);
+      setHistoryList([]);
     } finally {
       setIsLoadingHistory(false);
     }
   }, []);
-
-  useEffect(() => {
-    let active = true;
-    const init = async () => {
-      await Promise.resolve();
-      if (active) {
-        fetchStateData();
-        fetchHistory();
-      }
-    };
-    init();
-    return () => {
-      active = false;
-    };
-  }, [fetchStateData, fetchHistory]);
 
   // Handle Stripe OAuth
   const onSyncStripe = useCallback(async () => {
@@ -160,21 +149,6 @@ export default function ConnectPage() {
     }
   }, [fetchHistory]);
 
-  const onConnectStripe = () => {
-    window.location.href = "/api/stripe/auth";
-  };
-
-  const onDisconnectStripe = async () => {
-    try {
-      await fetch("/api/stripe/disconnect", { method: "POST" });
-      setStripeConnected(false);
-      setStripeTxnCount(0);
-      toast.success("Stripe disconnected");
-    } catch (e) {
-      toast.error("Failed to disconnect Stripe");
-    }
-  };
-
   // Handle QuickBooks OAuth
   const onSyncQbo = useCallback(async () => {
     setIsQboSyncing(true);
@@ -193,6 +167,57 @@ export default function ConnectPage() {
       setIsQboSyncing(false);
     }
   }, [fetchHistory]);
+
+  useEffect(() => {
+    let active = true;
+    const init = async () => {
+      await Promise.resolve();
+      if (active) {
+        fetchStateData();
+        fetchHistory();
+      }
+    };
+    init();
+
+    const params = new URLSearchParams(window.location.search);
+    // Handle QBO OAuth callback
+    if (params.get("qbo_connected") === "true") {
+      setQboConnected(true);
+      onSyncQbo();
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (params.get("qbo_error") === "true") {
+      toast.error("Failed to connect to QuickBooks. Please try again.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    // Handle Stripe OAuth callback
+    if (params.get("stripe_connected") === "true") {
+      setStripeConnected(true);
+      onSyncStripe();
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (params.get("stripe_error") === "true") {
+      toast.error("Failed to connect to Stripe. Please try again.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [fetchStateData, fetchHistory, onSyncQbo, onSyncStripe]);
+
+  const onConnectStripe = () => {
+    window.location.href = "/api/stripe/auth";
+  };
+
+  const onDisconnectStripe = async () => {
+    try {
+      await fetch("/api/stripe/disconnect", { method: "POST" });
+      setStripeConnected(false);
+      setStripeTxnCount(0);
+      toast.success("Stripe disconnected");
+    } catch (e) {
+      toast.error("Failed to disconnect Stripe");
+    }
+  };
 
   const onConnectQbo = () => {
     window.location.href = "/api/qbo/auth";
@@ -237,7 +262,7 @@ export default function ConnectPage() {
   };
 
   // Post selected file to preview endpoint
-  const processSelectedFile = async (file: File, sheetName?: string) => {
+  const processSelectedFile = async (file: File) => {
     if (!selectedFileType) {
       toast.error("Please choose a file type first.");
       return;
@@ -252,9 +277,6 @@ export default function ConnectPage() {
       formData.append("file", file);
       formData.append("action", "preview");
       formData.append("fileType", selectedFileType);
-      if (sheetName) {
-        formData.append("sheetName", sheetName);
-      }
 
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -268,10 +290,6 @@ export default function ConnectPage() {
 
       const data = await res.json();
       setPreviewData(data);
-
-      if (data.sheetNames && data.sheetNames.length > 0) {
-        setSelectedSheet(sheetName || data.sheetNames[0]);
-      }
 
       // Auto-apply matched template OR fallback to column heuristics
       const heuristics = data.columnHeuristics || {};
@@ -305,15 +323,22 @@ export default function ConnectPage() {
     if (!fileToUpload || !selectedFileType) return;
 
     setWizardStep("importing");
+    setImportProgress(0);
+
+    // Simulate progress bar going up to 90%
+    const progressInterval = setInterval(() => {
+      setImportProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.floor(Math.random() * 15) + 5;
+      });
+    }, 400);
+
     try {
       const formData = new FormData();
       formData.append("file", fileToUpload);
       formData.append("action", "import");
       formData.append("fileType", selectedFileType);
       formData.append("columnMapping", JSON.stringify(columnMapping));
-      if (selectedSheet) {
-        formData.append("sheetName", selectedSheet);
-      }
       
       if (saveTemplate && templateName.trim()) {
         formData.append("saveTemplateName", templateName.trim());
@@ -331,11 +356,19 @@ export default function ConnectPage() {
 
       const data = await res.json();
       setImportMetrics(data.metrics);
-      setWizardStep("success");
-      toast.success("File imported successfully!");
-      fetchHistory();
-      fetchStateData();
+      
+      clearInterval(progressInterval);
+      setImportProgress(100);
+      
+      setTimeout(() => {
+        setWizardStep("success");
+        toast.success("File imported successfully!");
+        fetchHistory();
+        fetchStateData();
+      }, 500);
+
     } catch (err: any) {
+      clearInterval(progressInterval);
       console.error(err);
       setWizardError(err.message || "Failed to process transaction import.");
       setWizardStep("failed");
@@ -349,7 +382,6 @@ export default function ConnectPage() {
     setWizardError(null);
     setSaveTemplate(false);
     setTemplateName("");
-    setSelectedSheet("");
     setWizardStep("select");
   };
 
@@ -365,151 +397,206 @@ export default function ConnectPage() {
   };
 
   // Determine if start reconciliation CTA should be active
-  const isBankConnected = stripeConnected || historyList.some(h => ["bank_csv", "bank_excel", "stripe_export"].includes(h.sourceType) && h.status === "COMPLETED");
+  const latestBankCsv = historyList.find(h => ["bank_csv", "bank_excel"].includes(h.sourceType) && h.status === "COMPLETED");
+  const isBankConnected = stripeConnected || !!latestBankCsv;
   const isLedgerConnected = qboConnected || historyList.some(h => ["qbo_export", "tally_export"].includes(h.sourceType) && h.status === "COMPLETED");
   const isReady = isBankConnected && isLedgerConnected;
 
   return (
-    <div className="w-full max-w-[840px] mx-auto py-12 px-4 font-sans flex flex-col gap-10 bg-slate-50 min-h-screen">
-      
+    <div className="w-full max-w-[720px] mx-auto py-12 md:py-16 px-4 font-sans flex flex-col gap-10 bg-white min-h-screen">
+
       {/* Section 1: Header */}
-      <div className="flex flex-col gap-2 relative bg-white border border-slate-200/80 rounded-xl p-8 shadow-sm">
-        <div className="absolute top-8 right-8 flex items-center gap-1 bg-emerald-50 border border-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-semibold">
-          <Lock className="w-3.5 h-3.5" />
-          <span>Bank-grade security</span>
-        </div>
-        
-        <h1 className="text-[26px] font-bold text-slate-900 tracking-tight">Connect Ingestion Sources</h1>
-        <p className="text-[15px] text-slate-500 max-w-[500px] leading-relaxed">
-          Ingest data via active bank/ledger integrations, or upload manual file exports to match and reconcile transactions.
+      <div className="text-center md:text-left flex flex-col gap-2">
+        <h1 className="text-[24px] font-medium text-slate-900 tracking-tight">Connect your accounts</h1>
+        <p className="text-[16px] text-slate-500">
+          ReconFlow reads your data read-only. Nothing is written without your approval.
         </p>
+        <div className="flex items-center gap-1.5 mt-2 justify-center md:justify-start text-xs text-slate-400 font-medium">
+          <Lock className="w-3.5 h-3.5" />
+          <span>Bank-grade read-only access. We never store credentials.</span>
+        </div>
       </div>
 
-      {/* Section 2: Active Connectors */}
+      {/* Section 2: Connection Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Stripe Card */}
-        <div className={`border rounded-xl p-6 bg-white flex flex-col items-start transition-all relative shadow-sm ${stripeConnected ? 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/10' : 'border-slate-200 hover:shadow-md'}`}>
+        {/* Card A: Stripe */}
+        <div className={`border rounded-lg p-6 bg-white flex flex-col items-start transition-all ${stripeConnected ? 'border-green-500 bg-green-50/30' : 'border-blue-200 shadow-sm'}`}>
           <div className="flex items-center justify-between w-full mb-4">
-            <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-extrabold text-xl shadow-sm">
+            <div className="w-8 h-8 rounded border border-indigo-200 bg-indigo-600 flex items-center justify-center text-white font-bold text-lg">
               S
             </div>
-            {stripeConnected ? (
-              <span className="text-[11px] font-semibold bg-emerald-100 border border-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full">
-                Active
-              </span>
-            ) : (
-              <span className="text-[10px] font-bold bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                Direct Sync
+            {!stripeConnected && (
+              <span className="text-[10px] font-bold bg-blue-50 border border-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                Most popular
               </span>
             )}
           </div>
-          <h3 className="text-[17px] font-bold text-slate-900 mb-1">Stripe</h3>
-          <p className="text-sm text-slate-500 mb-6 flex-1 leading-relaxed">
-            Sync Charges, Payouts, Refunds, and Processing Fees directly from your connected Stripe accounts.
+          <h3 className="text-lg font-semibold text-slate-900 mb-1">Stripe</h3>
+          <p className="text-sm text-slate-500 mb-6 flex-1">
+            Fetch payouts, charges, and transfers from the last 90 days
           </p>
 
           {stripeConnected ? (
             <div className="w-full mt-auto">
-              <div className="flex flex-col gap-1 text-emerald-800 bg-emerald-50/60 rounded-lg p-3 border border-emerald-100 text-xs font-medium w-full mb-4">
-                <div className="flex items-center gap-2 font-bold text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Stripe Connected</span>
+              <div className="flex flex-col items-center justify-center gap-1 text-green-700 bg-green-50 rounded-md py-2 border border-green-200 text-sm font-medium w-full mb-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  <span>Connected · {stripeTxnCount} transactions loaded</span>
                 </div>
                 {stripeLastSync && (
-                  <span className="text-slate-500 font-normal">Last synchronized {timeAgo(stripeLastSync)}</span>
+                  <span className="text-xs text-green-600 font-normal">Last synced {timeAgo(stripeLastSync)}</span>
                 )}
               </div>
-              <div className="flex items-center gap-3">
-                <Button variant="outline" size="sm" onClick={onSyncStripe} disabled={isStripeSyncing} className="flex-1 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50">
-                  <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isStripeSyncing ? 'animate-spin' : ''}`} />
-                  Sync
-                </Button>
-                <button onClick={onDisconnectStripe} className="text-xs font-medium text-slate-400 hover:text-slate-600 underline">
-                  Disconnect
-                </button>
-              </div>
+              <button
+              onClick={onDisconnectStripe}
+                className="w-full text-center text-sm font-medium text-slate-500 hover:text-slate-700 underline underline-offset-4 transition-colors"
+              >
+                Disconnect
+              </button>
             </div>
           ) : (
-            <Button onClick={onConnectStripe} disabled={isStripeSyncing} className="w-full mt-auto bg-slate-900 hover:bg-slate-800 text-white font-semibold shadow-sm">
-              {isStripeSyncing ? "Connecting..." : "Connect Stripe"}
+            <Button
+              onClick={onConnectStripe}
+              disabled={isStripeSyncing}
+              className="w-full mt-auto bg-slate-900 hover:bg-slate-800 text-white font-medium"
+            >
+              {isStripeSyncing ? "Syncing..." : "Connect Stripe"}
             </Button>
           )}
         </div>
 
-        {/* QuickBooks Card */}
-        <div className={`border rounded-xl p-6 bg-white flex flex-col items-start transition-all relative shadow-sm ${qboConnected ? 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/10' : 'border-slate-200 hover:shadow-md'}`}>
+        {/* Card B: CSV Upload */}
+        <div className={`border rounded-lg p-6 flex flex-col items-start transition-all ${latestBankCsv ? 'border-green-500 bg-green-50/30' : 'border-slate-200 bg-white'}`}>
           <div className="flex items-center justify-between w-full mb-4">
-            <div className="w-10 h-10 rounded-lg bg-[#2CA01C] flex items-center justify-center text-white font-extrabold text-lg shadow-sm">
-              qb
+            <div className={`w-8 h-8 rounded border flex items-center justify-center ${latestBankCsv ? 'border-green-200 bg-green-100 text-green-700' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
+              <Upload className="w-4 h-4" />
             </div>
-            {qboConnected ? (
-              <span className="text-[11px] font-semibold bg-emerald-100 border border-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full">
-                Active
-              </span>
-            ) : (
-              <span className="text-[10px] font-bold bg-[#2ca01c]/10 border border-[#2ca01c]/20 text-[#2ca01c] px-2 py-0.5 rounded-full uppercase tracking-wider">
-                Direct Sync
-              </span>
-            )}
           </div>
-          <h3 className="text-[17px] font-bold text-slate-900 mb-1">QuickBooks</h3>
-          <p className="text-sm text-slate-500 mb-6 flex-1 leading-relaxed">
-            Sync Invoices, Payments, Deposits, and Customer ledger info automatically via the QBO Connect API.
+          <h3 className="text-lg font-semibold text-slate-900 mb-1">Bank statement CSV</h3>
+          <p className="text-sm text-slate-500 mb-6 flex-1">
+            Upload your bank's CSV export. Supports HDFC, ICICI, SBI, Axis, and most Indian banks.
           </p>
 
-          {qboConnected ? (
+          {latestBankCsv ? (
             <div className="w-full mt-auto">
-              <div className="flex flex-col gap-1 text-emerald-800 bg-emerald-50/60 rounded-lg p-3 border border-emerald-100 text-xs font-medium w-full mb-4">
-                <div className="flex items-center gap-2 font-bold text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>QuickBooks Connected</span>
+              <div className="flex flex-col items-center justify-center gap-1 text-green-700 bg-green-50 rounded-md py-2 border border-green-200 text-sm font-medium w-full mb-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  <span>Connected · {latestBankCsv.successCount || 0} transactions loaded</span>
                 </div>
-                {qboLastSync && (
-                  <span className="text-slate-500 font-normal">Last synchronized {timeAgo(qboLastSync)}</span>
-                )}
+                <span className="text-xs text-green-600 font-normal">Last uploaded {timeAgo(latestBankCsv.createdAt)}</span>
               </div>
-              <div className="flex items-center gap-3">
-                <Button variant="outline" size="sm" onClick={onSyncQbo} disabled={isQboSyncing} className="flex-1 text-xs border-green-200 text-green-700 hover:bg-green-50">
-                  <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isQboSyncing ? 'animate-spin' : ''}`} />
-                  Sync
+              <div className="w-full space-y-3 mt-1">
+                <Button
+                  variant="outline"
+                  className="w-full text-center text-xs font-medium text-slate-500 hover:text-slate-700 border-none shadow-none bg-transparent underline underline-offset-4"
+                  onClick={() => { setShowWizard(true); resetWizard(); setSelectedFileType("bank_csv"); }}
+                >
+                  Upload New Statement
                 </Button>
-                <button onClick={onDisconnectQbo} className="text-xs font-medium text-slate-400 hover:text-slate-600 underline">
-                  Disconnect
-                </button>
               </div>
             </div>
           ) : (
-            <Button onClick={onConnectQbo} disabled={isQboSyncing} className="w-full mt-auto bg-slate-900 hover:bg-slate-800 text-white font-semibold shadow-sm">
-              {isQboSyncing ? "Connecting..." : "Connect QuickBooks"}
-            </Button>
+            <div className="w-full space-y-3 mt-auto">
+              <Button
+                variant="outline"
+                className="w-full font-medium"
+                onClick={() => { setShowWizard(true); resetWizard(); setSelectedFileType("bank_csv"); }}
+              >
+                Launch Import Wizard
+              </Button>
+              <div
+                className="h-[100px] border-2 border-dashed rounded-md flex flex-col items-center justify-center text-center p-2 text-sm text-slate-500 transition-colors cursor-pointer border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300"
+                onClick={() => { setShowWizard(true); resetWizard(); setSelectedFileType("bank_csv"); }}
+              >
+                <div className="font-medium">Drop CSV here or click to browse</div>
+                <div className="text-[11px] text-slate-400 mt-1">Advanced import & mapping</div>
+              </div>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Section 3: File Upload Engine Cards */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
-              <Database className="w-5 h-5" />
+      <div className="border-t border-slate-100" />
+
+      {/* Section 3: Ledger Source */}
+      <div className="flex flex-col gap-4 -mt-2">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">
+          Connect your ledger (where your invoices live)
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+          {/* QuickBooks */}
+          <div
+            className={`border rounded-lg p-5 flex flex-col items-center text-center transition-all ${qboConnected
+              ? 'border-green-500 bg-green-50/50 shadow-sm ring-1 ring-green-500'
+              : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white'
+              }`}
+          >
+            <div className="w-10 h-10 rounded-full bg-[#2CA01C] flex items-center justify-center text-white font-bold text-lg mb-3 shadow-sm">
+              <span className="leading-none text-xl lowercase opacity-90">qb</span>
             </div>
-            <h3 className="text-[17px] font-bold text-slate-900">Upload Manual Statement Files</h3>
+            <h4 className="font-medium text-slate-900 mb-3 text-sm">QuickBooks</h4>
+            {qboConnected ? (
+              <div className="w-full flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center justify-center gap-1 text-green-700 bg-green-50 rounded-md py-2 border border-green-200 text-sm font-medium w-full">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>{qboTxnCount} invoices synced</span>
+                  </div>
+                  {qboLastSync && (
+                    <span className="text-xs text-green-600 font-normal">Last synced {timeAgo(qboLastSync)}</span>
+                  )}
+                </div>
+                <button
+                  onClick={onSyncQbo}
+                  disabled={isQboSyncing}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-4 transition-colors disabled:opacity-50 mt-1"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isQboSyncing ? 'animate-spin' : ''}`} />
+                  {isQboSyncing ? "Syncing..." : "Re-sync"}
+                </button>
+                <button
+                  onClick={onDisconnectQbo}
+                  className="w-full text-xs font-medium text-slate-400 hover:text-slate-600 underline underline-offset-4 transition-colors"
+                >
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full text-xs font-medium"
+                onClick={onConnectQbo}
+              >
+                Connect
+              </Button>
+            )}
           </div>
-          <Button onClick={() => { setShowWizard(true); resetWizard(); }} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-1.5 h-auto px-4 shadow-sm">
-            Launch Import Wizard
-          </Button>
-        </div>
 
-        <p className="text-sm text-slate-500 leading-relaxed mb-4">
-          Select or drop file statements (Bank CSV, Excel, QuickBooks, Tally Exports) to parse and ingest them. The upload engine validates formatting and checks for duplicates.
-        </p>
+          {/* Zoho Books — Coming Soon */}
+          <div className="relative border rounded-lg p-5 flex flex-col items-center text-center bg-white border-slate-200 opacity-60 cursor-not-allowed">
+            <span className="absolute top-2 right-2 text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-semibold tracking-wide">Soon</span>
+            <div className="w-10 h-10 rounded-xl bg-[#004ada] flex items-center justify-center text-white font-bold text-lg mb-3 shadow-sm">
+              Z
+            </div>
+            <h4 className="font-medium text-slate-900 mb-3 text-sm">Zoho Books</h4>
+            <Button disabled variant="outline" size="sm" className="w-full text-xs font-medium">Coming soon</Button>
+          </div>
 
-        <div className="flex flex-wrap gap-2">
-          {["bank_csv", "bank_excel", "qbo_export", "tally_export", "stripe_export"].map((type) => (
-            <span key={type} className="text-xs font-semibold bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg border border-slate-200/50">
-              {getFriendlyFileType(type)}
-            </span>
-          ))}
+          {/* Manual CSV */}
+          <div
+            className="border rounded-lg p-5 flex flex-col items-center text-center cursor-pointer transition-all border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white"
+            onClick={() => { setShowWizard(true); resetWizard(); setSelectedFileType("qbo_export"); }}
+          >
+            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 mb-3 border border-slate-200">
+              <Upload className="w-4 h-4" />
+            </div>
+            <h4 className="font-medium text-slate-900 mb-3 text-sm">Manual Ledger</h4>
+            <Button variant="outline" size="sm" className="w-full text-xs font-medium pointer-events-none">Launch Wizard</Button>
+          </div>
+
         </div>
       </div>
 
@@ -630,26 +717,6 @@ export default function ConnectPage() {
                     </div>
                   )}
 
-                  {/* Worksheet Picker for multi-sheet Excel files */}
-                  {previewData.sheetNames && previewData.sheetNames.length > 1 && (
-                    <div className="flex flex-col gap-1.5 bg-slate-50 border border-slate-200/80 rounded-xl p-4 shadow-sm">
-                      <label className="text-xs font-bold text-slate-700 block">Select Excel Worksheet</label>
-                      <select
-                        value={selectedSheet || previewData.sheetNames[0]}
-                        onChange={(e) => {
-                          const newSheet = e.target.value;
-                          setSelectedSheet(newSheet);
-                          processSelectedFile(fileToUpload!, newSheet);
-                        }}
-                        className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white max-w-[280px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      >
-                        {previewData.sheetNames.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
                   {/* Header Mapping Form */}
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
                     <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-4">Map Column Header Identifiers</h4>
@@ -662,8 +729,8 @@ export default function ConnectPage() {
                           className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                         >
                           <option value="">-- Select Date --</option>
-                          {previewData.headers.map((h, idx) => (
-                            <option key={`${h}-${idx}`} value={h}>{h || `Column ${idx + 1}`}</option>
+                          {previewData.headers.map((h) => (
+                            <option key={h} value={h}>{h}</option>
                           ))}
                         </select>
                       </div>
@@ -676,8 +743,8 @@ export default function ConnectPage() {
                           className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                         >
                           <option value="">-- Select Description --</option>
-                          {previewData.headers.map((h, idx) => (
-                            <option key={`${h}-${idx}`} value={h}>{h || `Column ${idx + 1}`}</option>
+                          {previewData.headers.map((h) => (
+                            <option key={h} value={h}>{h}</option>
                           ))}
                         </select>
                       </div>
@@ -692,8 +759,8 @@ export default function ConnectPage() {
                               className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                             >
                               <option value="">-- Select Debit --</option>
-                              {previewData.headers.map((h, idx) => (
-                                <option key={`${h}-${idx}`} value={h}>{h || `Column ${idx + 1}`}</option>
+                              {previewData.headers.map((h) => (
+                                <option key={h} value={h}>{h}</option>
                               ))}
                             </select>
                           </div>
@@ -705,8 +772,8 @@ export default function ConnectPage() {
                               className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                             >
                               <option value="">-- Select Credit --</option>
-                              {previewData.headers.map((h, idx) => (
-                                <option key={`${h}-${idx}`} value={h}>{h || `Column ${idx + 1}`}</option>
+                              {previewData.headers.map((h) => (
+                                <option key={h} value={h}>{h}</option>
                               ))}
                             </select>
                           </div>
@@ -721,13 +788,13 @@ export default function ConnectPage() {
                               className="flex-1 text-xs border border-slate-300 rounded-lg p-2 bg-white"
                             >
                               <option value="">-- Select Amount --</option>
-                              {previewData.headers.map((h, idx) => (
-                                <option key={`${h}-${idx}`} value={h}>{h || `Column ${idx + 1}`}</option>
+                              {previewData.headers.map((h) => (
+                                <option key={h} value={h}>{h}</option>
                               ))}
                             </select>
                             <button
                               type="button"
-                              onClick={() => setColumnMapping({ ...columnMapping, amount: "", debit: previewData.headers[0] || "", credit: previewData.headers[0] || "" })}
+                              onClick={() => setColumnMapping({ ...columnMapping, amount: "", debit: previewData.headers[0], credit: previewData.headers[0] })}
                               className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 shrink-0"
                             >
                               Use Debit/Credit cols
@@ -744,8 +811,8 @@ export default function ConnectPage() {
                           className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                         >
                           <option value="">-- Select Reference --</option>
-                          {previewData.headers.map((h, idx) => (
-                            <option key={`${h}-${idx}`} value={h}>{h || `Column ${idx + 1}`}</option>
+                          {previewData.headers.map((h) => (
+                            <option key={h} value={h}>{h}</option>
                           ))}
                         </select>
                       </div>
@@ -783,8 +850,8 @@ export default function ConnectPage() {
                       <table className="w-full text-[11px] text-left border-collapse bg-white">
                         <thead className="bg-slate-50 text-slate-600 uppercase border-b border-slate-200">
                           <tr>
-                            {previewData.headers.map((h, idx) => (
-                              <th key={`${h}-${idx}`} className="px-4 py-2.5 font-bold border-r border-slate-200 last:border-0">{h || `Column ${idx + 1}`}</th>
+                            {previewData.headers.map((h) => (
+                              <th key={h} className="px-4 py-2.5 font-bold border-r border-slate-200 last:border-0">{h}</th>
                             ))}
                           </tr>
                         </thead>
@@ -806,11 +873,17 @@ export default function ConnectPage() {
               {/* Step 4: Loading Processing Ingestion */}
               {wizardStep === "importing" && (
                 <div className="flex flex-col items-center justify-center py-12 gap-4">
-                  <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
-                  <div className="text-sm font-semibold text-slate-700">Processing Ingestion pipeline...</div>
-                  <div className="text-xs text-slate-400 text-center max-w-[320px]">
-                    Validating constraints, calculating line metrics, resolving raw payloads, and mapping canonical transactions.
+                  <div className="w-16 h-16 rounded-full bg-indigo-50 flex items-center justify-center mb-2">
+                    <Database className="w-8 h-8 text-indigo-600 animate-pulse" />
                   </div>
+                  <div className="text-sm font-bold text-slate-900">Processing Your Data</div>
+                  <div className="text-xs text-slate-500 text-center max-w-[320px] mb-4">
+                    Validating constraints, mapping columns, and generating vector embeddings for AI matching.
+                  </div>
+                  <div className="w-full max-w-md bg-slate-100 rounded-full h-2.5 mb-2 overflow-hidden relative">
+                    <div className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300 ease-out" style={{ width: `${importProgress}%` }}></div>
+                  </div>
+                  <div className="text-xs font-bold text-slate-400">{importProgress}% Complete</div>
                 </div>
               )}
 
@@ -983,32 +1056,30 @@ export default function ConnectPage() {
       </div>
 
       {/* Section 5: CTA Start Reconciliation */}
-      <div className="flex flex-col items-center mt-4 w-full">
-        <Button
-          size="lg"
-          disabled={!isReady}
-          className={`w-full sm:w-auto px-16 h-14 text-[16px] font-bold tracking-tight rounded-xl transition-all shadow-md ${
-            isReady
-              ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/25 hover:shadow-lg"
-              : "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300"
-          }`}
-          onClick={() => {
-            if (isReady) router.push("/dashboard");
-          }}
-        >
-          Start Reconciliation Run
-          <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
-        
-        {!isReady && (
-          <p className="text-xs font-semibold text-slate-400 mt-4 text-center">
-            {!isBankConnected && !isLedgerConnected
-              ? "Connect Stripe or import statement files (Bank + Ledger) to unlock."
-              : !isBankConnected
-              ? "Connect Stripe or upload a bank statement to unlock."
-              : "Sync QuickBooks or upload a ledger CSV/Excel file to unlock."}
+      <div className="flex flex-col items-center mt-4 sticky bottom-6 sm:static sm:bottom-auto z-10 w-full">
+        <div className="bg-white/90 sm:bg-transparent backdrop-blur-md pb-4 pt-6 sm:p-0 w-full flex flex-col items-center">
+          <Button
+            size="lg"
+            disabled={!isReady}
+            className={`w-full sm:w-auto px-12 h-12 text-[15px] font-semibold transition-all shadow-sm ${isReady
+              ? 'bg-green-600 hover:bg-green-700 text-white shadow-md shadow-green-600/20'
+              : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+              }`}
+            onClick={() => {
+              if (isReady) router.push("/dashboard");
+            }}
+          >
+            Start reconciliation &rarr;
+          </Button>
+          {!isReady && (
+            <p className="text-sm text-slate-500 mt-4 font-medium mb-1">
+              {!isBankConnected ? "Connect a bank source to continue" : "Connect a ledger to continue"}
+            </p>
+          )}
+          <p className="text-xs text-slate-400 mt-2 font-medium">
+            You can add more sources later from Settings
           </p>
-        )}
+        </div>
       </div>
 
     </div>

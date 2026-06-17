@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/core/db";
-import { users } from "@/core/db/schema";
-import { eq } from "drizzle-orm";
+import { connectors } from "@/core/db/schema";
+import { eq, and } from "drizzle-orm";
+import { getOrCreateUserOrganization, getOrCreateFinancialAccount } from "@/core/db/org-helper";
 
 export async function GET(req: NextRequest) {
   try {
@@ -40,14 +41,38 @@ export async function GET(req: NextRequest) {
     const tokenData = await tokenResponse.json();
     // tokenData contains: access_token, stripe_user_id (acct_...), scope, token_type
 
-    // Save the user's Stripe credentials to their DB row
-    await db
-      .update(users)
-      .set({
-        stripeAccessToken: tokenData.access_token,
-        stripeUserId: tokenData.stripe_user_id,
-      })
-      .where(eq(users.id, userId));
+    // Resolve tenant and account context
+    const orgId = await getOrCreateUserOrganization(userId);
+    const accountId = await getOrCreateFinancialAccount(orgId, "stripe", "Stripe Account");
+
+    // Save the user's Stripe credentials to the connectors table
+    const [existing] = await db
+      .select()
+      .from(connectors)
+      .where(and(eq(connectors.organizationId, orgId), eq(connectors.accountId, accountId)))
+      .limit(1);
+
+    if (existing) {
+      await db
+        .update(connectors)
+        .set({
+          accessToken: tokenData.access_token,
+          status: "connected",
+          settings: { stripeUserId: tokenData.stripe_user_id },
+        })
+        .where(eq(connectors.id, existing.id));
+    } else {
+      await db
+        .insert(connectors)
+        .values({
+          organizationId: orgId,
+          accountId: accountId,
+          connectorType: "stripe",
+          accessToken: tokenData.access_token,
+          status: "connected",
+          settings: { stripeUserId: tokenData.stripe_user_id },
+        });
+    }
 
     return NextResponse.redirect(new URL("/connect?stripe_connected=true", req.url));
   } catch (error) {
