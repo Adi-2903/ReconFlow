@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/core/db";
-import { users, matches, auditEvents } from "@/core/db/schema";
-import { eq } from "drizzle-orm";
+import { users, matches, auditEvents, canonicalTransactions } from "@/core/db/schema";
+import { eq, inArray } from "drizzle-orm";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -49,6 +49,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         action: "approved",
         actorEmail: actorEmail,
       });
+
+      if (match.bankTransactionId) {
+        await tx
+          .update(canonicalTransactions)
+          .set({ status: "LOCKED_APPROVED" })
+          .where(eq(canonicalTransactions.id, match.bankTransactionId));
+      }
+
+      if (match.ledgerEntryIds && match.ledgerEntryIds.length > 0) {
+        await tx
+          .update(canonicalTransactions)
+          .set({ status: "LOCKED_APPROVED" })
+          .where(inArray(canonicalTransactions.id, match.ledgerEntryIds));
+      }
     });
 
     return Response.json({ success: true, matchId, status: "approved" });

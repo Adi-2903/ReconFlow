@@ -6,7 +6,9 @@ import {
   bankTransactions,
   ledgerEntries,
   users,
+  canonicalTransactions,
 } from "@/core/db/schema";
+import { getOrCreateUserOrganization } from "@/core/db/org-helper";
 import { eq } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -26,12 +28,23 @@ export interface DeleteAccountResult {
  * Resets bank transaction and ledger statuses back to 'unmatched'.
  */
 export async function resetReconData(userId: string): Promise<ResetResult> {
+  const orgId = await getOrCreateUserOrganization(userId);
+
   // Must delete in dependency order (foreign keys)
   await db.delete(auditEvents).where(eq(auditEvents.userId, userId));
   await db.delete(matches).where(eq(matches.userId, userId));
   await db.delete(reconRuns).where(eq(reconRuns.userId, userId));
   await db.update(bankTransactions).set({ status: "unmatched" }).where(eq(bankTransactions.userId, userId));
   await db.update(ledgerEntries).set({ status: "unmatched" }).where(eq(ledgerEntries.userId, userId));
+
+  await db.update(canonicalTransactions)
+    .set({
+      status: "AVAILABLE",
+      lockedByMatchGroupId: null,
+      activeRunId: null,
+      lockedAt: null,
+    })
+    .where(eq(canonicalTransactions.organizationId, orgId));
 
   return { message: "Reconciliation data reset successfully" };
 }
@@ -41,12 +54,15 @@ export async function resetReconData(userId: string): Promise<ResetResult> {
  * This is irreversible.
  */
 export async function deleteAccount(userId: string): Promise<DeleteAccountResult> {
+  const orgId = await getOrCreateUserOrganization(userId);
+
   // Must delete in dependency order (foreign keys)
   await db.delete(auditEvents).where(eq(auditEvents.userId, userId));
   await db.delete(matches).where(eq(matches.userId, userId));
   await db.delete(reconRuns).where(eq(reconRuns.userId, userId));
   await db.delete(bankTransactions).where(eq(bankTransactions.userId, userId));
   await db.delete(ledgerEntries).where(eq(ledgerEntries.userId, userId));
+  await db.delete(canonicalTransactions).where(eq(canonicalTransactions.organizationId, orgId));
   await db.delete(users).where(eq(users.id, userId));
 
   return { message: "Account deleted successfully" };

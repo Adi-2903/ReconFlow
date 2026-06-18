@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/core/db";
-import { users, matches, auditEvents, bankTransactions } from "@/core/db/schema";
-import { eq } from "drizzle-orm";
+import { users, matches, auditEvents, canonicalTransactions } from "@/core/db/schema";
+import { eq, inArray } from "drizzle-orm";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -50,9 +50,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       if (match.bankTransactionId) {
         await tx
-          .update(bankTransactions)
-          .set({ status: "unmatched" })
-          .where(eq(bankTransactions.id, match.bankTransactionId));
+          .update(canonicalTransactions)
+          .set({ status: "AVAILABLE" })
+          .where(eq(canonicalTransactions.id, match.bankTransactionId));
+      }
+
+      if (match.ledgerEntryIds && match.ledgerEntryIds.length > 0) {
+        await tx
+          .update(canonicalTransactions)
+          .set({ status: "AVAILABLE" })
+          .where(inArray(canonicalTransactions.id, match.ledgerEntryIds));
       }
     });
 

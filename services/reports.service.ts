@@ -1,5 +1,5 @@
 import { db } from "@/core/db";
-import { matches, bankTransactions } from "@/core/db/schema";
+import { matches, canonicalTransactions } from "@/core/db/schema";
 import { eq } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -58,13 +58,13 @@ export async function getReportSummary(
       status: matches.status,
       confidenceScore: matches.confidenceScore,
       evidence: matches.evidence,
-      amount: bankTransactions.amount,
-      date: bankTransactions.date,
-      source: bankTransactions.source,
+      amountMinor: canonicalTransactions.amountMinor,
+      date: canonicalTransactions.transactionDate,
+      metadata: canonicalTransactions.metadata,
       reasonText: matches.reasonText,
     })
     .from(matches)
-    .innerJoin(bankTransactions, eq(matches.bankTransactionId, bankTransactions.id))
+    .innerJoin(canonicalTransactions, eq(matches.bankTransactionId, canonicalTransactions.id))
     .where(eq(matches.userId, userId));
 
   // Filter to period in JS (handles both ISO string and Date column formats)
@@ -99,11 +99,13 @@ export async function getReportSummary(
       const isUnresolved = m.status === "pending" || m.status === "rejected";
       if (isUnresolved) exceptionsCount++;
 
+      const metadata = (m.metadata as any) || {};
+
       exceptionsList.push({
         id: m.id,
-        amount: Math.round(Number(m.amount) * 100),
+        amount: Number(m.amountMinor),
         date: new Date(m.date).toLocaleDateString("en-IN", { month: "short", day: "numeric" }),
-        source: m.source || "Bank",
+        source: metadata.source || "Bank",
         reasonTag,
         status: isUnresolved ? "Pending" : "Resolved",
         statusColor: isUnresolved ? "text-red-700 bg-red-100" : "text-green-700 bg-green-100",

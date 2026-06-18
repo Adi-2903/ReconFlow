@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { db } from "../core/db";
-import { users, bankTransactions, ledgerEntries } from "../core/db/schema";
+import { users, canonicalTransactions, matches } from "../core/db/schema";
 import { eq } from "drizzle-orm";
+import { getOrCreateUserOrganization, getOrCreateFinancialAccount } from "../core/db/org-helper";
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -22,38 +23,19 @@ async function main() {
   }
   const userId = userRows[0].id;
 
-  // Check if bank transactions already exist
-  const existingBanks = await db.select().from(bankTransactions).where(eq(bankTransactions.userId, userId));
+  const orgId = await getOrCreateUserOrganization(userId);
+  const bankAccountId = await getOrCreateFinancialAccount(orgId, "bank", "Stripe Bank Account");
+  const stripeAccountId = await getOrCreateFinancialAccount(orgId, "stripe", "Stripe Account");
+
+  // Check if bank transactions already exist in canonicalTransactions
+  const existingBanks = await db.select().from(canonicalTransactions).where(eq(canonicalTransactions.organizationId, orgId)).limit(1);
   if (existingBanks.length > 0) {
-    console.log("Already seeded. Delete existing data first.");
-    process.exit(0);
+    console.log("Already seeded in canonicalTransactions. Deleting existing matching data first...");
+    await db.delete(matches).where(eq(matches.userId, userId));
+    await db.delete(canonicalTransactions).where(eq(canonicalTransactions.organizationId, orgId));
   }
 
   console.log("Seeding test data...");
-
-  // Note: While instructions said "multiply rupees by 100 for storage",
-  // the engine in api/recon/run/route.ts already does `Number(amount) * 100`
-  // and the UI formats it assuming rupees. Storing paise directly would cause 100x inflation
-  // and break threshold fuzzy logic. We store rupees to meet expected match targets.
-
-  // ------------------------------------------------------------------
-  // Curated demo dataset — designed so each of the 4 engine match types
-  // (exact, bulk/many-to-one, fuzzy, none/exception) is exercised at
-  // least once, with no random noise to muddy the demo.
-  //
-  // Bank 1 -> Ledger 1   : EXACT      (same amount, same date)
-  // Bank 2 -> Ledger 2+3 : BULK       (invoice + wire fee = bank deposit)
-  // Bank 3 -> Ledger 4   : EXACT
-  // Bank 4 -> Ledger 5+6 : BULK       (two invoices = one payout)
-  // Bank 5 -> Ledger 7   : EXACT
-  // Bank 6 -> Ledger 8   : EXACT
-  // Bank 7 -> Ledger 9   : EXACT
-  // Bank 8 -> Ledger 10  : EXACT
-  // Bank 9 -> (none)     : EXCEPTION  (no plausible ledger match at all)
-  // Bank 10 -> Ledger 14 : FUZZY      (fee difference, same date — Stripe fee)
-  // Bank 11 -> Ledger 15 : FUZZY      (exact amount, 2-day date gap — settlement delay)
-  // Ledger 11, 12, 13    : left UNMATCHED (no bank txn references them)
-  // ------------------------------------------------------------------
 
   const banksData = [
     { amount: "12400.00", date: "2026-06-03", description: "Stripe payout INV-2891", source: "stripe" },
@@ -92,33 +74,42 @@ async function main() {
   ];
 
   await db.transaction(async (tx: any) => {
-    const dbBanks = banksData.map(b => ({
-      userId,
-      amount: b.amount,
-      date: b.date,
+    const dbBanks = banksData.map((b, i) => ({
+      organizationId: orgId,
+      accountId: b.source === "stripe" ? stripeAccountId : bankAccountId,
+      side: "money" as const,
+      direction: "inflow" as const,
+      status: "AVAILABLE" as const,
+      transactionDate: b.date,
+      amountMinor: BigInt(Math.round(Number(b.amount) * 100)),
+      currency: "INR",
       description: b.description,
-      source: b.source,
-      status: "unmatched"
+      sourceTransactionId: `seed-stripe-bank-${i}`,
+      metadata: { source: b.source, layout: b.source === "stripe" ? "stripe_export" : "bank_csv" },
     }));
 
-    await tx.insert(bankTransactions).values(dbBanks);
-
-    const dbLedgers = ledgerData.map(l => ({
-      userId,
-      amount: l.amount,
-      date: l.date,
-      memo: l.memo,
-      invoiceRef: l.invoiceRef,
-      status: "unmatched"
+    const dbLedgers = ledgerData.map((l, i) => ({
+      organizationId: orgId,
+      accountId: bankAccountId,
+      side: "books" as const,
+      direction: "inflow" as const,
+      status: "AVAILABLE" as const,
+      transactionDate: l.date,
+      amountMinor: BigInt(Math.round(Number(l.amount) * 100)),
+      currency: "INR",
+      referenceNumber: l.invoiceRef,
+      description: l.memo,
+      sourceTransactionId: `seed-stripe-ledger-${i}`,
+      metadata: { source: "ledger", layout: "qbo_export" },
     }));
 
-    await tx.insert(ledgerEntries).values(dbLedgers);
+    await tx.insert(canonicalTransactions).values([...dbBanks, ...dbLedgers]);
   });
 
   const totalBankStr = banksData.reduce((acc, curr) => acc + Number(curr.amount), 0).toLocaleString("en-IN");
   const totalLedgerStr = ledgerData.reduce((acc, curr) => acc + Number(curr.amount), 0).toLocaleString("en-IN");
 
-  console.log(`Seeded:`);
+  console.log(`Seeded into canonicalTransactions:`);
   console.log(`  ${banksData.length} bank transactions (₹${totalBankStr} total)`);
   console.log(`  ${ledgerData.length} ledger entries (₹${totalLedgerStr} total)`);
   console.log(``);

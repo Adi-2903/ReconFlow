@@ -1,13 +1,13 @@
 import { db } from "@/core/db";
 import {
   users,
-  bankTransactions,
-  ledgerEntries,
+  canonicalTransactions,
+  financialAccounts,
   reconRuns,
   matches,
   connectors,
 } from "@/core/db/schema";
-import { eq, and, gte, lte, count } from "drizzle-orm";
+import { eq, and, gte, lte, count, inArray } from "drizzle-orm";
 import { matchTransactions } from "@/core/matching/engine";
 import { generateMatchReason, DEFAULT_FEE_PATTERNS } from "@/lib/ai-reason";
 import { getOrCreateUserOrganization } from "@/core/db/org-helper";
@@ -58,28 +58,32 @@ export async function runReconciliation(
     });
   }
 
+  const orgId = await getOrCreateUserOrganization(userId);
+
   // Fetch unmatched transactions in period
   const bankRows = await db
     .select()
-    .from(bankTransactions)
+    .from(canonicalTransactions)
     .where(
       and(
-        eq(bankTransactions.userId, userId),
-        eq(bankTransactions.status, "unmatched"),
-        gte(bankTransactions.date, periodStart),
-        lte(bankTransactions.date, periodEnd)
+        eq(canonicalTransactions.organizationId, orgId),
+        eq(canonicalTransactions.side, "money"),
+        eq(canonicalTransactions.status, "AVAILABLE"),
+        gte(canonicalTransactions.transactionDate, periodStart),
+        lte(canonicalTransactions.transactionDate, periodEnd)
       )
     );
 
   const ledgerRows = await db
     .select()
-    .from(ledgerEntries)
+    .from(canonicalTransactions)
     .where(
       and(
-        eq(ledgerEntries.userId, userId),
-        eq(ledgerEntries.status, "unmatched"),
-        gte(ledgerEntries.date, periodStart),
-        lte(ledgerEntries.date, periodEnd)
+        eq(canonicalTransactions.organizationId, orgId),
+        eq(canonicalTransactions.side, "books"),
+        eq(canonicalTransactions.status, "AVAILABLE"),
+        gte(canonicalTransactions.transactionDate, periodStart),
+        lte(canonicalTransactions.transactionDate, periodEnd)
       )
     );
 
@@ -101,18 +105,18 @@ export async function runReconciliation(
     // Map to engine types
     const engineBanks = bankRows.map((b) => ({
       id: b.id,
-      amount: Math.round(Number(b.amount) * 100),
-      date: new Date(b.date),
+      amount: Number(b.amountMinor),
+      date: new Date(b.transactionDate),
       description: b.description ?? "",
-      referenceId: b.referenceId ?? "",
+      referenceId: b.referenceNumber ?? "",
     }));
 
     const engineLedgers = ledgerRows.map((l) => ({
       id: l.id,
-      amount: Math.round(Number(l.amount) * 100),
-      date: new Date(l.date),
-      memo: l.memo ?? "",
-      invoiceRef: l.invoiceRef ?? "",
+      amount: Number(l.amountMinor),
+      date: new Date(l.transactionDate),
+      memo: l.description ?? "",
+      invoiceRef: l.referenceNumber ?? "",
     }));
 
     // Run 4-pass matching engine
@@ -169,17 +173,20 @@ export async function runReconciliation(
           status,
         });
 
-        const bankStatus = match.matchType === "none" ? "exception" : "matched";
-        await tx
-          .update(bankTransactions)
-          .set({ status: bankStatus })
-          .where(eq(bankTransactions.id, match.bankTransactionId));
-
-        for (const ledgerId of match.ledgerEntryIds) {
+        // Set status in canonicalTransactions
+        if (match.matchType !== "none") {
+          const newStatus = isAutoApprove ? "LOCKED_APPROVED" : "MATCHED_PENDING";
           await tx
-            .update(ledgerEntries)
-            .set({ status: "matched" })
-            .where(eq(ledgerEntries.id, ledgerId));
+            .update(canonicalTransactions)
+            .set({ status: newStatus })
+            .where(eq(canonicalTransactions.id, match.bankTransactionId));
+
+          if (match.ledgerEntryIds.length > 0) {
+            await tx
+              .update(canonicalTransactions)
+              .set({ status: newStatus })
+              .where(inArray(canonicalTransactions.id, match.ledgerEntryIds));
+          }
         }
       }
 
@@ -197,30 +204,53 @@ export async function runReconciliation(
 }
 
 export async function getReconCounts(userId: string): Promise<ReconCounts> {
-  const [stripeCount] = await db
-    .select({ count: count() })
-    .from(bankTransactions)
-    .where(
-      and(eq(bankTransactions.userId, userId), eq(bankTransactions.source, "Stripe"))
-    );
-
-  const [totalBankCount] = await db
-    .select({ count: count() })
-    .from(bankTransactions)
-    .where(eq(bankTransactions.userId, userId));
-
-  const [ledgerCount] = await db
-    .select({ count: count() })
-    .from(ledgerEntries)
-    .where(eq(ledgerEntries.userId, userId));
-
   let qboConnected = false;
   let stripeConnected = false;
   let qboLastSync: Date | null = null;
   let stripeLastSync: Date | null = null;
 
+  let totalBankCountVal = 0;
+  let stripeCountVal = 0;
+  let ledgerCountVal = 0;
+
   try {
     const orgId = await getOrCreateUserOrganization(userId);
+
+    const [totalBankCount] = await db
+      .select({ count: count() })
+      .from(canonicalTransactions)
+      .where(
+        and(
+          eq(canonicalTransactions.organizationId, orgId),
+          eq(canonicalTransactions.side, "money")
+        )
+      );
+    totalBankCountVal = totalBankCount?.count ?? 0;
+
+    const [stripeCount] = await db
+      .select({ count: count() })
+      .from(canonicalTransactions)
+      .innerJoin(financialAccounts, eq(canonicalTransactions.accountId, financialAccounts.id))
+      .where(
+        and(
+          eq(canonicalTransactions.organizationId, orgId),
+          eq(canonicalTransactions.side, "money"),
+          eq(financialAccounts.accountType, "stripe")
+        )
+      );
+    stripeCountVal = stripeCount?.count ?? 0;
+
+    const [ledgerCount] = await db
+      .select({ count: count() })
+      .from(canonicalTransactions)
+      .where(
+        and(
+          eq(canonicalTransactions.organizationId, orgId),
+          eq(canonicalTransactions.side, "books")
+        )
+      );
+    ledgerCountVal = ledgerCount?.count ?? 0;
+
     const userConnectors = await db
       .select()
       .from(connectors)
@@ -240,13 +270,13 @@ export async function getReconCounts(userId: string): Promise<ReconCounts> {
       }
     }
   } catch (err) {
-    console.error("Error fetching connector states:", err);
+    console.error("Error fetching connector states / counts:", err);
   }
 
   return {
-    bankTransactions: Number(totalBankCount?.count ?? 0),
-    stripeTransactions: Number(stripeCount?.count ?? 0),
-    ledgerEntries: Number(ledgerCount?.count ?? 0),
+    bankTransactions: Number(totalBankCountVal),
+    stripeTransactions: Number(stripeCountVal),
+    ledgerEntries: Number(ledgerCountVal),
     qboConnected,
     stripeConnected,
     qboLastSync,

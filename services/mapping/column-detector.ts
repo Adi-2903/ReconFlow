@@ -58,16 +58,27 @@ export function detectColumns(headers: string[]): Record<string, string> {
   const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, " ");
 
   const dateRegex = /date|time|txn|value|created/i;
-  const descRegex = /desc|narrat|particular|memo|details/i;
+  const descRegex = /desc|narrat|particular|memo|details|remark/i;
   const amountRegex = /^amount|amount$|total|net/i;
   const debitRegex = /debit|withdrawal|outflow|payment|paid/i;
   const creditRegex = /credit|deposit|inflow|receipt|received/i;
-  const refRegex = /ref|reference|id|doc|num|vch/i;
+  const refRegex = /ref|reference|id|doc|num|vch|cheque|chq/i;
+
+  let dateHeader = "";
+  headers.forEach((header) => {
+    const h = clean(header);
+    if (dateRegex.test(h)) {
+      if (!dateHeader || /transaction|txn|booking/i.test(h)) {
+        dateHeader = header;
+      }
+    }
+  });
+  result.date = dateHeader;
 
   headers.forEach((header) => {
     const h = clean(header);
-    if (!result.date && dateRegex.test(h)) {
-      result.date = header;
+    if (header === dateHeader) {
+      // already matched
     } else if (!result.description && descRegex.test(h)) {
       result.description = header;
     } else if (debitRegex.test(h)) {
@@ -93,7 +104,7 @@ export function findHeaderRowIndex(rows: string[][]): { index: number; score: nu
   let bestIndex = 0;
   let bestScore = 0;
 
-  const rowsToScan = Math.min(rows.length, 10);
+  const rowsToScan = Math.min(rows.length, 50);
 
   for (let i = 0; i < rowsToScan; i++) {
     const row = rows[i];

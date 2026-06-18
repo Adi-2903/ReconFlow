@@ -1,5 +1,5 @@
 import { db } from "@/core/db";
-import { matches, bankTransactions, ledgerEntries, auditEvents } from "@/core/db/schema";
+import { matches, canonicalTransactions, auditEvents } from "@/core/db/schema";
 import { eq, and, ne, inArray } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -39,9 +39,9 @@ export async function listMatches(
   filter: string = "all"
 ): Promise<MatchListItem[]> {
   const allMatches = await db
-    .select({ match: matches, bankTx: bankTransactions })
+    .select({ match: matches, bankTx: canonicalTransactions })
     .from(matches)
-    .innerJoin(bankTransactions, eq(matches.bankTransactionId, bankTransactions.id))
+    .innerJoin(canonicalTransactions, eq(matches.bankTransactionId, canonicalTransactions.id))
     .where(eq(matches.userId, userId));
 
   let filtered = allMatches;
@@ -68,8 +68,8 @@ export async function listMatches(
   if (allLedgerIds.length > 0) {
     ledgers = await db
       .select()
-      .from(ledgerEntries)
-      .where(inArray(ledgerEntries.id, allLedgerIds));
+      .from(canonicalTransactions)
+      .where(inArray(canonicalTransactions.id, allLedgerIds));
   }
 
   const ledgerMap = new Map<string, any>();
@@ -85,25 +85,25 @@ export async function listMatches(
     return {
       id: match.id,
       bankRow: {
-        amount: Number(bankTx.amount),
-        date: bankTx.date,
+        amount: Number(bankTx.amountMinor) / 100,
+        date: bankTx.transactionDate,
         description: bankTx.description || "",
-        referenceId: bankTx.referenceId || "",
-        source: bankTx.source || "unknown",
+        referenceId: bankTx.referenceNumber || "",
+        source: bankTx.metadata?.source || "unknown",
       },
       ledgerRows: matchLedgers.map((l: any) => ({
-        amount: Number(l.amount),
-        date: l.date,
-        memo: l.memo || "",
-        invoiceRef: l.invoiceRef || "",
+        amount: Number(l.amountMinor) / 100,
+        date: l.transactionDate,
+        memo: l.description || "",
+        invoiceRef: l.referenceNumber || "",
       })),
       ledgerRow:
         matchLedgers.length === 1
           ? {
-              amount: Number(matchLedgers[0].amount),
-              date: matchLedgers[0].date,
-              memo: matchLedgers[0].memo || "",
-              invoiceRef: matchLedgers[0].invoiceRef || "",
+              amount: Number(matchLedgers[0].amountMinor) / 100,
+              date: matchLedgers[0].transactionDate,
+              memo: matchLedgers[0].description || "",
+              invoiceRef: matchLedgers[0].referenceNumber || "",
             }
           : null,
       confidenceScore: Number(match.confidenceScore || 0),
@@ -158,6 +158,20 @@ export async function approveMatch(
       action: "approved",
       actorEmail,
     });
+
+    if (match.bankTransactionId) {
+      await tx
+        .update(canonicalTransactions)
+        .set({ status: "LOCKED_APPROVED" })
+        .where(eq(canonicalTransactions.id, match.bankTransactionId));
+    }
+
+    if (match.ledgerEntryIds && match.ledgerEntryIds.length > 0) {
+      await tx
+        .update(canonicalTransactions)
+        .set({ status: "LOCKED_APPROVED" })
+        .where(inArray(canonicalTransactions.id, match.ledgerEntryIds));
+    }
   });
 
   return { success: true, matchId, status: "approved" };
@@ -201,9 +215,16 @@ export async function rejectMatch(
 
     if (match.bankTransactionId) {
       await tx
-        .update(bankTransactions)
-        .set({ status: "unmatched" })
-        .where(eq(bankTransactions.id, match.bankTransactionId));
+        .update(canonicalTransactions)
+        .set({ status: "AVAILABLE" })
+        .where(eq(canonicalTransactions.id, match.bankTransactionId));
+    }
+
+    if (match.ledgerEntryIds && match.ledgerEntryIds.length > 0) {
+      await tx
+        .update(canonicalTransactions)
+        .set({ status: "AVAILABLE" })
+        .where(inArray(canonicalTransactions.id, match.ledgerEntryIds));
     }
   });
 
@@ -245,6 +266,20 @@ export async function bulkApproveMatches(
         action: "approved",
         actorEmail,
       });
+
+      if (match.bankTransactionId) {
+        await tx
+          .update(canonicalTransactions)
+          .set({ status: "LOCKED_APPROVED" })
+          .where(eq(canonicalTransactions.id, match.bankTransactionId));
+      }
+
+      if (match.ledgerEntryIds && match.ledgerEntryIds.length > 0) {
+        await tx
+          .update(canonicalTransactions)
+          .set({ status: "LOCKED_APPROVED" })
+          .where(inArray(canonicalTransactions.id, match.ledgerEntryIds));
+      }
     }
   });
 

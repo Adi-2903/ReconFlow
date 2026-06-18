@@ -491,7 +491,7 @@ export const ledgerEntries = pgTable("ledger_entries", {
 export const matches = pgTable("matches", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").references(() => users.id),
-  bankTransactionId: uuid("bank_transaction_id").references(() => bankTransactions.id),
+  bankTransactionId: uuid("bank_transaction_id").references(() => canonicalTransactions.id),
   ledgerEntryIds: text("ledger_entry_ids").array(),
   confidenceScore: numeric("confidence_score"),
   matchType: text("match_type"),

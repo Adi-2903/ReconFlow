@@ -309,6 +309,11 @@ export class IngestionService {
           continue;
         }
 
+        if (!isTransactionRow(row, dateIndex, descIndex, amountIndex, debitIndex, creditIndex)) {
+          skippedCount++;
+          continue;
+        }
+
         const payload: Record<string, string> = {};
         headers.forEach((h, index) => {
           payload[h] = row[index] || "";
@@ -493,4 +498,41 @@ export class IngestionService {
 
     return { successCount, skippedCount, failureCount };
   }
+}
+
+function isTransactionRow(
+  row: string[],
+  dateIndex: number,
+  descIndex: number,
+  amountIndex: number,
+  debitIndex: number,
+  creditIndex: number
+): boolean {
+  const dateStr = row[dateIndex]?.trim();
+  if (!dateStr || !/\d/.test(dateStr)) {
+    return false;
+  }
+  
+  const descStr = row[descIndex]?.toLowerCase() || "";
+  if (
+    descStr.includes("opening balance") ||
+    descStr.includes("closing balance") ||
+    descStr.includes("brought forward") ||
+    descStr.includes("carried forward") ||
+    descStr.includes("b/f") ||
+    descStr.includes("c/f")
+  ) {
+    return false;
+  }
+
+  // Check if there is at least some numeric value in the amount / debit / credit columns
+  const hasAmount = amountIndex !== -1 && row[amountIndex]?.trim() && /\d/.test(row[amountIndex]);
+  const hasDebit = debitIndex !== -1 && row[debitIndex]?.trim() && /\d/.test(row[debitIndex]);
+  const hasCredit = creditIndex !== -1 && row[creditIndex]?.trim() && /\d/.test(row[creditIndex]);
+
+  if (!hasAmount && !hasDebit && !hasCredit) {
+    return false;
+  }
+
+  return true;
 }
