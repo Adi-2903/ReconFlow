@@ -23,9 +23,12 @@ export interface AIReasoning {
 }
 
 export interface ConnectorSettings {
-    autoSync: boolean;
-    syncFrequency: string;
+    autoSync?: boolean;
+    syncFrequency?: string;
     targetLedgerId?: string;
+    qboRealmId?: string;
+    stripeUserId?: string;
+    [key: string]: any;
 }
 
 export interface FeeRuleConfig {

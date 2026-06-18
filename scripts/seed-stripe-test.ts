@@ -17,7 +17,7 @@ async function main() {
     console.log(`User '${email}' not found. Creating new demo user...`);
     userRows = await db.insert(users).values({
       email,
-      companyName: "Demo Company"
+      name: "Demo Company"
     }).returning();
   }
   const userId = userRows[0].id;
