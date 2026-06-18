@@ -1,4 +1,51 @@
+import { layouts } from "./layouts";
+
+export function detectSourceLayout(headers: string[]): {
+  layoutId: string;
+  name: string;
+  fileType: string;
+  mapping: Record<string, string>;
+  confidence: number;
+} | null {
+  const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const cleanedHeaders = headers.map(clean);
+
+  for (const layout of layouts) {
+    let allMatched = true;
+    const mapping: Record<string, string> = {};
+
+    for (const [key, value] of Object.entries(layout.mapping)) {
+      if (!value) continue;
+      const cleanedValue = clean(value);
+      const index = cleanedHeaders.indexOf(cleanedValue);
+      if (index !== -1) {
+        mapping[key] = headers[index];
+      } else {
+        allMatched = false;
+        break;
+      }
+    }
+
+    if (allMatched) {
+      return {
+        layoutId: layout.id,
+        name: layout.name,
+        fileType: layout.fileType,
+        mapping,
+        confidence: 0.95,
+      };
+    }
+  }
+
+  return null;
+}
+
 export function detectColumns(headers: string[]): Record<string, string> {
+  const matchedLayout = detectSourceLayout(headers);
+  if (matchedLayout) {
+    return matchedLayout.mapping;
+  }
+
   const result: Record<string, string> = {
     date: "",
     description: "",

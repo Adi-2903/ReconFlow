@@ -1,4 +1,8 @@
 export interface TransactionMetadata {
+    source?: string;
+    layout?: string;
+    importMethod?: string;
+    originalHeaders?: string[];
     originalDescription?: string;
     bankCategory?: string;
     location?: string;

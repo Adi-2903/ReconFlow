@@ -73,6 +73,7 @@ export default function ConnectPage() {
     debit: "",
     credit: "",
     reference: "",
+    counterparty: "",
   });
   
   const [saveTemplate, setSaveTemplate] = useState(false);
@@ -182,8 +183,10 @@ export default function ConnectPage() {
     const params = new URLSearchParams(window.location.search);
     // Handle QBO OAuth callback
     if (params.get("qbo_connected") === "true") {
-      setQboConnected(true);
-      onSyncQbo();
+      setTimeout(() => {
+        setQboConnected(true);
+        onSyncQbo();
+      }, 0);
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (params.get("qbo_error") === "true") {
       toast.error("Failed to connect to QuickBooks. Please try again.");
@@ -191,8 +194,10 @@ export default function ConnectPage() {
     }
     // Handle Stripe OAuth callback
     if (params.get("stripe_connected") === "true") {
-      setStripeConnected(true);
-      onSyncStripe();
+      setTimeout(() => {
+        setStripeConnected(true);
+        onSyncStripe();
+      }, 0);
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (params.get("stripe_error") === "true") {
       toast.error("Failed to connect to Stripe. Please try again.");
@@ -268,6 +273,12 @@ export default function ConnectPage() {
       return;
     }
 
+    // 5MB Limit for XML files
+    if (file.name.toLowerCase().endsWith(".xml") && file.size > 5 * 1024 * 1024) {
+      toast.error("Tally XML files must be smaller than 5MB to prevent memory issues.");
+      return;
+    }
+
     setFileToUpload(file);
     setIsParsingPreview(true);
     setWizardStep("preview");
@@ -291,14 +302,26 @@ export default function ConnectPage() {
       const data = await res.json();
       setPreviewData(data);
 
-      // Auto-apply matched template OR fallback to column heuristics
+      // Auto-apply matched layout/template OR fallback to column heuristics
       const heuristics = data.columnHeuristics || {};
-      const matched = data.matchedTemplate;
+      const layoutMatch = data.layoutMatch;
 
-      if (matched && matched.config && matched.config.columnMap) {
-        setColumnMapping(matched.config.columnMap);
+      if (layoutMatch && layoutMatch.mapping) {
+        setColumnMapping({
+          date: layoutMatch.mapping.date || "",
+          description: layoutMatch.mapping.description || "",
+          amount: layoutMatch.mapping.amount || "",
+          debit: layoutMatch.mapping.debit || "",
+          credit: layoutMatch.mapping.credit || "",
+          reference: layoutMatch.mapping.reference || "",
+          counterparty: layoutMatch.mapping.counterparty || "",
+        });
         setSaveTemplate(false);
-        toast.success(`Matched layout template: ${matched.templateName}`);
+        if (layoutMatch.type === "known_layout") {
+          toast.success(`Known layout recognized: ${layoutMatch.name}`);
+        } else if (layoutMatch.type === "learned_template") {
+          toast.success(`Matched layout template: ${layoutMatch.name}`);
+        }
       } else {
         setColumnMapping({
           date: heuristics.date || "",
@@ -307,6 +330,7 @@ export default function ConnectPage() {
           debit: heuristics.debit || "",
           credit: heuristics.credit || "",
           reference: heuristics.reference || "",
+          counterparty: heuristics.counterparty || "",
         });
       }
     } catch (err: any) {
@@ -390,7 +414,7 @@ export default function ConnectPage() {
       bank_csv: "Bank CSV Statement",
       bank_excel: "Bank Excel Statement",
       qbo_export: "QuickBooks Ledger Export",
-      tally_export: "Tally Ledger Export",
+      tally_export: "Tally Ledger Export (XML/Excel)",
       stripe_export: "Stripe Statement Export",
     };
     return maps[type] || type;
@@ -474,7 +498,7 @@ export default function ConnectPage() {
           </div>
           <h3 className="text-lg font-semibold text-slate-900 mb-1">Bank statement CSV</h3>
           <p className="text-sm text-slate-500 mb-6 flex-1">
-            Upload your bank's CSV export. Supports HDFC, ICICI, SBI, Axis, and most Indian banks.
+            Upload your bank&apos;s CSV export. Supports HDFC, ICICI, SBI, Axis, and most Indian banks.
           </p>
 
           {latestBankCsv ? (
@@ -629,7 +653,7 @@ export default function ConnectPage() {
                         { key: "bank_excel", name: "Bank Excel Statement" },
                         { key: "stripe_export", name: "Stripe Statement Export" },
                         { key: "qbo_export", name: "QuickBooks Export (CSV/XLS)" },
-                        { key: "tally_export", name: "Tally Export (Excel)" }
+                        { key: "tally_export", name: "Tally Export (Excel/XML)" }
                       ].map((item) => (
                         <button
                           key={item.key}
@@ -665,14 +689,14 @@ export default function ConnectPage() {
                     >
                       <Upload className={`w-8 h-8 mb-3 ${dragActive ? "text-indigo-600 animate-bounce" : "text-slate-400"}`} />
                       <div className="font-semibold text-sm text-slate-700">
-                        {!selectedFileType ? "Select a format above to activate upload zone" : "Drop CSV/Excel here or click to browse"}
+                        {!selectedFileType ? "Select a format above to activate upload zone" : selectedFileType === "tally_export" ? "Drop CSV/Excel/XML here or click to browse" : "Drop CSV/Excel here or click to browse"}
                       </div>
-                      <div className="text-xs text-slate-400 mt-1">Supports file types up to 10MB</div>
+                      <div className="text-xs text-slate-400 mt-1">{selectedFileType === "tally_export" ? "XML files are restricted to 5MB, others up to 10MB" : "Supports file types up to 10MB"}</div>
                       <input
                         ref={fileInputRef}
                         type="file"
                         className="hidden"
-                        accept=".csv, .xls, .xlsx"
+                        accept={selectedFileType === "tally_export" ? ".csv, .xls, .xlsx, .xml" : ".csv, .xls, .xlsx"}
                         disabled={!selectedFileType}
                         onChange={handleFileChange}
                       />
@@ -694,28 +718,86 @@ export default function ConnectPage() {
               {wizardStep === "preview" && previewData && (
                 <div className="flex flex-col gap-6">
                   
-                  {/* Template Matched Banner */}
-                  {previewData.matchedTemplate ? (
-                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-4 flex items-start gap-3">
-                      <Sparkles className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                      <div>
-                        <div className="font-bold text-sm">Auto-Layout Template Matched!</div>
-                        <div className="text-xs text-emerald-700 mt-0.5">
-                          Recognized signature headers from template <span className="font-bold underline">{previewData.matchedTemplate.templateName}</span>. Mapping parameters pre-applied.
+                  {/* Confidence-Aware Layout Match Alert */}
+                  {(() => {
+                    const match = (previewData as any).layoutMatch;
+                    if (!match) return null;
+
+                    const percent = Math.round(match.confidence * 100);
+                    if (match.type === "known_layout") {
+                      return (
+                        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-4 flex items-start gap-3">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-sm">Known Source Layout Recognized: {match.name}</span>
+                              <span className="text-[10px] font-bold bg-emerald-150 text-emerald-800 px-2 py-0.5 rounded-full">
+                                {percent}% Match
+                              </span>
+                            </div>
+                            <div className="text-xs text-emerald-700 mt-1">
+                              This file matches the signature of a supported configuration for <span className="font-bold">{match.name}</span>. Mapping columns have been automatically applied.
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (match.type === "learned_template") {
+                      return (
+                        <div className="bg-teal-50 border border-teal-200 text-teal-800 rounded-lg p-4 flex items-start gap-3">
+                          <Sparkles className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-sm">Learned Template Matched: {match.name}</span>
+                              <span className="text-[10px] font-bold bg-teal-150 text-teal-800 px-2 py-0.5 rounded-full">
+                                {percent}% Match
+                              </span>
+                            </div>
+                            <div className="text-xs text-teal-700 mt-1">
+                              Recognized column headers from the saved template <span className="font-bold underline">{match.name}</span>. Mappings pre-applied.
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (percent >= 70) {
+                      return (
+                        <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-lg p-4 flex items-start gap-3">
+                          <Layers className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-sm">Heuristic Auto-Match</span>
+                              <span className="text-[10px] font-bold bg-blue-150 text-blue-805 px-2 py-0.5 rounded-full">
+                                {percent}% Confidence
+                              </span>
+                            </div>
+                            <div className="text-xs text-blue-700 mt-1">
+                              Required columns (Date, Description, and Amount) were automatically detected. Please review the selections below before importing.
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="bg-amber-50 border border-amber-200 text-amber-850 rounded-lg p-4 flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-sm">Low Confidence Match</span>
+                            <span className="text-[10px] font-bold bg-amber-150 text-amber-850 px-2 py-0.5 rounded-full">
+                              {percent}% Confidence
+                            </span>
+                          </div>
+                          <div className="text-xs text-amber-700 mt-1">
+                            We could not identify standard header fields automatically. Please map the columns manually using the selectors below.
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="bg-indigo-50/50 border border-indigo-100 text-indigo-900 rounded-lg p-4 flex items-start gap-3">
-                      <Layers className="w-5 h-5 text-indigo-500 shrink-0 mt-0.5" />
-                      <div>
-                        <div className="font-bold text-sm text-indigo-950">Review Columns Auto-Detected</div>
-                        <div className="text-xs text-indigo-800 mt-0.5">
-                          Confirm the fields detected below match the data rows parsed from <span className="font-mono">{previewData.fileName}</span>.
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Header Mapping Form */}
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
@@ -811,6 +893,20 @@ export default function ConnectPage() {
                           className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                         >
                           <option value="">-- Select Reference --</option>
+                          {previewData.headers.map((h) => (
+                            <option key={h} value={h}>{h}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1.5 block">Counterparty / Name (Optional)</label>
+                        <select
+                          value={columnMapping.counterparty || ""}
+                          onChange={(e) => setColumnMapping({ ...columnMapping, counterparty: e.target.value })}
+                          className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                        >
+                          <option value="">-- Select Counterparty --</option>
                           {previewData.headers.map((h) => (
                             <option key={h} value={h}>{h}</option>
                           ))}

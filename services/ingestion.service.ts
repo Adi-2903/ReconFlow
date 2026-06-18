@@ -10,10 +10,12 @@ import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { parseCsv } from "./parsers/csv.parser";
 import { parseExcel } from "./parsers/excel.parser";
+import { parseTallyXml } from "./parsers/tally.parser";
 import { NormalizedConnectorRecord } from "./connectors/connector.interface";
 import { saveMappingTemplate } from "./mapping/template-matcher";
 import { findHeaderRowIndex, inferDateFormat } from "./mapping/column-detector";
 import { CleaningService } from "./cleaning.service";
+import { CanonicalTransactionInputSchema } from "./mapping/canonical-input";
 
 export class IngestionService {
   /**
@@ -221,9 +223,12 @@ export class IngestionService {
       await db.update(dbImports).set({ status: "PARSING" }).where(eq(dbImports.id, importRun.id));
 
       let rows: string[][] = [];
-      if (fileName.endsWith(".csv")) {
+      if (fileName.toLowerCase().endsWith(".csv")) {
         const fileText = fileBuffer.toString("utf8");
         rows = parseCsv(fileText);
+      } else if (fileName.toLowerCase().endsWith(".xml")) {
+        const fileText = fileBuffer.toString("utf8");
+        rows = await parseTallyXml(fileText);
       } else {
         const parsed = parseExcel(fileBuffer, sheetName);
         rows = parsed.rows;
@@ -246,6 +251,7 @@ export class IngestionService {
       const descIndex = headers.indexOf(columnMap.description);
       const amountIndex = headers.indexOf(columnMap.amount);
       const refIndex = headers.indexOf(columnMap.reference);
+      const counterpartyIndex = headers.indexOf(columnMap.counterparty);
 
       // Support separate debit/credit column mappings
       const debitIndex = headers.indexOf(columnMap.debit);
@@ -328,18 +334,33 @@ export class IngestionService {
           const formattedDate = cleaningService.normalizeDate(rawDateStr);
 
           // Normalize Amount
-          const amountVal = amountIndex !== -1 ? row[amountIndex] : undefined;
-          const debitVal = debitIndex !== -1 ? row[debitIndex] : undefined;
-          const creditVal = creditIndex !== -1 ? row[creditIndex] : undefined;
-          const { amountMinor, direction } = cleaningService.normalizeAmount(amountVal, debitVal, creditVal);
+          let amountMinor: bigint;
+          let direction: "inflow" | "outflow";
+
+          if (fileType === "tally_export" || fileName.toLowerCase().endsWith(".xml")) {
+            const ledgerEntriesJson = amountIndex !== -1 ? row[amountIndex] : "[]";
+            const partyLedger = counterpartyIndex !== -1 ? row[counterpartyIndex] : "";
+            const parsedTally = cleaningService.parseTallyLedgerEntries(ledgerEntriesJson, partyLedger);
+            amountMinor = parsedTally.amountMinor;
+            direction = parsedTally.direction;
+          } else {
+            const amountVal = amountIndex !== -1 ? row[amountIndex] : undefined;
+            const debitVal = debitIndex !== -1 ? row[debitIndex] : undefined;
+            const creditVal = creditIndex !== -1 ? row[creditIndex] : undefined;
+            const normalized = cleaningService.normalizeAmount(amountVal, debitVal, creditVal);
+            amountMinor = normalized.amountMinor;
+            direction = normalized.direction;
+          }
 
           // Normalize Counterparty
-          const counterpartyName = rawDescStr;
-          const counterpartyNormalized = cleaningService.normalizeCounterparty(rawDescStr);
+          const rawCounterpartyStr = counterpartyIndex !== -1 ? row[counterpartyIndex] : rawDescStr;
+          const counterpartyName = rawCounterpartyStr || null;
+          const counterpartyNormalized = rawCounterpartyStr ? cleaningService.normalizeCounterparty(rawCounterpartyStr) : "";
 
           // Normalize Currency
+          const amountStringForCurrency = amountIndex !== -1 ? row[amountIndex] : ((debitIndex !== -1 ? row[debitIndex] : "") + " " + (creditIndex !== -1 ? row[creditIndex] : ""));
           const currency = cleaningService.detectCurrency(
-            (rawDescStr || "") + " " + (amountVal || debitVal || creditVal || "")
+            (rawDescStr || "") + " " + (amountStringForCurrency || "")
           );
 
           // Generate deterministic transaction hash
@@ -347,7 +368,7 @@ export class IngestionService {
           const deterministicTxnId = crypto.createHash("sha256").update(hashInput).digest("hex");
 
           // Check for duplication inside file or database
-          const rowSig = `${formattedDate}_${amountMinor}_${rawDescStr.trim().toLowerCase()}`;
+          const rowSig = `${formattedDate}_${amountMinor}_${(rawDescStr || "").trim().toLowerCase()}`;
           if (existingSignatures.has(rowSig) || existingTxnIds.has(deterministicTxnId)) {
             skippedCount++;
             continue;
@@ -359,8 +380,19 @@ export class IngestionService {
           // Bank CSV, Bank Excel, Stripe Export -> side: money
           // QuickBooks Export, Tally Export -> side: books
           const isMoney = ["bank_csv", "bank_excel", "stripe_export"].includes(fileType);
+          const txnType = cleaningService.normalizeTransactionType(fileType, direction);
 
-          await db.insert(canonicalTransactions).values({
+          // Gather any extra unmapped column values to store in metadata for custom matching rules
+          const extraMetadata: Record<string, any> = {};
+          const mappedHeaders = Object.values(columnMap);
+          headers.forEach((h, idx) => {
+            if (h && !mappedHeaders.includes(h)) {
+              extraMetadata[h] = row[idx] || "";
+            }
+          });
+
+          // Build DTO and validate through Zod schema
+          const rawInput = {
             organizationId: orgId,
             accountId,
             rawRecordId: rawRec.id,
@@ -371,11 +403,39 @@ export class IngestionService {
             amountMinor,
             currency,
             referenceNumber: refStr || null,
-            counterpartyName,
-            counterpartyNormalized,
+            counterpartyName: counterpartyName || null,
+            counterpartyNormalized: counterpartyNormalized || null,
             description: rawDescStr || null,
-            transactionType: cleaningService.normalizeTransactionType(fileType, direction),
+            transactionType: txnType,
             sourceTransactionId: deterministicTxnId,
+            metadata: {
+              source: fileName,
+              layout: fileType,
+              importMethod: "file",
+              originalHeaders: headers,
+              ...extraMetadata,
+            },
+          };
+
+          const validatedInput = CanonicalTransactionInputSchema.parse(rawInput);
+
+          await db.insert(canonicalTransactions).values({
+            organizationId: validatedInput.organizationId,
+            accountId: validatedInput.accountId,
+            rawRecordId: validatedInput.rawRecordId,
+            side: validatedInput.side,
+            direction: validatedInput.direction,
+            status: validatedInput.status,
+            transactionDate: validatedInput.transactionDate,
+            amountMinor: validatedInput.amountMinor,
+            currency: validatedInput.currency,
+            referenceNumber: validatedInput.referenceNumber,
+            counterpartyName: validatedInput.counterpartyName,
+            counterpartyNormalized: validatedInput.counterpartyNormalized,
+            description: validatedInput.description,
+            transactionType: validatedInput.transactionType,
+            sourceTransactionId: validatedInput.sourceTransactionId,
+            metadata: validatedInput.metadata,
           });
 
           successCount++;

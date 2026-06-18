@@ -259,4 +259,69 @@ export class CleaningService {
 
     return direction === "inflow" ? "PAYMENT" : "TRANSFER";
   }
+
+  /**
+   * Parses Tally ledger entries from a serialized JSON string or array,
+   * isolating the cash/bank ledger to determine the net transaction amount and direction.
+   */
+  parseTallyLedgerEntries(
+    entriesJsonOrArray: any,
+    partyLedgerName?: string
+  ): { amountMinor: bigint; direction: "inflow" | "outflow" } {
+    let entries: { ledgerName: string; amount: number; isDeemedPositive: boolean }[] = [];
+    if (typeof entriesJsonOrArray === "string") {
+      try {
+        entries = JSON.parse(entriesJsonOrArray);
+      } catch {
+        entries = [];
+      }
+    } else if (Array.isArray(entriesJsonOrArray)) {
+      entries = entriesJsonOrArray;
+    }
+
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return { amountMinor: BigInt(0), direction: "inflow" };
+    }
+
+    // 1. Filter entries to find those that are bank/cash.
+    let bankEntries = entries.filter((e) =>
+      /bank|cash|c\/a|current|savings|pos|paytm|pe\b/i.test(e.ledgerName)
+    );
+
+    // 2. If none, filter entries that do NOT match the party ledger name.
+    if (bankEntries.length === 0 && partyLedgerName) {
+      bankEntries = entries.filter(
+        (e) => e.ledgerName.toLowerCase() !== partyLedgerName.toLowerCase()
+      );
+    }
+
+    // 3. Fallback to all entries if still empty.
+    if (bankEntries.length === 0) {
+      bankEntries = entries;
+    }
+
+    // Sum the absolute amounts (converted to minor units: cents/paise)
+    let totalAmtMinor = BigInt(0);
+    let inflowCount = 0;
+    let outflowCount = 0;
+
+    for (const entry of bankEntries) {
+      const absAmt = Math.abs(entry.amount);
+      totalAmtMinor += BigInt(Math.round(absAmt * 100));
+      if (entry.isDeemedPositive) {
+        inflowCount++;
+      } else {
+        outflowCount++;
+      }
+    }
+
+    // If more bank/cash entries are deemed positive (debit), it is an inflow
+    const direction = inflowCount >= outflowCount ? "inflow" : "outflow";
+
+    return {
+      amountMinor: totalAmtMinor,
+      direction,
+    };
+  }
 }
+

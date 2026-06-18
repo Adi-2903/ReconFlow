@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getOrCreateUserOrganization, getOrCreateFinancialAccount } from "@/core/db/org-helper";
 import { findMatchingTemplate } from "@/services/mapping/template-matcher";
-import { detectColumns, findHeaderRowIndex } from "@/services/mapping/column-detector";
+import { detectColumns, findHeaderRowIndex, detectSourceLayout } from "@/services/mapping/column-detector";
 import { parseCsv } from "@/services/parsers/csv.parser";
 import { parseExcel } from "@/services/parsers/excel.parser";
+import { parseTallyXml } from "@/services/parsers/tally.parser";
 import { IngestionService } from "@/services/ingestion.service";
 
 export async function POST(req: NextRequest) {
@@ -37,15 +38,18 @@ export async function POST(req: NextRequest) {
       let sheetNames: string[] = [];
       const sheetName = (formData.get("sheetName") as string) || undefined;
 
-      if (fileName.endsWith(".csv")) {
+      if (fileName.toLowerCase().endsWith(".csv")) {
         const fileText = buffer.toString("utf8");
         rows = parseCsv(fileText);
-      } else if (fileName.endsWith(".xls") || fileName.endsWith(".xlsx")) {
+      } else if (fileName.toLowerCase().endsWith(".xml")) {
+        const fileText = buffer.toString("utf8");
+        rows = await parseTallyXml(fileText);
+      } else if (fileName.toLowerCase().endsWith(".xls") || fileName.toLowerCase().endsWith(".xlsx")) {
         const parsed = parseExcel(buffer, sheetName);
         rows = parsed.rows;
         sheetNames = parsed.sheetNames;
       } else {
-        return NextResponse.json({ error: "Unsupported file format. Please upload a CSV or Excel file." }, { status: 400 });
+        return NextResponse.json({ error: "Unsupported file format. Please upload a CSV, Excel, or XML file." }, { status: 400 });
       }
 
       if (rows.length === 0) {
@@ -63,6 +67,40 @@ export async function POST(req: NextRequest) {
       const fileType = (formData.get("fileType") as string) || "bank_csv";
       const matchedTemplate = await findMatchingTemplate(orgId, fileType, headers);
 
+      // Detect known layouts
+      const detectedLayout = detectSourceLayout(headers);
+
+      let layoutMatch = null;
+      if (detectedLayout) {
+        layoutMatch = {
+          type: "known_layout",
+          name: detectedLayout.name,
+          layoutId: detectedLayout.layoutId,
+          confidence: detectedLayout.confidence,
+          mapping: detectedLayout.mapping,
+        };
+      } else if (matchedTemplate) {
+        layoutMatch = {
+          type: "learned_template",
+          name: matchedTemplate.templateName,
+          templateId: matchedTemplate.id,
+          confidence: 0.90,
+          mapping: matchedTemplate.config.columnMap,
+        };
+      } else {
+        const hasRequired = !!(
+          columnHeuristics.date &&
+          columnHeuristics.description &&
+          (columnHeuristics.amount || (columnHeuristics.debit && columnHeuristics.credit))
+        );
+        layoutMatch = {
+          type: "heuristics",
+          name: "Auto-Detected Layout",
+          confidence: hasRequired ? 0.70 : 0.50,
+          mapping: columnHeuristics,
+        };
+      }
+
       return NextResponse.json({
         success: true,
         fileName,
@@ -71,6 +109,8 @@ export async function POST(req: NextRequest) {
         previewRows,
         columnHeuristics,
         matchedTemplate,
+        detectedLayout,
+        layoutMatch,
         sheetNames,
       });
 
@@ -99,8 +139,10 @@ export async function POST(req: NextRequest) {
       let originalHeaders: string[] = [];
       if (saveTemplateName) {
         let tempRows: string[][] = [];
-        if (fileName.endsWith(".csv")) {
+        if (fileName.toLowerCase().endsWith(".csv")) {
           tempRows = parseCsv(buffer.toString("utf8"));
+        } else if (fileName.toLowerCase().endsWith(".xml")) {
+          tempRows = await parseTallyXml(buffer.toString("utf8"));
         } else {
           tempRows = parseExcel(buffer, sheetName).rows;
         }
