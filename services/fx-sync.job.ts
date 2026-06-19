@@ -46,20 +46,45 @@ export async function runFxSyncJob(): Promise<void> {
 
     const todayStr = new Date().toISOString().split("T")[0];
 
-    // 3. Fetch rates from free open API for each base currency
+    // 3. Fetch rates for each base currency
     for (const base of baseCurrencies) {
       try {
-        console.log(`Fetching rates for base currency: ${base}...`);
-        const res = await fetch(`https://open.er-api.com/v6/latest/${base}`);
-        if (!res.ok) {
-          throw new Error(`Failed to fetch rates from API, status: ${res.status}`);
-        }
-        const data = await res.json();
-        if (data.result !== "success" || !data.rates) {
-          throw new Error(`Invalid API response format: ${JSON.stringify(data)}`);
+        let rates: Record<string, number> = {};
+        const apiKey = process.env.EXCHANGERATE_HOST_API_KEY;
+
+        if (apiKey) {
+          console.log(`Fetching rates for base currency: ${base} using exchangerate.host...`);
+          const res = await fetch(`https://api.exchangerate.host/live?access_key=${apiKey}&base=${base}`);
+          if (!res.ok) {
+            throw new Error(`Failed to fetch rates from exchangerate.host, status: ${res.status}`);
+          }
+          const data = await res.json();
+          if (!data.success) {
+            throw new Error(`exchangerate.host API returned success=false: ${JSON.stringify(data.error || data)}`);
+          }
+
+          // APILayer's exchangerate.host returns quotes prefixed by base currency (e.g. "USDEUR" for USD->EUR)
+          const rawQuotes = data.quotes || {};
+          for (const key of Object.keys(rawQuotes)) {
+            let quoteKey = key;
+            if (key.toUpperCase().startsWith(base.toUpperCase()) && key.length > base.length) {
+              quoteKey = key.slice(base.length);
+            }
+            rates[quoteKey.trim().toUpperCase()] = Number(rawQuotes[key]);
+          }
+        } else {
+          console.log(`Fetching rates for base currency: ${base} using open.er-api.com...`);
+          const res = await fetch(`https://open.er-api.com/v6/latest/${base}`);
+          if (!res.ok) {
+            throw new Error(`Failed to fetch rates from open.er-api.com, status: ${res.status}`);
+          }
+          const data = await res.json();
+          if (data.result !== "success" || !data.rates) {
+            throw new Error(`Invalid API response format from open.er-api.com: ${JSON.stringify(data)}`);
+          }
+          rates = data.rates;
         }
 
-        const rates = data.rates;
         let syncedCount = 0;
 
         // Upsert rate for each quote currency we found in accounts / transactions
