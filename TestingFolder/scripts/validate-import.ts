@@ -6,7 +6,7 @@ import { parseTallyFile } from "../parsers/tallyParser";
 import { parseQuickBooks } from "../parsers/quickBooksParser";
 import { parseBankCsv } from "../parsers/bankParser";
 
-import { runMatcher } from "../matching/runMatcher.js";
+import { runMatcher } from "../matching/runMatcher";
 
 import { validateImport } from "../validators/importValidator";
 import { validateTotals } from "../validators/accountingValidator";

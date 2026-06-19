@@ -70,10 +70,10 @@ export function parseQuickBooks(
                 case "sales receipt":
                 case "receive payment":
                 case "invoice":
+                case "payment":
                     direction = "credit";
                     break;
 
-                case "payment":
                 case "bill payment":
                 case "expense":
                 case "check":
@@ -100,6 +100,15 @@ export function parseQuickBooks(
                 amount:
                     Number(
                         row.amount
+                    ),
+
+                amountMinor:
+                    BigInt(
+                        Math.round(
+                            Number(
+                                row.amount
+                            ) * 100
+                        )
                     ),
 
                 direction,

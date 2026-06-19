@@ -1,5 +1,11 @@
 // src/types/CanonicalTransaction.ts
 
+export type FxStatus =
+    | "NOT_REQUIRED"
+    | "SOURCE_PROVIDED"
+    | "CONVERTED"
+    | "MISSING_RATE";
+
 export interface CanonicalTransaction {
     id: string;
 
@@ -25,4 +31,25 @@ export interface CanonicalTransaction {
     sourceId: string;
 
     rawPayload?: any;
+
+    amountMinor?: bigint;
+    currency?: string;
+    baseCurrency?: string;
+    convertedAmountMinor?: bigint;
+    fxStatus?: FxStatus;
+    matchingSignals?: {
+        channel?: string;
+        utr?: string;
+        invoiceNumber?: string;
+        voucherNumber?: string;
+        referenceNumber?: string;
+        customerName?: string;
+        vendorName?: string;
+        merchantName?: string;
+        relatedTransactionId?: string;
+    };
+    metadata?: {
+        source?: string;
+        [key: string]: any;
+    };
 }

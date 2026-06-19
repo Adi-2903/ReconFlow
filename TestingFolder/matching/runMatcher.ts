@@ -27,11 +27,13 @@ export function runMatcher(
                     )
             );
 
-        const candidates =
+        const candidateResults =
             generateCandidates(
                 bankTxn,
                 availableBooks
             );
+
+        const candidates = candidateResults.map((cr) => cr.candidate);
 
         // =====================
         // ONE TO MANY FIRST
