@@ -86,14 +86,14 @@ export async function listMatches(
       id: match.id,
       bankRow: {
         amount: Number(bankTx.amountMinor) / 100,
-        date: bankTx.transactionDate,
+        date: bankTx.transactionDate instanceof Date ? bankTx.transactionDate.toISOString().split("T")[0] : String(bankTx.transactionDate),
         description: bankTx.description || "",
         referenceId: bankTx.referenceNumber || "",
-        source: bankTx.metadata?.source || "unknown",
+        source: bankTx.sourceSystem || "unknown",
       },
       ledgerRows: matchLedgers.map((l: any) => ({
         amount: Number(l.amountMinor) / 100,
-        date: l.transactionDate,
+        date: l.transactionDate instanceof Date ? l.transactionDate.toISOString().split("T")[0] : String(l.transactionDate),
         memo: l.description || "",
         invoiceRef: l.referenceNumber || "",
       })),
@@ -101,7 +101,7 @@ export async function listMatches(
         matchLedgers.length === 1
           ? {
               amount: Number(matchLedgers[0].amountMinor) / 100,
-              date: matchLedgers[0].transactionDate,
+              date: matchLedgers[0].transactionDate instanceof Date ? matchLedgers[0].transactionDate.toISOString().split("T")[0] : String(matchLedgers[0].transactionDate),
               memo: matchLedgers[0].description || "",
               invoiceRef: matchLedgers[0].referenceNumber || "",
             }

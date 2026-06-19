@@ -1,7 +1,7 @@
 import {
     pgTable, uuid, text, timestamp, boolean, integer,
     jsonb, numeric, primaryKey, index, uniqueIndex, vector,
-    pgEnum, char, bigint, date, unique
+    pgEnum, char, bigint, date, unique, check
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import type {
@@ -35,6 +35,18 @@ export const runStatusEnum = pgEnum("run_status", [
 
 export const importStatusEnum = pgEnum("import_status", [
     "UPLOADED", "PARSING", "CLEANING", "MAPPING", "ENRICHING", "COMPLETED", "FAILED"
+]);
+
+export const embeddingStatusEnum = pgEnum("embedding_status", [
+    "PENDING", "GENERATED", "FAILED"
+]);
+
+export const fxStatusEnum = pgEnum("fx_status", [
+    "NOT_REQUIRED", "SOURCE_PROVIDED", "CONVERTED", "MISSING_RATE"
+]);
+
+export const sourceSystemEnum = pgEnum("source_system", [
+    "bank", "quickbooks", "tally", "stripe", "xero", "netsuite"
 ]);
 
 // ============================================================================
@@ -179,11 +191,14 @@ export const canonicalTransactions = pgTable("canonical_transactions", {
     accountId: uuid("account_id").notNull().references(() => financialAccounts.id),
     rawRecordId: uuid("raw_record_id").references(() => rawRecords.id),
 
+    sourceSystem: sourceSystemEnum("source_system").notNull(),
+    externalId: text("external_id"),
+
     side: transactionSideEnum("side").notNull(),
     direction: transactionDirectionEnum("direction").notNull(),
     status: transactionStatusEnum("status").notNull().default("RAW"),
 
-    transactionDate: date("transaction_date").notNull(),
+    transactionDate: timestamp("transaction_date", { withTimezone: true }).notNull(),
     amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
     currency: char("currency", { length: 3 }).notNull(),
 
@@ -198,32 +213,54 @@ export const canonicalTransactions = pgTable("canonical_transactions", {
     lockedByMatchGroupId: uuid("locked_by_match_group_id"),
     activeRunId: uuid("active_run_id"),
 
-    metadata: jsonb("metadata").$type<TransactionMetadata>(),
+    baseCurrency: char("base_currency", { length: 3 }),
+    convertedAmountMinor: bigint("converted_amount_minor", { mode: "bigint" }),
+    exchangeRate: numeric("exchange_rate", { precision: 18, scale: 8 }),
+    exchangeRateSource: text("exchange_rate_source"),
+    fxRateProvider: text("fx_rate_provider"),
+    exchangeRateDate: date("exchange_rate_date"),
+    fxStatus: fxStatusEnum("fx_status").notNull().default("NOT_REQUIRED"),
+
+    metadata: jsonb("metadata").$type<TransactionMetadata>().default({}),
+    embeddingStatus: embeddingStatusEnum("embedding_status").default("PENDING").notNull(),
 
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => {
     return {
         orgDateStatusIdx: index("idx_txn_org_date_status").on(table.organizationId, table.transactionDate, table.status),
         matchingIdx: index("idx_txn_matching").on(table.organizationId, table.amountMinor, table.transactionDate, table.direction),
-        uniqueAccountSourceTxn: unique("uq_account_source_txn").on(table.accountId, table.sourceTransactionId)
+        uniqueAccountSourceTxn: unique("uq_account_source_txn").on(table.accountId, table.sourceTransactionId),
+        idxCanonicalCurrency: index("idx_canonical_currency").on(table.currency),
+        idxCanonicalFxStatus: index("idx_canonical_fx_status").on(table.fxStatus),
+        idxCanonicalSourceSystem: index("idx_canonical_source_system").on(table.sourceSystem),
+        idxCanonicalTxnDate: index("idx_canonical_txn_date").on(table.transactionDate),
+        fxConsistency: check(
+            "chk_fx_consistency",
+            sql`(
+                (fx_status = 'NOT_REQUIRED' AND exchange_rate IS NULL) OR
+                (fx_status IN ('SOURCE_PROVIDED', 'CONVERTED') AND exchange_rate IS NOT NULL) OR
+                (fx_status = 'MISSING_RATE')
+            )`
+        )
     };
 });
 
 
 // ISOLATED EMBEDDINGS (Performance Upgrade)
-// export const transactionEmbeddings = pgTable("transaction_embeddings", {
-//     id: uuid("id").primaryKey().defaultRandom(),
-//     organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-//     transactionId: uuid("transaction_id").notNull().references(() => canonicalTransactions.id, { onDelete: "cascade" }),
-//     model: text("model").notNull().default("all-MiniLM-L6-v2"),
-//     embedding: vector("embedding", { dimensions: 384 }).notNull(),
-//     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-// }, (table) => {
-//     return {
-//         embeddingIdx: index("idx_txn_embedding").using("hnsw", table.embedding.op("vector_cosine_ops")),
-//         txnUniqueIdx: uniqueIndex("idx_unique_txn_embedding").on(table.transactionId),
-//     };
-// });
+export const transactionEmbeddings = pgTable("transaction_embeddings", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    transactionId: uuid("transaction_id").notNull().references(() => canonicalTransactions.id, { onDelete: "cascade" }),
+    model: text("model").notNull().default("all-MiniLM-L6-v2"),
+    embedding: vector("embedding", { dimensions: 384 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+    return {
+        embeddingIdx: index("idx_txn_embedding").using("hnsw", table.embedding.op("vector_cosine_ops")),
+        txnUniqueIdx: uniqueIndex("idx_unique_txn_embedding").on(table.transactionId),
+    };
+});
 
 
 export const counterpartyProfiles = pgTable("counterparty_profiles", {
@@ -380,16 +417,13 @@ export const aiExplanations = pgTable("ai_explanations", {
 // ============================================================================
 
 export const fxRates = pgTable("fx_rates", {
-    id: uuid("id").primaryKey().defaultRandom(),
     baseCurrency: char("base_currency", { length: 3 }).notNull(),
     quoteCurrency: char("quote_currency", { length: 3 }).notNull(),
-    rate: numeric("rate", { precision: 18, scale: 8 }).notNull(),
     rateDate: date("rate_date").notNull(),
-}, (table) => {
-    return {
-        uniqueFxRate: unique("uq_fx_rate_date").on(table.baseCurrency, table.quoteCurrency, table.rateDate),
-    };
-});
+    exchangeRate: numeric("exchange_rate", { precision: 18, scale: 8 }).notNull(),
+}, (table) => ({
+    pk: primaryKey({ columns: [table.baseCurrency, table.quoteCurrency, table.rateDate] }),
+}));
 
 export const feeRules = pgTable("fee_rules", {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -430,10 +464,10 @@ export const canonicalTransactionsRelations = relations(canonicalTransactions, (
         fields: [canonicalTransactions.lockedByMatchGroupId],
         references: [matchGroups.id]
     }),
-    // embedding: one(transactionEmbeddings, {
-    //     fields: [canonicalTransactions.id],
-    //     references: [transactionEmbeddings.transactionId],
-    // }),
+    embedding: one(transactionEmbeddings, {
+        fields: [canonicalTransactions.id],
+        references: [transactionEmbeddings.transactionId],
+    }),
     runHistory: many(reconciliationRunTransactions),
 }));
 

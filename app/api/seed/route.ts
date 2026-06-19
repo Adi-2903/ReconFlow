@@ -182,7 +182,21 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    await db.insert(canonicalTransactions).values([...bankSeed, ...ledgerSeed]);
+    const finalBankSeed = bankSeed.map(b => ({
+      ...b,
+      sourceSystem: b.accountId === stripeAccountId ? ("stripe" as const) : ("bank" as const),
+      transactionDate: new Date(b.transactionDate),
+      metadata: {},
+    }));
+
+    const finalLedgerSeed = ledgerSeed.map(l => ({
+      ...l,
+      sourceSystem: "quickbooks" as const,
+      transactionDate: new Date(l.transactionDate),
+      metadata: {},
+    }));
+
+    await db.insert(canonicalTransactions).values([...finalBankSeed, ...finalLedgerSeed]);
 
     return NextResponse.json({ 
       success: true, 

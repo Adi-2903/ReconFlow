@@ -13,9 +13,20 @@ import { parseExcel } from "./parsers/excel.parser";
 import { parseTallyXml } from "./parsers/tally.parser";
 import { NormalizedConnectorRecord } from "./connectors/connector.interface";
 import { saveMappingTemplate } from "./mapping/template-matcher";
-import { findHeaderRowIndex, inferDateFormat } from "./mapping/column-detector";
+import { findHeaderRowIndex, inferDateFormat, NON_TRANSACTION_PATTERNS } from "./mapping/column-detector";
 import { CleaningService } from "./cleaning.service";
 import { CanonicalTransactionInputSchema } from "./mapping/canonical-input";
+import { IntelligenceService } from "./intelligence.service";
+
+function mapSourceSystem(type: string): "bank" | "quickbooks" | "tally" | "stripe" | "xero" | "netsuite" {
+  const t = type.toLowerCase();
+  if (t.includes("stripe")) return "stripe";
+  if (t.includes("tally")) return "tally";
+  if (t.includes("quickbooks") || t.includes("qbo")) return "quickbooks";
+  if (t.includes("xero")) return "xero";
+  if (t.includes("netsuite")) return "netsuite";
+  return "bank";
+}
 
 export class IngestionService {
   /**
@@ -101,23 +112,58 @@ export class IngestionService {
             })
             .returning();
 
-          // Map and insert canonical transaction
+          // Map, enrich and insert canonical transaction
           const isStripe = sourceType === "stripe";
-          await db.insert(canonicalTransactions).values({
+          const rawInput = {
             organizationId: orgId,
             accountId,
             rawRecordId: rawRec.id,
-            side: isStripe ? "money" : "books", // Stripe = money, QBO = books
+            sourceSystem: mapSourceSystem(sourceType),
+            externalId: r.sourceTransactionId || null,
+            side: isStripe ? "money" : "books",
             direction: r.amountMinor >= BigInt(0) ? "inflow" : "outflow",
             status: "AVAILABLE",
             transactionDate: r.transactionDate.toISOString().split("T")[0],
-            amountMinor: r.amountMinor < BigInt(0) ? r.amountMinor * BigInt(-1) : r.amountMinor, // Store absolute positive amounts
+            amountMinor: r.amountMinor < BigInt(0) ? r.amountMinor * BigInt(-1) : r.amountMinor,
             currency: r.currency,
             referenceNumber: r.referenceNumber || null,
             counterpartyName: r.counterpartyName || null,
             description: r.description || null,
             transactionType: r.transactionType || null,
             sourceTransactionId: r.sourceTransactionId,
+            metadata: {},
+          };
+
+          const enrichedInput = await IntelligenceService.enrichTransaction(orgId, rawInput, importRun.id);
+          const validatedInput = CanonicalTransactionInputSchema.parse(enrichedInput);
+
+          await db.insert(canonicalTransactions).values({
+            organizationId: validatedInput.organizationId,
+            accountId: validatedInput.accountId,
+            rawRecordId: validatedInput.rawRecordId,
+            sourceSystem: validatedInput.sourceSystem,
+            externalId: validatedInput.externalId,
+            side: validatedInput.side,
+            direction: validatedInput.direction,
+            status: validatedInput.status,
+            transactionDate: new Date(validatedInput.transactionDate),
+            amountMinor: validatedInput.amountMinor,
+            currency: validatedInput.currency,
+            referenceNumber: validatedInput.referenceNumber,
+            counterpartyName: validatedInput.counterpartyName,
+            counterpartyNormalized: validatedInput.counterpartyNormalized,
+            description: validatedInput.description,
+            transactionType: validatedInput.transactionType,
+            sourceTransactionId: validatedInput.sourceTransactionId,
+            baseCurrency: validatedInput.baseCurrency,
+            convertedAmountMinor: validatedInput.convertedAmountMinor,
+            exchangeRate: validatedInput.exchangeRate,
+            exchangeRateSource: validatedInput.exchangeRateSource,
+            fxRateProvider: validatedInput.fxRateProvider,
+            exchangeRateDate: validatedInput.exchangeRateDate,
+            fxStatus: validatedInput.fxStatus,
+            metadata: validatedInput.metadata,
+            embeddingStatus: validatedInput.embeddingStatus as any,
           });
 
           successCount++;
@@ -230,7 +276,39 @@ export class IngestionService {
         const fileText = fileBuffer.toString("utf8");
         rows = await parseTallyXml(fileText);
       } else {
-        const parsed = parseExcel(fileBuffer, sheetName);
+        let parsed = parseExcel(fileBuffer, sheetName);
+        if (!sheetName && parsed.sheetNames.length > 1) {
+          const requiredMappedHeaders = Object.values(columnMap)
+            .filter(Boolean)
+            .map((h) => String(h).trim().toLowerCase());
+
+          if (requiredMappedHeaders.length > 0) {
+            let bestSheetName = parsed.sheetNames[0];
+            let maxMatches = -1;
+
+            for (const name of parsed.sheetNames) {
+              try {
+                const p = parseExcel(fileBuffer, name);
+                const { index: hIndex } = findHeaderRowIndex(p.rows);
+                if (hIndex !== -1 && p.rows[hIndex]) {
+                  const headers = p.rows[hIndex].map((h) => String(h || "").trim().toLowerCase());
+                  const matchCount = requiredMappedHeaders.filter((h) =>
+                    headers.includes(h)
+                  ).length;
+                  if (matchCount > maxMatches) {
+                    maxMatches = matchCount;
+                    bestSheetName = name;
+                  }
+                }
+              } catch (e) {
+                // ignore
+              }
+            }
+            if (maxMatches > 0) {
+              parsed = parseExcel(fileBuffer, bestSheetName);
+            }
+          }
+        }
         rows = parsed.rows;
       }
 
@@ -401,6 +479,8 @@ export class IngestionService {
             organizationId: orgId,
             accountId,
             rawRecordId: rawRec.id,
+            sourceSystem: mapSourceSystem(fileType),
+            externalId: refStr || null,
             side: isMoney ? "money" : "books",
             direction,
             status: "AVAILABLE",
@@ -413,25 +493,22 @@ export class IngestionService {
             description: rawDescStr || null,
             transactionType: txnType,
             sourceTransactionId: deterministicTxnId,
-            metadata: {
-              source: fileName,
-              layout: fileType,
-              importMethod: "file",
-              originalHeaders: headers,
-              ...extraMetadata,
-            },
+            metadata: {},
           };
 
-          const validatedInput = CanonicalTransactionInputSchema.parse(rawInput);
+          const enrichedInput = await IntelligenceService.enrichTransaction(orgId, rawInput, importRun.id);
+          const validatedInput = CanonicalTransactionInputSchema.parse(enrichedInput);
 
           await db.insert(canonicalTransactions).values({
             organizationId: validatedInput.organizationId,
             accountId: validatedInput.accountId,
             rawRecordId: validatedInput.rawRecordId,
+            sourceSystem: validatedInput.sourceSystem,
+            externalId: validatedInput.externalId,
             side: validatedInput.side,
             direction: validatedInput.direction,
             status: validatedInput.status,
-            transactionDate: validatedInput.transactionDate,
+            transactionDate: new Date(validatedInput.transactionDate),
             amountMinor: validatedInput.amountMinor,
             currency: validatedInput.currency,
             referenceNumber: validatedInput.referenceNumber,
@@ -440,7 +517,15 @@ export class IngestionService {
             description: validatedInput.description,
             transactionType: validatedInput.transactionType,
             sourceTransactionId: validatedInput.sourceTransactionId,
+            baseCurrency: validatedInput.baseCurrency,
+            convertedAmountMinor: validatedInput.convertedAmountMinor,
+            exchangeRate: validatedInput.exchangeRate,
+            exchangeRateSource: validatedInput.exchangeRateSource,
+            fxRateProvider: validatedInput.fxRateProvider,
+            exchangeRateDate: validatedInput.exchangeRateDate,
+            fxStatus: validatedInput.fxStatus,
             metadata: validatedInput.metadata,
+            embeddingStatus: validatedInput.embeddingStatus as any,
           });
 
           successCount++;
@@ -473,6 +558,13 @@ export class IngestionService {
       }
 
       // 7. Update status to COMPLETED
+      const totalProcessed = successCount + skippedCount + failureCount;
+      if (totalProcessed !== dataRows.length) {
+        console.warn(`Row count mismatch: Data Rows = ${dataRows.length}, Sum = ${totalProcessed} (Success = ${successCount}, Skipped = ${skippedCount}, Failed = ${failureCount})`);
+      } else {
+        console.log(`Ingestion row counts verified: ${dataRows.length} rows processed (Success = ${successCount}, Skipped = ${skippedCount}, Failed = ${failureCount})`);
+      }
+
       await db
         .update(dbImports)
         .set({
@@ -509,20 +601,28 @@ function isTransactionRow(
   creditIndex: number
 ): boolean {
   const dateStr = row[dateIndex]?.trim();
-  if (!dateStr || !/\d/.test(dateStr)) {
+  if (!dateStr) {
+    return false;
+  }
+
+  // Filter out common footer/metadata patterns in date column
+  if (NON_TRANSACTION_PATTERNS.some((pattern) => pattern.test(dateStr))) {
+    return false;
+  }
+
+  if (!/\d/.test(dateStr)) {
     return false;
   }
   
-  const descStr = row[descIndex]?.toLowerCase() || "";
-  if (
-    descStr.includes("opening balance") ||
-    descStr.includes("closing balance") ||
-    descStr.includes("brought forward") ||
-    descStr.includes("carried forward") ||
-    descStr.includes("b/f") ||
-    descStr.includes("c/f")
-  ) {
-    return false;
+  const descStr = row[descIndex]?.trim();
+  if (descStr) {
+    if (
+      /opening\s+balance|closing\s+balance|brought\s+forward|carried\s+forward|\bb\/f\b|\bc\/f\b|subtotal|grand\s+total/i.test(
+        descStr
+      )
+    ) {
+      return false;
+    }
   }
 
   // Check if there is at least some numeric value in the amount / debit / credit columns

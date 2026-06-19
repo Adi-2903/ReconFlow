@@ -1,12 +1,18 @@
+export interface MatchingSignals {
+    channel?: "UPI" | "NEFT" | "RTGS" | "IMPS" | "CASH" | "ACH" | "CARD" | "CHECK" | "STRIPE" | "WIRE";
+    utr?: string;
+    invoiceNumber?: string;
+    voucherNumber?: string;
+    referenceNumber?: string;
+    customerName?: string;
+    vendorName?: string;
+    merchantName?: string;
+    relatedTransactionId?: string;
+}
+
 export interface TransactionMetadata {
-    source?: string;
-    layout?: string;
-    importMethod?: string;
-    originalHeaders?: string[];
-    originalDescription?: string;
-    bankCategory?: string;
-    location?: string;
-    [key: string]: any;
+    matchingSignals?: MatchingSignals;
+    intelligenceVersion?: "v1";
 }
 
 export interface ScoreBreakdown {

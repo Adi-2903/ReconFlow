@@ -1,5 +1,21 @@
 import { layouts } from "./layouts";
 
+export const NON_TRANSACTION_PATTERNS = [
+  /page\s+\d+/i,
+  /generated/i,
+  /statement/i,
+  /subtotal/i,
+  /grand\s+total/i,
+  /opening\s+balance/i,
+  /closing\s+balance/i,
+  /brought\s+forward/i,
+  /carried\s+forward/i,
+  /b\/f/i,
+  /c\/f/i,
+  /total/i,
+  /---/
+];
+
 export function detectSourceLayout(headers: string[]): {
   layoutId: string;
   name: string;

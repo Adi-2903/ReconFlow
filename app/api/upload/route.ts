@@ -8,6 +8,43 @@ import { parseExcel } from "@/services/parsers/excel.parser";
 import { parseTallyXml } from "@/services/parsers/tally.parser";
 import { IngestionService } from "@/services/ingestion.service";
 
+async function getLayoutMatchForHeaders(orgId: string, fileType: string, headers: string[]) {
+  const detectedLayout = detectSourceLayout(headers);
+  if (detectedLayout) {
+    return {
+      type: "known_layout",
+      name: detectedLayout.name,
+      layoutId: detectedLayout.layoutId,
+      confidence: detectedLayout.confidence,
+      mapping: detectedLayout.mapping,
+    };
+  }
+
+  const matchedTemplate = await findMatchingTemplate(orgId, fileType, headers);
+  if (matchedTemplate) {
+    return {
+      type: "learned_template",
+      name: matchedTemplate.templateName,
+      templateId: matchedTemplate.id,
+      confidence: 0.90,
+      mapping: matchedTemplate.config.columnMap,
+    };
+  }
+
+  const columnHeuristics = detectColumns(headers);
+  const hasRequired = !!(
+    columnHeuristics.date &&
+    columnHeuristics.description &&
+    (columnHeuristics.amount || (columnHeuristics.debit && columnHeuristics.credit))
+  );
+  return {
+    type: "heuristics",
+    name: "Auto-Detected Layout",
+    confidence: hasRequired ? 0.70 : 0.50,
+    mapping: columnHeuristics,
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
@@ -36,7 +73,10 @@ export async function POST(req: NextRequest) {
       // --- Action 1: File Layout Preview & Column Mapping Recommendation ---
       let rows: string[][] = [];
       let sheetNames: string[] = [];
+      let detectedSheetName: string | undefined = undefined;
+      let bestLayoutMatch: any = null;
       const sheetName = (formData.get("sheetName") as string) || undefined;
+      const fileType = (formData.get("fileType") as string) || "bank_csv";
 
       if (fileName.toLowerCase().endsWith(".csv")) {
         const fileText = buffer.toString("utf8");
@@ -48,6 +88,36 @@ export async function POST(req: NextRequest) {
         const parsed = parseExcel(buffer, sheetName);
         rows = parsed.rows;
         sheetNames = parsed.sheetNames;
+
+        if (!sheetName && sheetNames.length > 1) {
+          let highestConfidence = -1;
+          let bestSheetRows = parsed.rows;
+          let bestSheetName = sheetNames[0];
+
+          for (const name of sheetNames) {
+            try {
+              const p = parseExcel(buffer, name);
+              const { index: hIndex } = findHeaderRowIndex(p.rows);
+              if (hIndex !== -1 && p.rows[hIndex]) {
+                const sheetHeaders = p.rows[hIndex].map(h => String(h || "").trim());
+                const match = await getLayoutMatchForHeaders(orgId, fileType, sheetHeaders);
+                if (match && match.confidence > highestConfidence) {
+                  highestConfidence = match.confidence;
+                  bestLayoutMatch = match;
+                  bestSheetRows = p.rows;
+                  bestSheetName = name;
+                }
+              }
+            } catch (e) {
+              // ignore sheet parse error during auto-detection
+            }
+          }
+          
+          if (highestConfidence >= 0.70) {
+            rows = bestSheetRows;
+            detectedSheetName = bestSheetName;
+          }
+        }
       } else {
         return NextResponse.json({ error: "Unsupported file format. Please upload a CSV, Excel, or XML file." }, { status: 400 });
       }
@@ -64,42 +134,12 @@ export async function POST(req: NextRequest) {
       const columnHeuristics = detectColumns(headers);
 
       // Check for template match based on header fingerprint
-      const fileType = (formData.get("fileType") as string) || "bank_csv";
       const matchedTemplate = await findMatchingTemplate(orgId, fileType, headers);
 
       // Detect known layouts
       const detectedLayout = detectSourceLayout(headers);
 
-      let layoutMatch = null;
-      if (detectedLayout) {
-        layoutMatch = {
-          type: "known_layout",
-          name: detectedLayout.name,
-          layoutId: detectedLayout.layoutId,
-          confidence: detectedLayout.confidence,
-          mapping: detectedLayout.mapping,
-        };
-      } else if (matchedTemplate) {
-        layoutMatch = {
-          type: "learned_template",
-          name: matchedTemplate.templateName,
-          templateId: matchedTemplate.id,
-          confidence: 0.90,
-          mapping: matchedTemplate.config.columnMap,
-        };
-      } else {
-        const hasRequired = !!(
-          columnHeuristics.date &&
-          columnHeuristics.description &&
-          (columnHeuristics.amount || (columnHeuristics.debit && columnHeuristics.credit))
-        );
-        layoutMatch = {
-          type: "heuristics",
-          name: "Auto-Detected Layout",
-          confidence: hasRequired ? 0.70 : 0.50,
-          mapping: columnHeuristics,
-        };
-      }
+      const layoutMatch = bestLayoutMatch || (await getLayoutMatchForHeaders(orgId, fileType, headers));
 
       return NextResponse.json({
         success: true,
@@ -112,6 +152,7 @@ export async function POST(req: NextRequest) {
         detectedLayout,
         layoutMatch,
         sheetNames,
+        selectedSheet: sheetName || detectedSheetName || sheetNames[0] || null,
       });
 
     } else if (action === "import") {

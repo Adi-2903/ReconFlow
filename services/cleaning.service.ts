@@ -56,7 +56,28 @@ export class CleaningService {
     const lastSegment = segments[segments.length - 1];
 
     let dateFnsFormatStr = "dd/MM/yyyy";
-    if (this.inferredDateFormat === "YYYY-MM-DD") {
+    if (/[a-zA-Z]/.test(normalizedDelim)) {
+      const monthIndex = segments.findIndex(s => /[a-zA-Z]/.test(s));
+      if (monthIndex !== -1) {
+        const isShort = segments[monthIndex].length <= 3;
+        const monthToken = isShort ? "MMM" : "MMMM";
+        
+        if (monthIndex === 0) {
+          const yearToken = lastSegment.length === 2 ? "yy" : "yyyy";
+          dateFnsFormatStr = `${monthToken}/dd/${yearToken}`;
+        } else if (monthIndex === 1) {
+          if (firstSegment.length === 4) {
+            dateFnsFormatStr = `yyyy/${monthToken}/dd`;
+          } else {
+            const yearToken = lastSegment.length === 2 ? "yy" : "yyyy";
+            dateFnsFormatStr = `dd/${monthToken}/${yearToken}`;
+          }
+        } else {
+          const yearToken = firstSegment.length === 2 ? "yy" : "yyyy";
+          dateFnsFormatStr = `${yearToken}/dd/${monthToken}`;
+        }
+      }
+    } else if (this.inferredDateFormat === "YYYY-MM-DD") {
       dateFnsFormatStr = firstSegment.length === 2 ? "yy/MM/dd" : "yyyy/MM/dd";
     } else if (this.inferredDateFormat === "MM/DD/YYYY") {
       dateFnsFormatStr = lastSegment.length === 2 ? "MM/dd/yy" : "MM/dd/yyyy";
@@ -73,7 +94,10 @@ export class CleaningService {
     } catch (err) {
       const parsed = new Date(cleanStr);
       if (!isNaN(parsed.getTime())) {
-        return parsed.toISOString().split("T")[0];
+        const year = parsed.getFullYear();
+        const month = String(parsed.getMonth() + 1).padStart(2, "0");
+        const day = String(parsed.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
       }
       throw new Error(`Failed to parse date '${dateStr}' with format '${this.inferredDateFormat}'`);
     }

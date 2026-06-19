@@ -69,8 +69,8 @@ export async function runReconciliation(
         eq(canonicalTransactions.organizationId, orgId),
         eq(canonicalTransactions.side, "money"),
         eq(canonicalTransactions.status, "AVAILABLE"),
-        gte(canonicalTransactions.transactionDate, periodStart),
-        lte(canonicalTransactions.transactionDate, periodEnd)
+        gte(canonicalTransactions.transactionDate, new Date(periodStart)),
+        lte(canonicalTransactions.transactionDate, new Date(periodEnd))
       )
     );
 
@@ -82,8 +82,8 @@ export async function runReconciliation(
         eq(canonicalTransactions.organizationId, orgId),
         eq(canonicalTransactions.side, "books"),
         eq(canonicalTransactions.status, "AVAILABLE"),
-        gte(canonicalTransactions.transactionDate, periodStart),
-        lte(canonicalTransactions.transactionDate, periodEnd)
+        gte(canonicalTransactions.transactionDate, new Date(periodStart)),
+        lte(canonicalTransactions.transactionDate, new Date(periodEnd))
       )
     );
 
