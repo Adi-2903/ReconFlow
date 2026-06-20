@@ -163,7 +163,7 @@ export class IngestionService {
             exchangeRateDate: validatedInput.exchangeRateDate,
             fxStatus: validatedInput.fxStatus,
             metadata: validatedInput.metadata,
-            embeddingStatus: validatedInput.embeddingStatus as any,
+            // embeddingStatus: validatedInput.embeddingStatus as any,
           });
 
           successCount++;
@@ -525,7 +525,7 @@ export class IngestionService {
             exchangeRateDate: validatedInput.exchangeRateDate,
             fxStatus: validatedInput.fxStatus,
             metadata: validatedInput.metadata,
-            embeddingStatus: validatedInput.embeddingStatus as any,
+            // embeddingStatus: validatedInput.embeddingStatus as any,
           });
 
           successCount++;
