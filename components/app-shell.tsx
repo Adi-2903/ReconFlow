@@ -34,17 +34,17 @@ export function AppShell({ children }: AppShellProps) {
 
 
   const navItems = [
-    { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", active: pathname === "/dashboard" || pathname === "/" },
+    { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", active: pathname === "/dashboard" },
     { href: "/connect", icon: Link2, label: "Integrations", active: pathname === "/connect" },
     { href: "/exceptions", icon: AlertCircle, label: "Exceptions", active: pathname === "/exceptions", badge: exceptionCount > 0 ? exceptionCount.toString() : undefined, badgeColor: "bg-red-100 text-red-600" },
     { href: "/reports", icon: BarChart2, label: "Reports", active: pathname === "/reports" },
     { href: "/settings", icon: Settings, label: "Settings", active: pathname === "/settings" },
   ];
 
-  const isAuthOrOnboarding = pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/onboarding";
+  const isPublicPath = pathname === "/" || pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/onboarding";
 
-  if (isAuthOrOnboarding) {
-    return <div className="min-h-screen bg-slate-50">{children}</div>;
+  if (isPublicPath) {
+    return <>{children}</>;
   }
 
   return (
