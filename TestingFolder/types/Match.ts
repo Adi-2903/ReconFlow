@@ -1,19 +1,25 @@
-// types/Match.ts
+import { ConfidenceBand, CandidateReason } from "./CandidateResult";
 
 export type MatchType =
     | "exact"
+    | "tolerance"
     | "near"
     | "fee_adjustment"
     | "one_to_many"
-    | "many_to_one";
+    | "many_to_one"
+    | "partial_payment"
+    | "fx_difference"
+    | "unmatched";
 
 export interface Match {
     bankTransactionIds: string[];
     bookTransactionIds: string[];
 
     score: number;
+    confidenceBand: ConfidenceBand | "NONE";
 
     matchType: MatchType;
 
     explanation?: string;
+    reasons?: CandidateReason[];
 }

@@ -109,6 +109,13 @@ export async function runReconciliation(
       date: new Date(b.transactionDate),
       description: b.description ?? "",
       referenceId: b.referenceNumber ?? "",
+      direction: b.direction,
+      currency: b.currency,
+      baseCurrency: b.baseCurrency ?? undefined,
+      convertedAmountMinor: b.convertedAmountMinor ? Number(b.convertedAmountMinor) : undefined,
+      fxStatus: b.fxStatus,
+      counterparty: b.counterpartyName ?? undefined,
+      matchingSignals: b.metadata?.matchingSignals,
     }));
 
     const engineLedgers = ledgerRows.map((l) => ({
@@ -117,6 +124,13 @@ export async function runReconciliation(
       date: new Date(l.transactionDate),
       memo: l.description ?? "",
       invoiceRef: l.referenceNumber ?? "",
+      direction: l.direction,
+      currency: l.currency,
+      baseCurrency: l.baseCurrency ?? undefined,
+      convertedAmountMinor: l.convertedAmountMinor ? Number(l.convertedAmountMinor) : undefined,
+      fxStatus: l.fxStatus,
+      counterparty: l.counterpartyName ?? undefined,
+      matchingSignals: l.metadata?.matchingSignals,
     }));
 
     // Run 4-pass matching engine

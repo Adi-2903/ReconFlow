@@ -12,7 +12,13 @@ export type CandidateReasonType =
     | "related_id_match"
     | "reference_match"
     | "counterparty_match"
-    | "source_alignment";
+    | "source_alignment"
+    | "exact_match_validated"
+    | "tolerance_match_validated"
+    | "fee_match_validated"
+    | "subset_match_validated"
+    | "partial_payment_validated"
+    | "fx_difference_validated";
 
 export interface CandidateReason {
     reason: CandidateReasonType;

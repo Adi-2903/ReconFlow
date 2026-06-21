@@ -29,9 +29,14 @@ function getDateTolerance(txn: CanonicalTransaction): number {
     return DEFAULT_DATE_TOLERANCE_DAYS;
 }
 
+export interface GenerateCandidatesOptions {
+    skipAmountGate?: boolean;
+}
+
 export function generateCandidates(
     bankTxn: CanonicalTransaction,
-    bookTxns: CanonicalTransaction[]
+    bookTxns: CanonicalTransaction[],
+    options?: GenerateCandidatesOptions
 ): CandidateResult[] {
     const results: CandidateResult[] = [];
 
@@ -82,7 +87,7 @@ export function generateCandidates(
         const calculatedTolerance = (comparisonAmount * TOLERANCE_BPS) / 10000n;
         const allowedTolerance = calculatedTolerance > MIN_AMOUNT_TOLERANCE ? calculatedTolerance : MIN_AMOUNT_TOLERANCE;
 
-        if (diff > allowedTolerance) {
+        if (!options?.skipAmountGate && diff > allowedTolerance) {
             continue;
         }
 
