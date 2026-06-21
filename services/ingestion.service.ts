@@ -334,6 +334,7 @@ export class IngestionService {
       // Support separate debit/credit column mappings
       const debitIndex = headers.indexOf(columnMap.debit);
       const creditIndex = headers.indexOf(columnMap.credit);
+      const typeIndex = headers.findIndex(h => /type|txntype|transaction\s*type/i.test(h));
 
       if (dateIndex === -1 || descIndex === -1 || (amountIndex === -1 && (debitIndex === -1 || creditIndex === -1))) {
         throw new Error("Invalid column mapping. Required columns (Date, Description, Amount) are missing.");
@@ -433,6 +434,15 @@ export class IngestionService {
             const normalized = cleaningService.normalizeAmount(amountVal, debitVal, creditVal);
             amountMinor = normalized.amountMinor;
             direction = normalized.direction;
+
+            if (fileType === "qbo_export" && typeIndex !== -1 && row[typeIndex]) {
+              const txnType = row[typeIndex].trim().toLowerCase();
+              if (["invoice", "payment", "sales receipt", "receive payment", "deposit", "credit"].includes(txnType)) {
+                direction = "inflow";
+              } else {
+                direction = "outflow";
+              }
+            }
           }
 
           // Normalize Counterparty
@@ -441,13 +451,16 @@ export class IngestionService {
           const counterpartyNormalized = rawCounterpartyStr ? cleaningService.normalizeCounterparty(rawCounterpartyStr) : "";
 
           // Normalize Currency
-          const amountStringForCurrency = amountIndex !== -1 ? row[amountIndex] : ((debitIndex !== -1 ? row[debitIndex] : "") + " " + (creditIndex !== -1 ? row[creditIndex] : ""));
-          const currency = cleaningService.detectCurrency(
-            (rawDescStr || "") + " " + (amountStringForCurrency || "")
-          );
+          let currency = account.baseCurrency;
+          if (fileType === "stripe_export" || fileType === "qbo_export" || fileType === "tally_export") {
+            const amountStringForCurrency = amountIndex !== -1 ? row[amountIndex] : ((debitIndex !== -1 ? row[debitIndex] : "") + " " + (creditIndex !== -1 ? row[creditIndex] : ""));
+            currency = cleaningService.detectCurrency(
+              (rawDescStr || "") + " " + (amountStringForCurrency || "")
+            );
+          }
 
           // Generate deterministic transaction hash
-          const hashInput = `${formattedDate}_${amountMinor}_${counterpartyNormalized}`;
+          const hashInput = `${formattedDate}_${amountMinor}_${counterpartyNormalized}_${refStr || ""}`;
           const deterministicTxnId = crypto.createHash("sha256").update(hashInput).digest("hex");
 
           // Check for duplication inside file or database

@@ -1,0 +1,37 @@
+DocNumber,TxnDate,TxnType,CustomerVendorRef,Memo,TotalAmt,CurrencyRef,OpenBalance
+INV-2001,01/03/2026,Invoice,Quantum Retail Solutions,"E1 TEST - Clean NEFT, same date, ref number present both sides",118500.00,INR,0.00
+INV-2002,01/05/2026,Invoice,Coral Bay Retail,"E2 TEST - UPI payment, same day, exact amount",24999.00,INR,0.00
+BILL-3001,01/07/2026,Bill,CloudHost Infra Pvt Ltd,E3 TEST - Vendor bill paid via NEFT same day exact amount (AP side),42300.00,INR,0.00
+JE-4001,01/31/2026,JournalEntry,Payroll,"E4 TEST - Salary payout, exact match, 1-day date tolerance still same ",185000.00,INR,0.00
+INV-2010,01/08/2026,Invoice,Vantage Logistics LLP,B1 TEST - One NEFT = sum of 3 separate invoices to same clie,30000.00,INR,0.00
+INV-2011,01/09/2026,Invoice,Vantage Logistics LLP,B1 TEST - One NEFT = sum of 3 separate invoices to same clie,25000.00,INR,0.00
+INV-2012,01/09/2026,Invoice,Vantage Logistics LLP,B1 TEST - One NEFT = sum of 3 separate invoices to same clie,32500.00,INR,0.00
+INV-2020,01/10/2026,Invoice,Stripe Payout,B2 TEST - Stripe payout = sum of 4 charges minus Stripe fees,45000.00,INR,0.00
+INV-2021,01/10/2026,Invoice,Stripe Payout,B2 TEST - Stripe payout = sum of 4 charges minus Stripe fees,38000.00,INR,0.00
+INV-2022,01/10/2026,Invoice,Stripe Payout,B2 TEST - Stripe payout = sum of 4 charges minus Stripe fees,52000.00,INR,0.00
+INV-2023,01/10/2026,Invoice,Stripe Payout,B2 TEST - Stripe payout = sum of 4 charges minus Stripe fees,29500.00,INR,0.00
+INV-2030,01/15/2026,Invoice,Bright Path Consulting,"B3 TEST - Single wire = 2 invoices summed, 5-day window edge",67000.00,INR,0.00
+INV-2031,01/15/2026,Invoice,Bright Path Consulting,"B3 TEST - Single wire = 2 invoices summed, 5-day window edge",53000.00,INR,0.00
+INV-2040,01/05/2026,Invoice,Sharma Enterprises,"F1 TEST - Exact amount, date off by 4 days (cheque clearing delay)",76000.00,INR,0.00
+INV-2041,01/06/2026,Invoice,Quantum Retail Solutions,"F2 TEST - Bank received less than invoice, no fee pattern explains it ",50000.00,INR,0.00
+INV-2050,01/11/2026,Invoice,Nordic Byte AB,F3 TEST - Reference number typo: ledger INV-2031 vs bank narration sho,18750.00,INR,0.00
+INV-2051,01/13/2026,Invoice,Sharma Enterprises,F4 TEST - Vendor name typo: 'Sharma Enterprises' (ledger) vs 'Sharama ,33200.00,INR,0.00
+INV-2060,01/14/2026,Invoice,Nordic Byte AB,"F5 TEST - USD invoice booked at one FX rate, bank credit settled 3 day | FX booking rate 83.1",2400.00,USD,0.00
+INV-2061,01/15/2026,Invoice,Meridian Apps Inc,"F6 TEST - Single Stripe charge minus 2.9%+Rs.25 fee, deposited individ",62000.00,INR,0.00
+INV-2062,01/16/2026,Invoice,Vantage Logistics LLP,F7 TEST - NEFT short by flat bank wire charge of Rs.11.80,95000.00,INR,0.00
+INV-2063,01/04/2026,Invoice,Bright Path Consulting,F8 TEST - Date proximity boundary test: 6-day gap (within 7-day accept,41500.00,INR,0.00
+INV-2064,01/18/2026,Invoice,Coral Bay Retail,F9a TEST - Amount proximity boundary test: 4.8% difference (just under ,20000.00,INR,0.00
+INV-2065,01/19/2026,Invoice,Coral Bay Retail,F9b TEST - Amount proximity boundary test: 19.5% difference (just under,20000.00,INR,0.00
+INV-2066,01/20/2026,Invoice,Quantum Retail Solutions,F10 TEST - 1 paisa rounding difference from FX/tax calc,12450.00,INR,0.00
+INV-2070,01/22/2026,Invoice,Sharma Enterprises,X2 TEST - Ledger invoice still unpaid — no bank txn exists at all this,88000.00,INR,88000.00
+INV-2071,01/23/2026,Invoice,Coral Bay Retail,"X3 TEST - Same-day, similar narration, but amount is 35% off — must be",40000.00,INR,0.00
+INV-2072,01/24/2026,Invoice,Vantage Logistics LLP,"X4a TEST - Twin transaction 1 of 2: same client, same day, same amount,",15000.00,INR,0.00
+INV-2073,01/24/2026,Invoice,Vantage Logistics LLP,X4b TEST - Twin transaction 2 of 2 (see X4a) — must independently match,15000.00,INR,0.00
+BILL-3010,01/02/2026,Bill,Government of India - GST,GST liability Dec 2025,38400.00,INR,0.00
+BILL-3011,01/04/2026,Bill,AWS India Pvt Ltd,Cloud hosting Jan 2026,22150.00,INR,0.00
+BILL-3012,01/10/2026,Bill,Office Premises Landlord,Rent Jan 2026,65000.00,INR,0.00
+BILL-3013,01/11/2026,Bill,Zoho Corporation,Software subscription Jan 2026,14200.00,INR,0.00
+BILL-3014,01/17/2026,Bill,Employee - Travel Reimbursement,Travel reimbursement,8750.00,INR,0.00
+BILL-3015,01/21/2026,Bill,Government of India - GST,GST deferred adjustment,12600.00,INR,0.00
+BILL-3016,01/21/2026,Bill,Freelance Designer,Project fee - UI design,18000.00,INR,0.00
+BILL-3017,01/23/2026,Bill,Microsoft India Pvt Ltd,O365 license renewal,9840.00,INR,0.00

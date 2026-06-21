@@ -132,30 +132,56 @@ export class CleaningService {
     const parseSingleVal = (valStr?: string): number => {
       if (!valStr) return 0;
       let clean = valStr.trim();
-      if (!clean || clean === "-" || clean === "0") return 0;
+      if (!clean || clean === "-" || clean === "0" || clean === "0.00" || clean === "0.0") return 0;
 
       let isNegative = false;
-      if (clean.startsWith("(") && clean.endsWith(")")) {
-        isNegative = true;
-        clean = clean.substring(1, clean.length - 1);
-      }
-      if (clean.startsWith("-")) {
-        isNegative = true;
-        clean = clean.substring(1);
-      }
-      clean = clean.replace(/[₹$€£\s]/g, "");
 
+      // Step 1: Detect negativity from the raw string before any extraction.
+      // Handles all of: "(9,450)", "-(9,450)", "-9,450", "Rs.(9,450)", "-Rs. 9,450"
+      // Parentheses check: the accounting-negative form can appear anywhere after an optional prefix.
+      if (/\([\d,. ]+\)/.test(clean)) {
+        isNegative = true;
+      } else if (clean.startsWith("-") || (clean.indexOf("-") !== -1 && clean.indexOf("-") < clean.search(/\d/))) {
+        // Leading minus, or minus appearing before the first digit (e.g. "-Rs. 9,450")
+        isNegative = true;
+      }
+
+      // Step 2: Extract the numeric token directly using a digit-anchored regex.
+      // This is intentionally broad — it grabs everything from the first digit through
+      // any combination of digits, commas, and dots, stopping before whitespace or letters.
+      // Examples:
+      //   "Rs. 9,450.00"   -> "9,450.00"
+      //   "Rs.9,450.00"    -> "9,450.00"
+      //   "Rs.(9,450.00)"  -> "9,450.00"  (isNegative=true from Step 1)
+      //   "CHF 1.234,56"   -> "1.234,56"
+      //   "USD9450"        -> "9450"
+      //   "ABCXYZ"         -> no match -> throw AmountParseError below
+      const numMatch = clean.match(/\d[\d,.]*/);
+      clean = numMatch ? numMatch[0] : "";
+
+      // Strip any trailing comma or dot left by the extraction (e.g. "9,450," -> "9,450")
+      clean = clean.replace(/[,.]$/, "");
+
+
+      if (!clean) {
+        throw new Error(`AmountParseError: Invalid amount value '${valStr}'`);
+      }
+
+      // Step 4: Locale-aware comma/dot interpretation
       const isUSorIN = this.accountLocale && (this.accountLocale.includes("US") || this.accountLocale.includes("IN"));
       const isEuropean = this.accountLocale && /^(de|fr|it|es|nl|pt|sv|pl|da|fi|nb|ru)/i.test(this.accountLocale);
 
       let parsedNum = 0;
       if (isUSorIN) {
+        // US/IN: commas are thousands separators, dot is decimal
         const normalized = clean.replace(/,/g, "");
-        parsedNum = parseFloat(normalized) || 0;
+        parsedNum = parseFloat(normalized);
       } else if (isEuropean) {
+        // European: dots are thousands separators, comma is decimal
         const normalized = clean.replace(/\./g, "").replace(",", ".");
-        parsedNum = parseFloat(normalized) || 0;
+        parsedNum = parseFloat(normalized);
       } else {
+        // Heuristic: compare position of last dot vs last comma
         const lastPunc = clean.lastIndexOf(".");
         const lastComma = clean.lastIndexOf(",");
 
@@ -163,27 +189,32 @@ export class CleaningService {
           const afterComma = clean.substring(lastComma + 1).replace(/[^0-9]/g, "");
           if (afterComma.length <= 2) {
             const normalized = clean.replace(/\./g, "").replace(",", ".");
-            parsedNum = parseFloat(normalized) || 0;
+            parsedNum = parseFloat(normalized);
           } else {
             const normalized = clean.replace(/,/g, "");
-            parsedNum = parseFloat(normalized) || 0;
+            parsedNum = parseFloat(normalized);
           }
         } else if (lastPunc > lastComma) {
           const afterDot = clean.substring(lastPunc + 1).replace(/[^0-9]/g, "");
           if (afterDot.length <= 2) {
             const normalized = clean.replace(/,/g, "");
-            parsedNum = parseFloat(normalized) || 0;
+            parsedNum = parseFloat(normalized);
           } else {
             const normalized = clean.replace(/\./g, "");
-            parsedNum = parseFloat(normalized) || 0;
+            parsedNum = parseFloat(normalized);
           }
         } else {
-          parsedNum = parseFloat(clean) || 0;
+          parsedNum = parseFloat(clean);
         }
       }
 
+      if (isNaN(parsedNum)) {
+        throw new Error(`AmountParseError: Invalid amount value '${valStr}'`);
+      }
+
       return isNegative ? -parsedNum : parsedNum;
-    };
+    }
+
 
     if (debitVal || creditVal) {
       const debitValParsed = parseSingleVal(debitVal);

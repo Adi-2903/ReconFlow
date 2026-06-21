@@ -2,7 +2,7 @@ import { CanonicalTransaction } from "../types/CanonicalTransaction";
 import { CandidateResult, CandidateReason, ConfidenceBand, CandidateReasonType } from "../types/CandidateResult";
 import { daysBetween, referenceMatches, nameMatches, directionMatches } from "./utils";
 
-const TOLERANCE_BPS = 500n; // 5% in basis points
+const TOLERANCE_BPS = 2000n; // 20% in basis points
 const MIN_AMOUNT_TOLERANCE = 500n; // 500 paise / ₹5
 const DEFAULT_DATE_TOLERANCE_DAYS = 7;
 const MAX_CANDIDATES = 50;
@@ -56,13 +56,12 @@ export function generateCandidates(
             continue;
         }
 
+        const reportCurrencyBank = bankTxn.baseCurrency || bankTxn.currency;
+        const reportCurrencyBook = bookTxn.baseCurrency || bookTxn.currency;
         const currencyMatch =
             (!bankTxn.currency || !bookTxn.currency) ||
             (bankTxn.currency === bookTxn.currency) ||
-            (bankTxn.convertedAmountMinor !== undefined && bankTxn.convertedAmountMinor !== null &&
-             bookTxn.convertedAmountMinor !== undefined && bookTxn.convertedAmountMinor !== null &&
-             bankTxn.baseCurrency && bookTxn.baseCurrency &&
-             bankTxn.baseCurrency === bookTxn.baseCurrency);
+            (reportCurrencyBank && reportCurrencyBook && reportCurrencyBank === reportCurrencyBook);
 
         if (!currencyMatch) {
             continue;

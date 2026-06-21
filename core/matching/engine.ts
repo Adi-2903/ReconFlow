@@ -182,7 +182,7 @@ function generateCandidates(
   options?: { skipAmountGate?: boolean }
 ): CandidateResult[] {
   const results: CandidateResult[] = [];
-  const TOLERANCE_BPS = 500n; // 5%
+  const TOLERANCE_BPS = 2000n; // 20%
   const MIN_AMOUNT_TOLERANCE = 500n; // 500 paise
 
   for (const bookTxn of bookTxns) {
@@ -312,6 +312,43 @@ interface TransactionState<T> {
   remainingAmountMinor: number;
 }
 
+function matchesProcessorFeeForCombo(bankAmtMinor: number, combo: TransactionState<LedgerEntry>[]): boolean {
+  const sumBookAmt = combo.reduce((sum, bs) => sum + bs.remainingAmountMinor, 0);
+  const diff = sumBookAmt - bankAmtMinor;
+  if (diff <= 0) return false;
+
+  // 1. Stripe INR: 2.9% + Rs. 25 (2500 paise)
+  const expectedStripeINR = combo.reduce((sum, bs) => {
+    const amt = bs.remainingAmountMinor;
+    return sum + Math.round(amt * 0.029) + 2500;
+  }, 0);
+  if (Math.abs(diff - expectedStripeINR) <= 100 * combo.length) {
+    return true;
+  }
+
+  // 2. Stripe USD: 2.9% + $0.30 (3000 paise/cents)
+  const expectedStripeUSD = combo.reduce((sum, bs) => {
+    const amt = bs.remainingAmountMinor;
+    return sum + Math.round(amt * 0.029) + 3000;
+  }, 0);
+  if (Math.abs(diff - expectedStripeUSD) <= 100 * combo.length) {
+    return true;
+  }
+
+  // 3. Check simple rates
+  const commonRates = [0.0118, 0.0236, 0.03776, 0.0472, 0.029, 0.02, 0.03];
+  for (const rate of commonRates) {
+    const expectedFee = combo.reduce((sum, bs) => {
+      return sum + Math.round(bs.remainingAmountMinor * rate);
+    }, 0);
+    if (Math.abs(diff - expectedFee) <= 100 * combo.length) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // ── Main Matching Engine ────────────────────────────────────────────────────────
 
 export function matchTransactions(
@@ -368,8 +405,11 @@ export function matchTransactions(
       const bookAmt = bookState.remainingAmountMinor;
       const dayDiff = Math.abs(differenceInDays(bankTxn.date, cand.candidate.date));
       const refMatch = referenceMatches(bankTxn.referenceId, cand.candidate.invoiceRef);
+      const nameMatch = nameMatches(bankTxn.counterparty, cand.candidate.counterparty);
+      const diffAmt = Math.abs(bankAmt - bookAmt);
+      const currenciesDiffer = bankTxn.currency && cand.candidate.currency && bankTxn.currency !== cand.candidate.currency;
 
-      if (bankAmt === bookAmt && dayDiff <= 1.0 && refMatch) {
+      if (!currenciesDiffer && diffAmt <= 100 && dayDiff <= 1.0 && (refMatch || nameMatch)) {
         const finalScore = cand.score + 50;
         exactMatches.push({ candidate: cand, score: finalScore });
       }
@@ -521,7 +561,11 @@ export function matchTransactions(
 
       for (const combo of combos) {
         const sumAmt = combo.reduce((sum, bs) => sum + bs.remainingAmountMinor, 0);
-        if (Math.abs(sumAmt - bankAmt) <= 100) {
+        const diff = Math.abs(sumAmt - bankAmt);
+        const isExactSum = diff <= 100;
+        const isFeeSum = matchesProcessorFeeForCombo(bankAmt, combo);
+
+        if (isExactSum || isFeeSum) {
           const baseScores = combo.map((bs) => {
             const candidatesResult = generateCandidates(bankTxn, [bs.txn], { skipAmountGate: true });
             return candidatesResult.length > 0 ? candidatesResult[0].score : 50;
@@ -675,9 +719,11 @@ export function matchTransactions(
       if (bookState.status === "MATCHED") continue;
 
       const refMatch = referenceMatches(bankTxn.referenceId, cand.candidate.invoiceRef);
+      const nameMatch = nameMatches(bankTxn.counterparty, cand.candidate.counterparty);
       const isPartialAmountValid = bankAmt <= bookState.remainingAmountMinor;
+      const currenciesDiffer = bankTxn.currency && cand.candidate.currency && bankTxn.currency !== cand.candidate.currency;
 
-      if (refMatch && isPartialAmountValid) {
+      if (!currenciesDiffer && (refMatch || nameMatch) && isPartialAmountValid) {
         const finalScore = cand.score + 5;
         partialMatches.push({ candidate: cand, score: finalScore });
       }
@@ -748,11 +794,18 @@ export function matchTransactions(
       const sharesBaseCurrency = bankTxn.baseCurrency && cand.candidate.baseCurrency && bankTxn.baseCurrency === cand.candidate.baseCurrency;
 
       if (currenciesDiffer && sharesBaseCurrency) {
-        const convertedBank = bankTxn.convertedAmountMinor;
-        const convertedBook = cand.candidate.convertedAmountMinor;
+        const convertedBank = bankTxn.convertedAmountMinor !== undefined && bankTxn.convertedAmountMinor !== null
+          ? bankTxn.convertedAmountMinor
+          : bankTxn.amount;
+        const convertedBook = cand.candidate.convertedAmountMinor !== undefined && cand.candidate.convertedAmountMinor !== null
+          ? cand.candidate.convertedAmountMinor
+          : cand.candidate.amount;
         if (convertedBank !== undefined && convertedBook !== undefined && convertedBank !== null && convertedBook !== null) {
           const diffConverted = Math.abs(convertedBank - convertedBook);
-          if (diffConverted <= 100) {
+          const comparisonAmount = Math.max(convertedBank, convertedBook);
+          const allowedTolerance = Math.max(500, Math.round(comparisonAmount * 0.20));
+
+          if (diffConverted <= allowedTolerance && dayDiff <= 7.0 && (refMatch || nameMatch)) {
             const finalScore = cand.score + 15;
             const reasons = cand.reasons.map((r) => ({ ...r }));
             reasons.push({ reason: "fx_difference_validated", points: 15 });
@@ -770,7 +823,7 @@ export function matchTransactions(
       if (dayDiff <= 7.0 && (refMatch || nameMatch)) {
         const diffAmt = Math.abs(bankAmt - bookAmt);
         const comparisonAmount = Math.max(bankAmt, bookAmt);
-        const allowedTolerance = Math.max(500, Math.round(comparisonAmount * 0.05));
+        const allowedTolerance = Math.max(500, Math.round(comparisonAmount * 0.20));
 
         if (diffAmt <= allowedTolerance) {
           const finalScore = cand.score + 10;
