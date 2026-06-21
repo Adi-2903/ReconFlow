@@ -1014,16 +1014,24 @@ export default function ConnectPage() {
               {/* Step 6: Failed State */}
               {wizardStep === "failed" && (
                 <div className="flex flex-col items-center justify-center py-8 gap-5 text-center">
-                  <div className="w-14 h-14 rounded-full bg-rose-100 flex items-center justify-center text-rose-600">
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center ${wizardError?.includes("already been uploaded") ? "bg-amber-100 text-amber-600" : "bg-rose-100 text-rose-600"}`}>
                     <AlertTriangle className="w-8 h-8" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-slate-900">Ingestion Run Failed</h3>
-                    <p className="text-xs text-slate-400 mt-1">The ingestion pipeline hit an exception during file reading.</p>
+                    <h3 className="text-lg font-bold text-slate-900">
+                      {wizardError?.includes("already been uploaded") ? "Duplicate File Detected" : "Ingestion Run Failed"}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1 max-w-[350px] mx-auto">
+                      {wizardError?.includes("already been uploaded") 
+                        ? "You have already uploaded this statement file previously. To prevent duplicate transactions in your ledger, we skipped this import."
+                        : "The ingestion pipeline hit an exception during file reading."}
+                    </p>
                   </div>
-                  <div className="bg-rose-50 border border-rose-100 text-rose-800 text-xs font-mono p-4 rounded-xl max-w-[480px] text-left break-all">
-                    {wizardError}
-                  </div>
+                  {!wizardError?.includes("already been uploaded") && (
+                    <div className="bg-rose-50 border border-rose-100 text-rose-800 text-xs font-mono p-4 rounded-xl max-w-[480px] text-left break-all">
+                      {wizardError}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

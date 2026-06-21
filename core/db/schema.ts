@@ -222,7 +222,7 @@ export const canonicalTransactions = pgTable("canonical_transactions", {
     fxStatus: fxStatusEnum("fx_status").notNull().default("NOT_REQUIRED"),
 
     metadata: jsonb("metadata").$type<TransactionMetadata>().default({}),
-    embeddingStatus: embeddingStatusEnum("embedding_status").default("PENDING").notNull(),
+    // embeddingStatus: embeddingStatusEnum("embedding_status").default("PENDING").notNull(),
 
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -248,19 +248,19 @@ export const canonicalTransactions = pgTable("canonical_transactions", {
 
 
 // ISOLATED EMBEDDINGS (Performance Upgrade)
-export const transactionEmbeddings = pgTable("transaction_embeddings", {
-    id: uuid("id").primaryKey().defaultRandom(),
-    organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-    transactionId: uuid("transaction_id").notNull().references(() => canonicalTransactions.id, { onDelete: "cascade" }),
-    model: text("model").notNull().default("all-MiniLM-L6-v2"),
-    embedding: vector("embedding", { dimensions: 384 }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-}, (table) => {
-    return {
-        embeddingIdx: index("idx_txn_embedding").using("hnsw", table.embedding.op("vector_cosine_ops")),
-        txnUniqueIdx: uniqueIndex("idx_unique_txn_embedding").on(table.transactionId),
-    };
-});
+// export const transactionEmbeddings = pgTable("transaction_embeddings", {
+//     id: uuid("id").primaryKey().defaultRandom(),
+//     organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+//     transactionId: uuid("transaction_id").notNull().references(() => canonicalTransactions.id, { onDelete: "cascade" }),
+//     model: text("model").notNull().default("all-MiniLM-L6-v2"),
+//     embedding: vector("embedding", { dimensions: 384 }).notNull(),
+//     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+// }, (table) => {
+//     return {
+//         embeddingIdx: index("idx_txn_embedding").using("hnsw", table.embedding.op("vector_cosine_ops")),
+//         txnUniqueIdx: uniqueIndex("idx_unique_txn_embedding").on(table.transactionId),
+//     };
+// });
 
 
 export const counterpartyProfiles = pgTable("counterparty_profiles", {
@@ -464,10 +464,10 @@ export const canonicalTransactionsRelations = relations(canonicalTransactions, (
         fields: [canonicalTransactions.lockedByMatchGroupId],
         references: [matchGroups.id]
     }),
-    embedding: one(transactionEmbeddings, {
-        fields: [canonicalTransactions.id],
-        references: [transactionEmbeddings.transactionId],
-    }),
+//     embedding: one(transactionEmbeddings, {
+//         fields: [canonicalTransactions.id],
+//         references: [transactionEmbeddings.transactionId],
+//     }),
     runHistory: many(reconciliationRunTransactions),
 }));
 

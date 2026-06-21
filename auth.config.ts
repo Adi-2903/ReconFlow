@@ -14,11 +14,17 @@ export const authConfig = {
       const isLoggedIn = !!auth?.user
       const isOnSignIn = nextUrl.pathname === "/sign-in"
       const isOnSignUp = nextUrl.pathname === "/sign-up"
+      const isPublicHome = nextUrl.pathname === "/"
 
       if (isOnSignIn || isOnSignUp) {
         if (isLoggedIn) {
           return Response.redirect(new URL("/dashboard", nextUrl))
         }
+        return true
+      }
+
+      // Allow public access to the landing page
+      if (isPublicHome) {
         return true
       }
 
