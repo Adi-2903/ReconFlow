@@ -20,6 +20,10 @@ export interface Match {
 
     matchType: MatchType;
 
+    matchOutcome?: string;
+    discrepancyType?: string;
+    evidence?: Array<{ code: string; message: string }>;
+
     explanation?: string;
     reasons?: CandidateReason[];
 }

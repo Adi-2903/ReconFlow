@@ -107,13 +107,21 @@ const MatchRowView = React.memo(({
                 {scorePct}%
               </span>
               <span className={`px-1.5 py-[1px] rounded text-[9px] font-bold uppercase tracking-wider ${badgeColor}`}>
-                {match.matchType}
+                {match.discrepancyType && match.discrepancyType !== "NONE"
+                  ? match.discrepancyType.replace(/_/g, " ")
+                  : match.matchOutcome
+                  ? match.matchOutcome.replace(/_/g, " ")
+                  : match.matchType}
               </span>
             </div>
           </>
         ) : (
           <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
-            No Match
+            {match.discrepancyType && match.discrepancyType !== "NONE"
+              ? match.discrepancyType.replace(/_/g, " ")
+              : match.matchOutcome
+              ? match.matchOutcome.replace(/_/g, " ")
+              : "No Match"}
           </span>
         )}
       </div>

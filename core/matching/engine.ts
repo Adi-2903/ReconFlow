@@ -1,4 +1,6 @@
 import { differenceInDays } from "date-fns";
+import { classifyMatch, ClassificationResult } from "./classifier";
+
 
 export interface BankTransaction {
   id: string;
@@ -60,6 +62,7 @@ export interface MatchResult {
     dateScore: number;
     textScore: number;
   };
+  classification: ClassificationResult;
 }
 
 // ── Scoring and Helper Functions ──────────────────────────────────────────────
@@ -363,7 +366,7 @@ export function matchTransactions(
   banks: BankTransaction[],
   ledgers: LedgerEntry[]
 ): MatchResult[] {
-  const results: MatchResult[] = [];
+  const results: (Omit<MatchResult, "classification"> & { classification?: ClassificationResult })[] = [];
 
   // State initialization
   const bankStates = new Map<string, TransactionState<BankTransaction>>();
@@ -922,6 +925,26 @@ export function matchTransactions(
     }
   }
 
+  const allBanksForDuplicate = banks.map(b => ({
+    amount: b.amount,
+    date: b.date,
+    description: b.description,
+    referenceId: b.referenceId,
+    counterparty: b.counterparty
+  }));
+
+  for (const res of results) {
+    const bankTxn = banks.find(b => b.id === res.bankTransactionId)!;
+    const matchedLedgerEntries = ledgers.filter(l => res.ledgerEntryIds.includes(l.id));
+    res.classification = classifyMatch(
+      bankTxn,
+      matchedLedgerEntries,
+      res.matchType,
+      res.reasons || [],
+      allBanksForDuplicate
+    );
+  }
+
   // Sort: High confidence first, exceptions last
   const typeOrder: Record<MatchType, number> = {
     exact: 0,
@@ -942,5 +965,5 @@ export function matchTransactions(
     return b.score - a.score;
   });
 
-  return results;
+  return results as MatchResult[];
 }

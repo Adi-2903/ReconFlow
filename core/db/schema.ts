@@ -27,6 +27,14 @@ export const matchStatusEnum = pgEnum("match_status", [
     "DRAFT", "AUTO_MATCHED", "SUGGESTED", "NEEDS_REVIEW", "REJECTED", "APPROVED"
 ]);
 
+export const matchOutcomeEnum = pgEnum("match_outcome", [
+    "MATCHED", "PARTIALLY_MATCHED", "UNMATCHED"
+]);
+
+export const discrepancyTypeEnum = pgEnum("discrepancy_type", [
+    "NONE", "TIMING_DIFFERENCE", "PROCESSING_FEE", "FOREIGN_EXCHANGE", "TYPO", "DUPLICATE", "MISSING_ENTRY"
+]);
+
 export const runStatusEnum = pgEnum("run_status", [
     "INITIALIZED", "DATA_GATHERING", "CANDIDATE_GENERATION",
     "MATCHING_EXECUTION", "CLASSIFICATION_SCORING", "AI_REASONING",
@@ -529,6 +537,9 @@ export const matches = pgTable("matches", {
   ledgerEntryIds: text("ledger_entry_ids").array(),
   confidenceScore: numeric("confidence_score"),
   matchType: text("match_type"),
+  matchOutcome: matchOutcomeEnum("match_outcome"),
+  discrepancyType: discrepancyTypeEnum("discrepancy_type"),
+  classificationEvidence: jsonb("classification_evidence"),
   reasonText: text("reason_text"),
   evidence: jsonb("evidence"), // Added for AI explanations
   status: text("status").default("pending"),

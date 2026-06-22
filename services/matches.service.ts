@@ -17,6 +17,9 @@ export interface MatchListItem {
   ledgerRow: { amount: number; date: string; memo: string; invoiceRef: string } | null;
   confidenceScore: number;
   matchType: string | null;
+  matchOutcome: string | null;
+  discrepancyType: string | null;
+  evidenceList: any[] | null;
   reasonText: string;
   scoringBreakdown: { amountScore: number; dateScore: number; textScore: number };
   status: string | null;
@@ -108,6 +111,9 @@ export async function listMatches(
           : null,
       confidenceScore: Number(match.confidenceScore || 0),
       matchType: match.matchType,
+      matchOutcome: (match as any).matchOutcome || null,
+      discrepancyType: (match as any).discrepancyType || null,
+      evidenceList: (match as any).classificationEvidence || null,
       reasonText: match.reasonText || "",
       scoringBreakdown: { amountScore: 0, dateScore: 0, textScore: 0 },
       status: match.status,

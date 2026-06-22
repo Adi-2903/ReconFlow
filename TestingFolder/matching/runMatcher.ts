@@ -5,6 +5,8 @@ import { CanonicalTransaction } from "../types/CanonicalTransaction";
 import { generateCandidates } from "./candidateGenerator";
 import { CandidateReason, ConfidenceBand, CandidateReasonType, CandidateResult } from "../types/CandidateResult";
 import { daysBetween, referenceMatches, nameMatches, directionMatches, normalizeReference, normalizeName } from "./utils";
+import { classifyMatch } from "../../core/matching/classifier";
+
 
 function getEffectiveAmountMinor(txn: CanonicalTransaction): bigint {
     const amt = txn.convertedAmountMinor !== undefined && txn.convertedAmountMinor !== null
@@ -718,6 +720,58 @@ export function runMatcher(
                 matchType: best.matchType,
                 reasons: best.reasons
             });
+        }
+    }
+
+    // Apply classifier to all generated matches
+    const allBanksForDuplicate = bankTxns.map(b => ({
+        amount: Number(getEffectiveAmountMinor(b)),
+        date: b.transactionDate,
+        description: b.description || "",
+        referenceId: b.referenceNumber || "",
+        counterparty: b.counterparty || undefined
+    }));
+
+    for (const match of matches) {
+        const bankTxn = bankTxns.find(b => match.bankTransactionIds.includes(b.id));
+        const matchedLedgers = bookTxns.filter(b => match.bookTransactionIds.includes(b.id));
+
+        if (bankTxn) {
+            const classifierBank = {
+                amount: Number(getEffectiveAmountMinor(bankTxn)),
+                date: bankTxn.transactionDate,
+                description: bankTxn.description || "",
+                referenceId: bankTxn.referenceNumber || "",
+                counterparty: bankTxn.counterparty || undefined,
+                currency: bankTxn.currency || undefined,
+                baseCurrency: bankTxn.baseCurrency || undefined,
+                convertedAmountMinor: bankTxn.convertedAmountMinor ? Number(bankTxn.convertedAmountMinor) : undefined,
+                matchingSignals: bankTxn.matchingSignals || undefined
+            };
+
+            const classifierLedgers = matchedLedgers.map(l => ({
+                amount: Number(getEffectiveAmountMinor(l)),
+                date: l.transactionDate,
+                memo: l.description || "",
+                invoiceRef: l.referenceNumber || "",
+                counterparty: l.counterparty || undefined,
+                currency: l.currency || undefined,
+                baseCurrency: l.baseCurrency || undefined,
+                convertedAmountMinor: l.convertedAmountMinor ? Number(l.convertedAmountMinor) : undefined,
+                matchingSignals: l.matchingSignals || undefined
+            }));
+
+            const classification = classifyMatch(
+                classifierBank,
+                classifierLedgers,
+                match.matchType,
+                match.reasons || [],
+                allBanksForDuplicate
+            );
+
+            match.matchOutcome = classification.matchOutcome;
+            match.discrepancyType = classification.discrepancyType;
+            match.evidence = classification.evidence;
         }
     }
 
