@@ -156,6 +156,22 @@ async function runClassifierTests() {
   assert(res7.evidence.some(e => e.code === "MISSING_INVOICE_REF"), "Should log missing invoice code");
   console.log("  PASSED: Missing entry classified.");
 
+  // 8. AMOUNT_DIFFERENCE TEST
+  console.log("\nTest 8: Amount Difference (Partial Payment)");
+  const amtBank = { ...exactBank, amount: 80000 };
+  const res8 = classifyMatch(amtBank, [exactLedger], "partial_payment", []);
+  assert(res8.matchOutcome === "PARTIALLY_MATCHED", "Should be PARTIALLY_MATCHED");
+  assert(res8.discrepancyType === "AMOUNT_DIFFERENCE", "Should be AMOUNT_DIFFERENCE");
+  console.log("  PASSED: Amount difference classified.");
+
+  // 9. MANUAL_REVIEW TEST
+  console.log("\nTest 9: Manual Review Fallback");
+  const reviewBank = { ...exactBank };
+  const res9 = classifyMatch(reviewBank, [exactLedger], "near", [], undefined, 10); // totalScore = 10 -> LOW confidence
+  assert(res9.matchOutcome === "MATCHED", "Should be MATCHED");
+  assert(res9.discrepancyType === "MANUAL_REVIEW", "Should be MANUAL_REVIEW");
+  console.log("  PASSED: Manual review fallback classified.");
+
   console.log("\n==================================================");
   console.log("ALL CLASSIFIER TESTS PASSED SUCCESSFULLY!");
   console.log("==================================================");

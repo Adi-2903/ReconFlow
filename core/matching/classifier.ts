@@ -1,5 +1,8 @@
 // core/matching/classifier.ts
 
+import { getConfidenceBand, isDigitTransposition, getEditDistance } from "./matchingHelpers";
+import { matchesProcessorFee } from "./feeFormulas";
+
 export type MatchOutcome = "MATCHED" | "PARTIALLY_MATCHED" | "UNMATCHED";
 
 export type DiscrepancyType =
@@ -9,11 +12,17 @@ export type DiscrepancyType =
   | "FOREIGN_EXCHANGE"
   | "TYPO"
   | "DUPLICATE"
-  | "MISSING_ENTRY";
+  | "MISSING_ENTRY"
+  | "AMOUNT_DIFFERENCE"
+  | "COUNTERPARTY_DIFFERENCE"
+  | "REFERENCE_DIFFERENCE"
+  | "DUPLICATE_INVOICE"
+  | "MANUAL_REVIEW";
 
 export type ClassificationEvidenceCode =
   | "STRIPE_FEE_FORMULA"
   | "RAZORPAY_FEE_FORMULA"
+  | "GENERIC_PROCESSING_FEE"
   | "FX_CONVERSION_STABLE"
   | "TIMING_LAG_DETECTED"
   | "REFERENCE_TRANSPOSITION"
@@ -22,7 +31,12 @@ export type ClassificationEvidenceCode =
   | "MISSING_INVOICE_REF"
   | "OPERATING_EXPENSE"
   | "MATCHED_EXACT_CLEAN"
-  | "PARTIAL_PAYMENT_CONFIRMED";
+  | "PARTIAL_PAYMENT_CONFIRMED"
+  | "AMOUNT_SHORTFALL"
+  | "COUNTERPARTY_MISMATCH"
+  | "REFERENCE_MISMATCH"
+  | "DUPLICATE_INVOICE_DETECTED"
+  | "MANUAL_REVIEW_REQUIRED";
 
 export interface ClassificationEvidence {
   code: ClassificationEvidenceCode;
@@ -37,56 +51,6 @@ export interface ClassificationResult {
   evidence: ClassificationEvidence[];
 }
 
-// ── Helpers for typo and similarity checks ──────────────────────────────────────
-
-function getEditDistance(a: string, b: string): number {
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-  const matrix: number[][] = [];
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j;
-  }
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1, // substitution
-          matrix[i][j - 1] + 1,     // insertion
-          matrix[i - 1][j] + 1      // deletion
-        );
-      }
-    }
-  }
-  return matrix[b.length][a.length];
-}
-
-export function isDigitTransposition(s1: string, s2: string): boolean {
-  const d1 = s1.replace(/\D/g, "");
-  const d2 = s2.replace(/\D/g, "");
-  if (!d1 || !d2 || d1.length !== d2.length) return false;
-  if (d1 === d2) return false;
-
-  const diffIndices: number[] = [];
-  for (let i = 0; i < d1.length; i++) {
-    if (d1[i] !== d2[i]) {
-      diffIndices.push(i);
-    }
-  }
-
-  if (diffIndices.length === 2) {
-    const [i, j] = diffIndices;
-    if (j === i + 1) { // adjacent transposition
-      return d1[i] === d2[j] && d1[j] === d2[i];
-    }
-  }
-  return false;
-}
-
 function cleanNameForTypo(name?: string): string {
   if (!name) return "";
   return name
@@ -94,30 +58,6 @@ function cleanNameForTypo(name?: string): string {
     .replace(/\b(CORPORATION|CORP|PVT|PRIVATE|LTD|LIMITED|SOLUTIONS|SOLUTION|INCORPORATED|INC)\b/g, "")
     .replace(/[^A-Z0-9]/g, "")
     .trim();
-}
-
-function matchesFeeFormula(bankAmt: number, ledgerAmt: number): boolean {
-  const diff = ledgerAmt - bankAmt;
-  if (diff <= 0) return false;
-
-  const allowedTolerance = Math.max(500, Math.round(ledgerAmt * 0.005));
-
-  // 1. Stripe INR: 2.9% + 2500 paise (Rs. 25)
-  const expectedStripeINR = Math.round(ledgerAmt * 0.029) + 2500;
-  if (Math.abs(diff - expectedStripeINR) <= allowedTolerance) return true;
-
-  // 2. Stripe USD: 2.9% + 3000 cents/paise ($0.30)
-  const expectedStripeUSD = Math.round(ledgerAmt * 0.029) + 3000;
-  if (Math.abs(diff - expectedStripeUSD) <= allowedTolerance) return true;
-
-  // 3. Razorpay / generic percentages (2%, 3%, 1.18%, 2.36%, 3.776%, 4.72%)
-  const commonRates = [0.0118, 0.0236, 0.03776, 0.0472, 0.02, 0.029, 0.03];
-  for (const rate of commonRates) {
-    const expectedFee = Math.round(ledgerAmt * rate);
-    if (Math.abs(diff - expectedFee) <= allowedTolerance) return true;
-  }
-
-  return false;
 }
 
 // ── Classification Engine ───────────────────────────────────────────────────────
@@ -147,7 +87,8 @@ export function classifyMatch(
   }[],
   matchType: string,
   reasons: { reason: string; points: number }[] = [],
-  allBankTxns?: { amount: number; date: Date; description: string; referenceId: string; counterparty?: string }[]
+  allBankTxns?: { amount: number; date: Date; description: string; referenceId: string; counterparty?: string }[],
+  totalScore?: number
 ): ClassificationResult {
   // Determine Outcome
   let matchOutcome: MatchOutcome = "MATCHED";
@@ -162,20 +103,12 @@ export function classifyMatch(
   let confidence = 0.0;
 
   if (matchOutcome !== "UNMATCHED") {
-    const totalScore = reasons.reduce((sum, r) => sum + r.points, 0);
-    if (totalScore >= 120) {
-      confidenceBand = "VERY_HIGH";
-      confidence = 0.99;
-    } else if (totalScore >= 80) {
-      confidenceBand = "HIGH";
-      confidence = 0.85;
-    } else if (totalScore >= 50) {
-      confidenceBand = "MEDIUM";
-      confidence = 0.70;
-    } else {
-      confidenceBand = "LOW";
-      confidence = 0.40;
-    }
+    const finalTotalScore = totalScore !== undefined ? totalScore : reasons.reduce((sum, r) => sum + r.points, 0);
+    confidenceBand = getConfidenceBand(finalTotalScore);
+    if (confidenceBand === "VERY_HIGH") confidence = 0.99;
+    else if (confidenceBand === "HIGH") confidence = 0.85;
+    else if (confidenceBand === "MEDIUM") confidence = 0.70;
+    else confidence = 0.40;
   }
 
   const evidence: ClassificationEvidence[] = [];
@@ -221,6 +154,26 @@ export function classifyMatch(
       };
     }
 
+    // DUPLICATE INVOICE EXCEPTION
+    if (ledgerEntries && ledgerEntries.length > 1) {
+      // Very naive duplicate invoice check: if multiple ledger entries have the exact same invoiceRef, amount, date
+      const uniqueInvoices = new Set(ledgerEntries.map(l => l.invoiceRef));
+      if (uniqueInvoices.size < ledgerEntries.length && ledgerEntries.some(l => l.invoiceRef)) {
+          // there's a duplicate invoice
+          evidence.push({
+            code: "DUPLICATE_INVOICE_DETECTED",
+            message: "Multiple identical invoices found in ledger for the same bank transaction."
+          });
+          return {
+            matchOutcome: "UNMATCHED",
+            discrepancyType: "DUPLICATE_INVOICE",
+            confidenceBand: "HIGH",
+            confidence: 0.90,
+            evidence
+          };
+      }
+    }
+
     // MISSING ENTRY Exception
     const invoiceRegex = /\b(INV|BILL|JE)-\d+\b/i;
     const refMatch = fullText.match(invoiceRegex);
@@ -253,21 +206,32 @@ export function classifyMatch(
   }
 
   // 2. MATCHED OR PARTIALLY_MATCHED CASES
+  if (ledgerEntries.length === 0) {
+      // Defensive guard
+      return {
+          matchOutcome: "UNMATCHED",
+          discrepancyType: "NONE",
+          confidenceBand: "NONE",
+          confidence: 0,
+          evidence: []
+      };
+  }
 
   const bankAmt = bankTxn.amount;
   const ledgerSum = ledgerEntries.reduce((sum, l) => sum + l.amount, 0);
 
   // Check FOREIGN_EXCHANGE (Currencies differ, check converted amounts)
   const currenciesDiffer = bankTxn.currency && ledgerEntries[0]?.currency && bankTxn.currency !== ledgerEntries[0].currency;
-  if (currenciesDiffer) {
+  if (matchType === "fx_difference" || currenciesDiffer) {
     const convBank = bankTxn.convertedAmountMinor ?? bankTxn.amount;
     const convLedgerSum = ledgerEntries.reduce((sum, l) => sum + (l.convertedAmountMinor ?? l.amount), 0);
     const absDiff = Math.abs(convBank - convLedgerSum);
 
-    if (absDiff <= 100) {
+    // If matchType is fx_difference, we trust the engine's tolerance
+    if (matchType === "fx_difference" || absDiff <= 100) {
       evidence.push({
         code: "FX_CONVERSION_STABLE",
-        message: `Base currency conversion matches exactly (difference of ${absDiff} paise <= 100 paise limit).`,
+        message: `Foreign exchange discrepancy handled (difference of ${absDiff} paise).`,
       });
       return {
         matchOutcome,
@@ -280,11 +244,14 @@ export function classifyMatch(
   }
 
   // Check PROCESSING_FEE
-  if (matchType === "fee_adjustment" || matchesFeeFormula(bankAmt, ledgerSum)) {
+  if (matchType === "fee_adjustment" || matchesProcessorFee(bankAmt, ledgerSum)) {
     const feeDiff = ledgerSum - bankAmt;
     const ratePct = ((feeDiff / ledgerSum) * 100).toFixed(2);
+    const isStripe = bankTxn.description.toUpperCase().includes("STRIPE");
+    const isRazorpay = bankTxn.description.toUpperCase().includes("RAZORPAY");
+    
     evidence.push({
-      code: bankTxn.description.toUpperCase().includes("STRIPE") ? "STRIPE_FEE_FORMULA" : "RAZORPAY_FEE_FORMULA",
+      code: isStripe ? "STRIPE_FEE_FORMULA" : isRazorpay ? "RAZORPAY_FEE_FORMULA" : "GENERIC_PROCESSING_FEE",
       message: `Discrepancy of ${feeDiff} paise (${ratePct}%) matches standard payment processor fee formula.`,
     });
     return {
@@ -304,14 +271,14 @@ export function classifyMatch(
     });
     return {
       matchOutcome: "PARTIALLY_MATCHED",
-      discrepancyType: "NONE", // User requested outcome PARTIALLY_MATCHED, discrepancyType: NONE (unless other applies)
+      discrepancyType: "AMOUNT_DIFFERENCE",
       confidenceBand,
       confidence,
       evidence,
     };
   }
 
-  // Check TYPO
+  // Check TYPO & REFERENCE/COUNTERPARTY MISMATCH
   if (matchType !== "exact") {
     let isTypo = false;
 
@@ -337,6 +304,8 @@ export function classifyMatch(
     // Check name spelling edit distance
     const bankName = bankTxn.counterparty || "";
     const bookName = ledgerEntries[0]?.counterparty || "";
+    let isCounterpartyMismatch = false;
+
     if (bankName && bookName) {
       const cn1 = cleanNameForTypo(bankName);
       const cn2 = cleanNameForTypo(bookName);
@@ -348,6 +317,8 @@ export function classifyMatch(
             code: "NAME_SPELLING_TYPO",
             message: `Slight spelling typo detected in counterparty name: '${bankName}' vs '${bookName}'.`,
           });
+        } else {
+          isCounterpartyMismatch = true;
         }
       }
     }
@@ -361,6 +332,50 @@ export function classifyMatch(
         evidence,
       };
     }
+
+    if (isCounterpartyMismatch) {
+        evidence.push({
+            code: "COUNTERPARTY_MISMATCH",
+            message: `Counterparty mismatch beyond typo: '${bankName}' vs '${bookName}'.`,
+        });
+        return {
+            matchOutcome,
+            discrepancyType: "COUNTERPARTY_DIFFERENCE",
+            confidenceBand,
+            confidence,
+            evidence
+        };
+    }
+
+    if (bankRef && bookRef && bankRef !== bookRef && !bankRef.includes(bookRef) && !bookRef.includes(bankRef)) {
+         evidence.push({
+            code: "REFERENCE_MISMATCH",
+            message: `Invoice references differ completely: '${bankRef}' vs '${bookRef}'.`,
+        });
+        return {
+            matchOutcome,
+            discrepancyType: "REFERENCE_DIFFERENCE",
+            confidenceBand,
+            confidence,
+            evidence
+        };
+    }
+  }
+
+  // Check AMOUNT_DIFFERENCE for non-fee, non-FX matches that aren't partial payments
+  if (Math.abs(bankAmt - ledgerSum) > 100) {
+      // There's a remaining amount difference!
+      evidence.push({
+          code: "AMOUNT_SHORTFALL",
+          message: `Amount discrepancy of ${Math.abs(bankAmt - ledgerSum)} paise not explained by fee or FX.`,
+      });
+      return {
+          matchOutcome,
+          discrepancyType: "AMOUNT_DIFFERENCE",
+          confidenceBand,
+          confidence,
+          evidence
+      };
   }
 
   // Check TIMING_DIFFERENCE
@@ -378,6 +393,21 @@ export function classifyMatch(
       confidence,
       evidence,
     };
+  }
+
+  // Check LOW CONFIDENCE / MANUAL REVIEW
+  if (confidenceBand === "LOW" && matchOutcome !== "UNMATCHED") {
+      evidence.push({
+          code: "MANUAL_REVIEW_REQUIRED",
+          message: "Match confidence is low. Requires manual accountant review.",
+      });
+      return {
+          matchOutcome,
+          discrepancyType: "MANUAL_REVIEW",
+          confidenceBand,
+          confidence,
+          evidence
+      };
   }
 
   // Default clean exact match

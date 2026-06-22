@@ -32,7 +32,8 @@ export const matchOutcomeEnum = pgEnum("match_outcome", [
 ]);
 
 export const discrepancyTypeEnum = pgEnum("discrepancy_type", [
-    "NONE", "TIMING_DIFFERENCE", "PROCESSING_FEE", "FOREIGN_EXCHANGE", "TYPO", "DUPLICATE", "MISSING_ENTRY"
+    "NONE", "TIMING_DIFFERENCE", "PROCESSING_FEE", "FOREIGN_EXCHANGE", "TYPO", "DUPLICATE", "MISSING_ENTRY",
+    "AMOUNT_DIFFERENCE", "COUNTERPARTY_DIFFERENCE", "REFERENCE_DIFFERENCE", "DUPLICATE_INVOICE", "MANUAL_REVIEW"
 ]);
 
 export const runStatusEnum = pgEnum("run_status", [

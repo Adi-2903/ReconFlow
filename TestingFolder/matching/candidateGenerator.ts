@@ -1,19 +1,13 @@
 import { CanonicalTransaction } from "../types/CanonicalTransaction";
 import { CandidateResult, CandidateReason, ConfidenceBand, CandidateReasonType } from "../types/CandidateResult";
 import { daysBetween, referenceMatches, nameMatches, directionMatches } from "./utils";
-import { isDigitTransposition } from "../../core/matching/classifier";
-import { hasReferenceConflict } from "../../core/matching/matchingHelpers";
+import { isDigitTransposition, hasReferenceConflict, getConfidenceBand, getEditDistance } from "../../core/matching/matchingHelpers";
 
 const TOLERANCE_BPS = 2000n; // 20% in basis points
 const MIN_AMOUNT_TOLERANCE = 500n; // 500 paise / ₹5
 const DEFAULT_DATE_TOLERANCE_DAYS = 7;
 const MAX_CANDIDATES = 50;
 
-const CONFIDENCE_THRESHOLDS: Record<Exclude<ConfidenceBand, "LOW">, number> = {
-    VERY_HIGH: 120,
-    HIGH: 80,
-    MEDIUM: 50
-};
 
 function getDateTolerance(txn: CanonicalTransaction): number {
     const channel = txn.matchingSignals?.channel || "";
@@ -173,6 +167,13 @@ export function generateCandidates(
         if (nameMatches(bankTxn.counterparty, bookTxn.counterparty)) {
             score += 20;
             reasons.push({ reason: "counterparty_match", points: 20 });
+        } else if (bankTxn.counterparty && bookTxn.counterparty) {
+            const cleanBank = bankTxn.counterparty.toUpperCase().replace(/\b(CORPORATION|CORP|PVT|PRIVATE|LTD|LIMITED|SOLUTIONS|SOLUTION|INCORPORATED|INC)\b/g, "").replace(/[^A-Z0-9]/g, "").trim();
+            const cleanBook = bookTxn.counterparty.toUpperCase().replace(/\b(CORPORATION|CORP|PVT|PRIVATE|LTD|LIMITED|SOLUTIONS|SOLUTION|INCORPORATED|INC)\b/g, "").replace(/[^A-Z0-9]/g, "").trim();
+            if (cleanBank && cleanBook && getEditDistance(cleanBank, cleanBook) <= 2) {
+                score += 15;
+                reasons.push({ reason: "counterparty_typo_match" as CandidateReasonType, points: 15 });
+            }
         }
 
         // Source system alignment boost
@@ -185,7 +186,7 @@ export function generateCandidates(
 
         // Reference conflict penalty — must be applied here (before results.push / sort)
         // so the penalised score participates in candidate ranking.
-        const refAlreadyMatched = reasons.some(r => r.reason === "reference_match");
+        const refAlreadyMatched = reasons.some(r => r.reason === "reference_match" || r.reason === "reference_typo_transposition");
         const refConflict = hasReferenceConflict(
             bankTxn.referenceNumber,
             bookTxn.referenceNumber,
@@ -207,14 +208,7 @@ export function generateCandidates(
         }
 
         // Confidence band mapping
-        let confidenceBand: ConfidenceBand = "LOW";
-        if (score >= CONFIDENCE_THRESHOLDS.VERY_HIGH) {
-            confidenceBand = "VERY_HIGH";
-        } else if (score >= CONFIDENCE_THRESHOLDS.HIGH) {
-            confidenceBand = "HIGH";
-        } else if (score >= CONFIDENCE_THRESHOLDS.MEDIUM) {
-            confidenceBand = "MEDIUM";
-        }
+        let confidenceBand: ConfidenceBand = getConfidenceBand(score) as ConfidenceBand;
 
         results.push({
             candidate: bookTxn,

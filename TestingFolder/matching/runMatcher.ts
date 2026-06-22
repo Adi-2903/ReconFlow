@@ -6,8 +6,8 @@ import { generateCandidates } from "./candidateGenerator";
 import { CandidateReason, ConfidenceBand, CandidateReasonType, CandidateResult } from "../types/CandidateResult";
 import { daysBetween, referenceMatches, nameMatches, directionMatches, normalizeReference, normalizeName } from "./utils";
 import { classifyMatch } from "../../core/matching/classifier";
-import { isStripePayoutTransaction } from "../../core/matching/matchingHelpers";
-
+import { isStripePayoutTransaction, getConfidenceBand } from "../../core/matching/matchingHelpers";
+import { matchesProcessorFee, matchesProcessorFeeForCombo } from "../../core/matching/feeFormulas";
 
 function getEffectiveAmountMinor(txn: CanonicalTransaction): bigint {
     const amt = txn.convertedAmountMinor !== undefined && txn.convertedAmountMinor !== null
@@ -51,75 +51,6 @@ function getCombinations<T>(arr: T[], minSize: number, maxSize: number): T[][] {
     return result;
 }
 
-function getConfidenceBand(score: number): ConfidenceBand | "NONE" {
-    if (score >= 150) return "VERY_HIGH";
-    if (score >= 100) return "HIGH";
-    if (score >= 60) return "MEDIUM";
-    if (score > 0) return "LOW";
-    return "NONE";
-}
-
-function matchesProcessorFee(bankAmtMinor: bigint, bookAmtMinor: bigint): boolean {
-    const diff = bookAmtMinor - bankAmtMinor;
-    if (diff <= 0n) return false;
-    
-    const allowedTolerance = Math.max(500, Math.round(Number(bookAmtMinor) * 0.005));
-
-    // Check if difference matches typical Razorpay / Stripe fees:
-    // 1.18%, 2.36%, 3.776%, 4.72%, 2.9%, 2%, 3%
-    const commonRates = [0.0118, 0.0236, 0.03776, 0.0472, 0.029, 0.02, 0.03];
-    for (const rate of commonRates) {
-        const expectedFee = Math.round(Number(bookAmtMinor) * rate);
-        if (Math.abs(Number(diff) - expectedFee) <= allowedTolerance) { // allow dynamic tolerance
-            return true;
-        }
-    }
-    // Stripe standard USD payout: 2.9% + $0.30 (30 cents = 3000 paise equivalent)
-    const expectedStripeUSD = Math.round(Number(bookAmtMinor) * 0.029) + 3000;
-    if (Math.abs(Number(diff) - expectedStripeUSD) <= allowedTolerance) {
-        return true;
-    }
-    return false;
-}
-
-function matchesProcessorFeeForCombo(bankAmtMinor: bigint, combo: TransactionState[]): boolean {
-    const sumBookAmt = combo.reduce((sum, bs) => sum + bs.remainingAmountMinor, 0n);
-    const diff = sumBookAmt - bankAmtMinor;
-    if (diff <= 0n) return false;
-
-    const allowedTolerance = combo.reduce((sum, bs) => sum + Math.max(500, Math.round(Number(bs.remainingAmountMinor) * 0.005)), 0);
-
-    // 1. Check Stripe INR fee: 2.9% + Rs. 25 (2500 paise) per transaction
-    const expectedStripeINR = combo.reduce((sum, bs) => {
-        const amt = Number(bs.remainingAmountMinor);
-        return sum + Math.round(amt * 0.029) + 2500;
-    }, 0);
-    if (Math.abs(Number(diff) - expectedStripeINR) <= allowedTolerance) {
-        return true;
-    }
-
-    // 2. Check Stripe USD fee: 2.9% + $0.30 (3000 cents/paise) per transaction
-    const expectedStripeUSD = combo.reduce((sum, bs) => {
-        const amt = Number(bs.remainingAmountMinor);
-        return sum + Math.round(amt * 0.029) + 3000;
-    }, 0);
-    if (Math.abs(Number(diff) - expectedStripeUSD) <= allowedTolerance) {
-        return true;
-    }
-
-    // 3. Check simple rates
-    const commonRates = [0.0118, 0.0236, 0.03776, 0.0472, 0.029, 0.02, 0.03];
-    for (const rate of commonRates) {
-        const expectedFee = combo.reduce((sum, bs) => {
-            return sum + Math.round(Number(bs.remainingAmountMinor) * rate);
-        }, 0);
-        if (Math.abs(Number(diff) - expectedFee) <= allowedTolerance) {
-            return true;
-        }
-    }
-
-    return false;
-}
 
 function isFuzzyMatch(s1: string, s2: string): boolean {
     if (Math.abs(s1.length - s2.length) > 1) return false;
@@ -312,7 +243,7 @@ export function runMatcher(
                 bankTransactionIds: [bankTxn.id],
                 bookTransactionIds: [best.candidate.id],
                 score: finalScore,
-                confidenceBand: getConfidenceBand(finalScore),
+                confidenceBand: getConfidenceBand(finalScore) as ConfidenceBand,
                 matchType: "exact",
                 reasons: baseReasons
             });
@@ -376,7 +307,7 @@ export function runMatcher(
                 bankTransactionIds: [bankTxn.id],
                 bookTransactionIds: [best.candidate.id],
                 score: finalScore,
-                confidenceBand: getConfidenceBand(finalScore),
+                confidenceBand: getConfidenceBand(finalScore) as ConfidenceBand,
                 matchType: "fee_adjustment",
                 reasons: baseReasons
             });
@@ -482,7 +413,7 @@ export function runMatcher(
                     bankTransactionIds: [bankTxn.id],
                     bookTransactionIds: bestCombo.map((bs) => bs.id),
                     score: finalScore,
-                    confidenceBand: getConfidenceBand(finalScore),
+                    confidenceBand: getConfidenceBand(finalScore) as ConfidenceBand,
                     matchType: "one_to_many",
                     reasons: [{ reason: "subset_match_validated" as CandidateReasonType, points: 15 }]
                 });
@@ -563,7 +494,7 @@ export function runMatcher(
                     bankTransactionIds: bestCombo.map((bs) => bs.id),
                     bookTransactionIds: [bookTxn.id],
                     score: finalScore,
-                    confidenceBand: getConfidenceBand(finalScore),
+                    confidenceBand: getConfidenceBand(finalScore) as ConfidenceBand,
                     matchType: "many_to_one",
                     reasons: [{ reason: "subset_match_validated" as CandidateReasonType, points: 15 }]
                 });
@@ -633,7 +564,7 @@ export function runMatcher(
                 bankTransactionIds: [bankTxn.id],
                 bookTransactionIds: [best.candidate.id],
                 score: finalScore,
-                confidenceBand: getConfidenceBand(finalScore),
+                confidenceBand: getConfidenceBand(finalScore) as ConfidenceBand,
                 matchType: "partial_payment",
                 reasons: baseReasons
             });
@@ -741,7 +672,7 @@ export function runMatcher(
                 bankTransactionIds: [bankTxn.id],
                 bookTransactionIds: [best.candidate.candidate.id],
                 score: best.score,
-                confidenceBand: getConfidenceBand(best.score),
+                confidenceBand: getConfidenceBand(best.score) as ConfidenceBand,
                 matchType: best.matchType,
                 reasons: best.reasons
             });
@@ -791,7 +722,8 @@ export function runMatcher(
                 classifierLedgers,
                 match.matchType,
                 match.reasons || [],
-                allBanksForDuplicate
+                allBanksForDuplicate,
+                match.score
             );
 
             match.matchOutcome = classification.matchOutcome;

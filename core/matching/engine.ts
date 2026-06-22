@@ -1,6 +1,7 @@
 import { differenceInDays } from "date-fns";
 import { classifyMatch, ClassificationResult, isDigitTransposition } from "./classifier";
-import { isStripePayoutTransaction, hasReferenceConflict } from "./matchingHelpers";
+import { isStripePayoutTransaction, hasReferenceConflict, getConfidenceBand } from "./matchingHelpers";
+import { matchesProcessorFee, matchesProcessorFeeForCombo } from "./feeFormulas";
 
 
 export interface BankTransaction {
@@ -51,7 +52,7 @@ export interface CandidateReason {
 }
 
 export interface MatchResult {
-  bankTransactionId: string;
+  bankTransactionIds: string[];
   ledgerEntryIds: string[];
   confidenceScore: number;  // 0.0 to 1.0
   score: number;            // raw score
@@ -139,41 +140,6 @@ function getCombinations<T>(arr: T[], minSize: number, maxSize: number): T[][] {
   return result;
 }
 
-function getConfidenceBand(score: number): "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW" | "NONE" {
-  if (score >= 150) return "VERY_HIGH";
-  if (score >= 100) return "HIGH";
-  if (score >= 60) return "MEDIUM";
-  if (score > 0) return "LOW";
-  return "NONE";
-}
-
-function matchesProcessorFee(bankAmtMinor: number, bookAmtMinor: number): boolean {
-  const diff = bookAmtMinor - bankAmtMinor;
-  if (diff <= 0) return false;
-  
-  const allowedTolerance = Math.max(500, Math.round(bookAmtMinor * 0.005));
-  
-  const commonRates = [0.0118, 0.0236, 0.03776, 0.0472, 0.029, 0.02, 0.03];
-  for (const rate of commonRates) {
-    const expectedFee = Math.round(bookAmtMinor * rate);
-    if (Math.abs(diff - expectedFee) <= allowedTolerance) {
-      return true;
-    }
-  }
-  const expectedStripeUSD = Math.round(bookAmtMinor * 0.029) + 3000;
-  if (Math.abs(diff - expectedStripeUSD) <= allowedTolerance) {
-    return true;
-  }
-
-  // Flat Indian banking fees: NEFT/RTGS/wire processing charges (in paise)
-  // Common charges: Rs.1 (100p), Rs.2.36 (236p), Rs.5 (500p), Rs.11.80 (1180p), Rs.23.60 (2360p)
-  const commonFlatFees = [100, 118, 177, 236, 354, 500, 590, 1000, 1180, 2360, 5000];
-  for (const flatFee of commonFlatFees) {
-    if (Math.abs(diff - flatFee) <= 50) return true; // ±50 paise rounding tolerance for flat fees
-  }
-
-  return false;
-}
 
 /** Returns true if this bank transaction is a Stripe payout (bulk settlement). */
 function isStripePayoutTransaction(bankTxn: BankTransaction): boolean {
@@ -395,44 +361,6 @@ interface TransactionState<T> {
   remainingAmountMinor: number;
 }
 
-function matchesProcessorFeeForCombo(bankAmtMinor: number, combo: TransactionState<LedgerEntry>[]): boolean {
-  const sumBookAmt = combo.reduce((sum, bs) => sum + bs.remainingAmountMinor, 0);
-  const diff = sumBookAmt - bankAmtMinor;
-  if (diff <= 0) return false;
-
-  const allowedTolerance = combo.reduce((sum, bs) => sum + Math.max(500, Math.round(bs.remainingAmountMinor * 0.005)), 0);
-
-  // 1. Stripe INR: 2.9% + Rs. 25 (2500 paise)
-  const expectedStripeINR = combo.reduce((sum, bs) => {
-    const amt = bs.remainingAmountMinor;
-    return sum + Math.round(amt * 0.029) + 2500;
-  }, 0);
-  if (Math.abs(diff - expectedStripeINR) <= allowedTolerance) {
-    return true;
-  }
-
-  // 2. Stripe USD: 2.9% + $0.30 (3000 paise/cents)
-  const expectedStripeUSD = combo.reduce((sum, bs) => {
-    const amt = bs.remainingAmountMinor;
-    return sum + Math.round(amt * 0.029) + 3000;
-  }, 0);
-  if (Math.abs(diff - expectedStripeUSD) <= allowedTolerance) {
-    return true;
-  }
-
-  // 3. Check simple rates
-  const commonRates = [0.0118, 0.0236, 0.03776, 0.0472, 0.029, 0.02, 0.03];
-  for (const rate of commonRates) {
-    const expectedFee = combo.reduce((sum, bs) => {
-      return sum + Math.round(bs.remainingAmountMinor * rate);
-    }, 0);
-    if (Math.abs(diff - expectedFee) <= allowedTolerance) {
-      return true;
-    }
-  }
-
-  return false;
-}
 
 // ── Main Matching Engine ────────────────────────────────────────────────────────
 
@@ -529,7 +457,7 @@ export function matchTransactions(
       const finalScore = exactMatches[0].score;
 
       results.push({
-        bankTransactionId: bankTxn.id,
+        bankTransactionIds: [bankTxn.id],
         ledgerEntryIds: [best.candidate.id],
         confidenceScore: parseFloat((Math.min(100, finalScore) / 100).toFixed(2)),
         score: finalScore,
@@ -598,7 +526,7 @@ export function matchTransactions(
       const finalScore = feeMatches[0].score;
 
       results.push({
-        bankTransactionId: bankTxn.id,
+        bankTransactionIds: [bankTxn.id],
         ledgerEntryIds: [best.candidate.id],
         confidenceScore: parseFloat((Math.min(100, finalScore) / 100).toFixed(2)),
         score: finalScore,
@@ -717,7 +645,7 @@ export function matchTransactions(
 
         const finalScore = validCombos[0].score;
         results.push({
-          bankTransactionId: bankTxn.id,
+          bankTransactionIds: [bankTxn.id],
           ledgerEntryIds: bestCombo.map((bs) => bs.id),
           confidenceScore: parseFloat((Math.min(100, finalScore) / 100).toFixed(2)),
           score: finalScore,
@@ -802,7 +730,7 @@ export function matchTransactions(
 
         const finalScore = validCombos[0].score;
         results.push({
-          bankTransactionId: bestCombo[0].id, // primary linked ID
+          bankTransactionIds: bestCombo.map(bs => bs.id),
           ledgerEntryIds: [bookTxn.id],
           confidenceScore: parseFloat((Math.min(100, finalScore) / 100).toFixed(2)),
           score: finalScore,
@@ -882,7 +810,7 @@ export function matchTransactions(
       const finalScore = partialMatches[0].score;
 
       results.push({
-        bankTransactionId: bankTxn.id,
+        bankTransactionIds: [bankTxn.id],
         ledgerEntryIds: [best.candidate.id],
         confidenceScore: parseFloat((Math.min(100, finalScore) / 100).toFixed(2)),
         score: finalScore,
@@ -988,7 +916,7 @@ export function matchTransactions(
       bookState.remainingAmountMinor = 0;
 
       results.push({
-        bankTransactionId: bankTxn.id,
+        bankTransactionIds: [bankTxn.id],
         ledgerEntryIds: [best.candidate.candidate.id],
         confidenceScore: parseFloat((Math.min(100, best.score) / 100).toFixed(2)),
         score: best.score,
@@ -1008,7 +936,7 @@ export function matchTransactions(
   for (const bankState of bankStates.values()) {
     if (bankState.status !== "MATCHED") {
       results.push({
-        bankTransactionId: bankState.id,
+        bankTransactionIds: [bankState.id],
         ledgerEntryIds: [],
         confidenceScore: 0,
         score: 0,
@@ -1028,14 +956,24 @@ export function matchTransactions(
   }));
 
   for (const res of results) {
-    const bankTxn = banks.find(b => b.id === res.bankTransactionId)!;
+    const matchedBankTxns = banks.filter(b => res.bankTransactionIds.includes(b.id));
+    const primaryBankTxn = matchedBankTxns[0];
+    
+    // Create an aggregate bank txn for classifier
+    const aggregateBankTxn = {
+      ...primaryBankTxn,
+      amount: matchedBankTxns.reduce((sum, b) => sum + b.amount, 0),
+      convertedAmountMinor: matchedBankTxns.reduce((sum, b) => sum + (b.convertedAmountMinor || b.amount), 0)
+    };
+
     const matchedLedgerEntries = ledgers.filter(l => res.ledgerEntryIds.includes(l.id));
     res.classification = classifyMatch(
-      bankTxn,
+      aggregateBankTxn,
       matchedLedgerEntries,
       res.matchType,
       res.reasons || [],
-      allBanksForDuplicate
+      allBanksForDuplicate,
+      res.score
     );
   }
 

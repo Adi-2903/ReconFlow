@@ -144,7 +144,7 @@ export async function runReconciliation(
 
       if (skipAI) return { ...match, aiResult: null };
 
-      const bankTxn = engineBanks.find((b) => b.id === match.bankTransactionId)!;
+      const bankTxn = engineBanks.find((b) => match.bankTransactionIds.includes(b.id))!;
       const candidates = engineLedgers.filter((l) =>
         match.ledgerEntryIds.includes(l.id)
       );
@@ -176,19 +176,21 @@ export async function runReconciliation(
         const reasonText = match.aiResult?.explanation ?? fallbackReason(match.matchType);
         const evidence = match.aiResult ?? null;
 
-        await tx.insert(matches).values({
-          userId,
-          bankTransactionId: match.bankTransactionId,
-          ledgerEntryIds: match.ledgerEntryIds,
-          confidenceScore: match.confidenceScore.toString(),
-          matchType: match.matchType,
-          matchOutcome: match.classification.matchOutcome,
-          discrepancyType: match.classification.discrepancyType,
-          classificationEvidence: match.classification.evidence,
-          reasonText,
-          evidence,
-          status,
-        });
+        for (const bId of match.bankTransactionIds) {
+          await tx.insert(matches).values({
+            userId,
+            bankTransactionId: bId,
+            ledgerEntryIds: match.ledgerEntryIds,
+            confidenceScore: match.confidenceScore.toString(),
+            matchType: match.matchType,
+            matchOutcome: match.classification.matchOutcome,
+            discrepancyType: match.classification.discrepancyType,
+            classificationEvidence: match.classification.evidence,
+            reasonText,
+            evidence,
+            status,
+          });
+        }
 
         // Set status in canonicalTransactions
         if (match.matchType !== "none") {
@@ -196,7 +198,7 @@ export async function runReconciliation(
           await tx
             .update(canonicalTransactions)
             .set({ status: newStatus })
-            .where(eq(canonicalTransactions.id, match.bankTransactionId));
+            .where(inArray(canonicalTransactions.id, match.bankTransactionIds));
 
           if (match.ledgerEntryIds.length > 0) {
             await tx

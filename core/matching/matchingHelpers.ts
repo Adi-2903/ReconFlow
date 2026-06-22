@@ -57,3 +57,59 @@ export function hasReferenceConflict(
   const bookPresent = !!(bookRef || "").trim();
   return bankPresent && bookPresent && !refMatches;
 }
+
+export function getConfidenceBand(score: number): "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW" | "NONE" {
+  if (score >= 150) return "VERY_HIGH";
+  if (score >= 100) return "HIGH";
+  if (score >= 60) return "MEDIUM";
+  if (score > 0) return "LOW";
+  return "NONE";
+}
+
+export function getEditDistance(a: string, b: string): number {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+export function isDigitTransposition(s1: string, s2: string): boolean {
+  const d1 = s1.replace(/\D/g, "");
+  const d2 = s2.replace(/\D/g, "");
+  if (!d1 || !d2 || d1.length !== d2.length) return false;
+  if (d1 === d2) return false;
+
+  const diffIndices: number[] = [];
+  for (let i = 0; i < d1.length; i++) {
+    if (d1[i] !== d2[i]) {
+      diffIndices.push(i);
+    }
+  }
+
+  if (diffIndices.length === 2) {
+    const [i, j] = diffIndices;
+    if (j === i + 1) { // adjacent transposition
+      return d1[i] === d2[j] && d1[j] === d2[i];
+    }
+  }
+  return false;
+}

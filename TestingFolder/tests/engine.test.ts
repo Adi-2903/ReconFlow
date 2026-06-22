@@ -57,6 +57,8 @@ async function runTests() {
     assert(matches1.length === 1, "Should generate exactly 1 match");
     assert(matches1[0].bookTransactionIds.includes("BOOK1_A"), "Should match with exact candidate");
     assert(matches1[0].matchType === "exact", "Should be classification 'exact'");
+    assert(matches1[0].matchOutcome === "MATCHED", "Outcome should be MATCHED");
+    assert(matches1[0].discrepancyType === "NONE", "Discrepancy should be NONE");
     console.log("  PASSED: Exact match correctly chosen over fuzzy match.");
 
     // ----------------------------------------------------
@@ -89,6 +91,8 @@ async function runTests() {
     assert(matches2.length === 1, "Should generate 1 match");
     assert(matches2[0].matchType === "fee_adjustment", "Should be classification 'fee_adjustment'");
     assert(matches2[0].reasons?.some((r) => r.reason === "fee_match_validated") || false, "Should include fee validation reason");
+    assert(matches2[0].matchOutcome === "MATCHED", "Outcome should be MATCHED");
+    assert(matches2[0].discrepancyType === "PROCESSING_FEE", "Discrepancy should be PROCESSING_FEE");
     console.log("  PASSED: Processor fee match successfully reconciled.");
 
     // ----------------------------------------------------
@@ -132,6 +136,9 @@ async function runTests() {
     assert(matches3.length === 1, "Should generate 1 match");
     assert(matches3[0].matchType === "one_to_many", "Should be one_to_many");
     assert(matches3[0].bookTransactionIds.includes("BOOK3_A") && matches3[0].bookTransactionIds.includes("BOOK3_B"), "Should include both books");
+    console.log("DISCREPANCY IS: ", matches3[0].discrepancyType);
+    assert(matches3[0].matchOutcome === "MATCHED", "Outcome should be MATCHED");
+    assert(matches3[0].discrepancyType === "NONE", "Discrepancy should be NONE");
     console.log("  PASSED: Subset match (1-to-N) successfully reconciled.");
 
     // ----------------------------------------------------
