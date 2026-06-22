@@ -268,9 +268,17 @@ function generateCandidates(
       reasons.push({ reason: signalReason, points: signalScore });
     }
 
-    if (referenceMatches(bankTxn.referenceId, bookTxn.invoiceRef)) {
-      scoreVal += 30;
-      reasons.push({ reason: "reference_match", points: 30 });
+    const bankRef = (bankTxn.referenceId || "").trim().toLowerCase();
+    const bookRef = (bookTxn.invoiceRef || "").trim().toLowerCase();
+
+    if (bankRef && bookRef) {
+      if (bankRef.includes(bookRef) || bookRef.includes(bankRef)) {
+        scoreVal += 30;
+        reasons.push({ reason: "reference_match", points: 30 });
+      } else {
+        scoreVal -= 20;
+        reasons.push({ reason: "reference_mismatch_penalty", points: -20 });
+      }
     }
 
     if (nameMatches(bankTxn.counterparty, bookTxn.counterparty)) {
@@ -404,12 +412,13 @@ export function matchTransactions(
       const bankAmt = bankState.remainingAmountMinor;
       const bookAmt = bookState.remainingAmountMinor;
       const dayDiff = Math.abs(differenceInDays(bankTxn.date, cand.candidate.date));
+      if (dayDiff > 1) continue;  // not exact — let it fall to fuzzy pass
       const refMatch = referenceMatches(bankTxn.referenceId, cand.candidate.invoiceRef);
       const nameMatch = nameMatches(bankTxn.counterparty, cand.candidate.counterparty);
       const diffAmt = Math.abs(bankAmt - bookAmt);
       const currenciesDiffer = bankTxn.currency && cand.candidate.currency && bankTxn.currency !== cand.candidate.currency;
 
-      if (!currenciesDiffer && diffAmt <= 100 && dayDiff <= 1.0 && (refMatch || nameMatch)) {
+      if (!currenciesDiffer && diffAmt <= 100 && (refMatch || nameMatch)) {
         const finalScore = cand.score + 50;
         exactMatches.push({ candidate: cand, score: finalScore });
       }
@@ -570,8 +579,24 @@ export function matchTransactions(
             const candidatesResult = generateCandidates(bankTxn, [bs.txn], { skipAmountGate: true });
             return candidatesResult.length > 0 ? candidatesResult[0].score : 50;
           });
-          const finalScore = Math.max(...baseScores) + 15;
-          validCombos.push({ combo, score: finalScore });
+          let score = Math.max(...baseScores) + 15;
+
+          const bankAmtBig = BigInt(getEffectiveAmountMinor(bankTxn));
+          const comboSum = combo.reduce((acc, l) =>
+            acc + BigInt(getEffectiveAmountMinor(l.txn)), 0n);
+          const diff = bankAmtBig > comboSum ? bankAmtBig - comboSum : comboSum - bankAmtBig;
+          const diffPct = Number(diff) / Number(bankAmtBig);
+
+          if (diff === 0n) {
+            score += 50;   // perfect sum → pushes into auto-approve (>=0.80)
+          } else if (diffPct < 0.03) {
+            score += 35;   // within 3% → covers Stripe fee deductions (~2.9%)
+                           // lands in accountant review (0.50-0.79)
+          } else if (diffPct < 0.05) {
+            score += 20;   // within 5% → still a plausible bulk match
+          }
+
+          validCombos.push({ combo, score });
         }
       }
 
@@ -717,6 +742,12 @@ export function matchTransactions(
     for (const cand of candidates) {
       const bookState = bookStates.get(cand.candidate.id)!;
       if (bookState.status === "MATCHED") continue;
+
+      const bankAmtNum = Number(getEffectiveAmountMinor(bankTxn));
+      const bookAmtNum = Number(getEffectiveAmountMinor(cand.candidate));
+      const gapPct = Math.abs(bankAmtNum - bookAmtNum) / Math.max(bankAmtNum, bookAmtNum);
+
+      if (gapPct > 0.20) continue;  // gap too large → reject, goes to exceptions
 
       const refMatch = referenceMatches(bankTxn.referenceId, cand.candidate.invoiceRef);
       const nameMatch = nameMatches(bankTxn.counterparty, cand.candidate.counterparty);

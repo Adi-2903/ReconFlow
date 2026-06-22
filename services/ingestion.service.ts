@@ -78,7 +78,7 @@ export class IngestionService {
           .from(canonicalTransactions)
           .where(
             and(
-              eq(canonicalTransactions.accountId, accountId),
+              eq(canonicalTransactions.organizationId, orgId),
               inArray(canonicalTransactions.sourceTransactionId, sourceTxnIds)
             )
           );
@@ -371,7 +371,7 @@ export class IngestionService {
           sourceTransactionId: canonicalTransactions.sourceTransactionId,
         })
         .from(canonicalTransactions)
-        .where(eq(canonicalTransactions.accountId, accountId));
+        .where(eq(canonicalTransactions.organizationId, orgId));
 
       const existingSignatures = new Set(
         existingRows.map((e) => `${e.date}_${e.amount}_${e.desc?.trim().toLowerCase()}`)

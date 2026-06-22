@@ -62,7 +62,7 @@ async function main() {
   console.log("2. Setting up fresh organization and accounts...");
   console.log("--------------------------------------------------");
   
-  const orgName = `Audit Org - ${Date.now()}`;
+  const orgName = "Audit Org - " + Date.now();
   const [org] = await db.insert(organizations).values({
     name: orgName,
     baseCurrency: "INR",
