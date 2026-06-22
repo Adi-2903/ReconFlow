@@ -330,6 +330,8 @@ export class IngestionService {
       const amountIndex = headers.indexOf(columnMap.amount);
       const refIndex = headers.indexOf(columnMap.reference);
       const counterpartyIndex = headers.indexOf(columnMap.counterparty);
+      // Optional explicit currency column (e.g. QBO CurrencyRef, Stripe currency)
+      const currencyColIndex = columnMap.currency ? headers.indexOf(columnMap.currency) : -1;
 
       // Support separate debit/credit column mappings
       const debitIndex = headers.indexOf(columnMap.debit);
@@ -451,8 +453,12 @@ export class IngestionService {
           const counterpartyNormalized = rawCounterpartyStr ? cleaningService.normalizeCounterparty(rawCounterpartyStr) : "";
 
           // Normalize Currency
+          // Priority: (1) explicit currency column in columnMap, (2) auto-detect from description/amount
           let currency = account.baseCurrency;
-          if (fileType === "stripe_export" || fileType === "qbo_export" || fileType === "tally_export") {
+          if (currencyColIndex !== -1 && row[currencyColIndex]?.trim()) {
+            // Use the explicit currency column value — normalise to uppercase ISO code
+            currency = row[currencyColIndex].trim().toUpperCase();
+          } else if (fileType === "stripe_export" || fileType === "qbo_export" || fileType === "tally_export") {
             const amountStringForCurrency = amountIndex !== -1 ? row[amountIndex] : ((debitIndex !== -1 ? row[debitIndex] : "") + " " + (creditIndex !== -1 ? row[creditIndex] : ""));
             currency = cleaningService.detectCurrency(
               (rawDescStr || "") + " " + (amountStringForCurrency || "")

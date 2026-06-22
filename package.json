@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "clean": "next clean",
-    "validate": "ts-node src/scripts/validate-import.ts"
+    "validate": "tsx src/scripts/validate-import.ts",
+    "full-audit": "npx tsx --env-file=.env TestingFolder/scripts/full-audit.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",

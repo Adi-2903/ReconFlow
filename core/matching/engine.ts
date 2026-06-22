@@ -156,7 +156,7 @@ function matchesProcessorFee(bankAmtMinor: number, bookAmtMinor: number): boolea
   const commonRates = [0.0118, 0.0236, 0.03776, 0.0472, 0.029, 0.02, 0.03];
   for (const rate of commonRates) {
     const expectedFee = Math.round(bookAmtMinor * rate);
-    if (Math.abs(diff - expectedFee) <= allowedTolerance) { // allow dynamic tolerance
+    if (Math.abs(diff - expectedFee) <= allowedTolerance) {
       return true;
     }
   }
@@ -164,8 +164,27 @@ function matchesProcessorFee(bankAmtMinor: number, bookAmtMinor: number): boolea
   if (Math.abs(diff - expectedStripeUSD) <= allowedTolerance) {
     return true;
   }
+
+  // Flat Indian banking fees: NEFT/RTGS/wire processing charges (in paise)
+  // Common charges: Rs.1 (100p), Rs.2.36 (236p), Rs.5 (500p), Rs.11.80 (1180p), Rs.23.60 (2360p)
+  const commonFlatFees = [100, 118, 177, 236, 354, 500, 590, 1000, 1180, 2360, 5000];
+  for (const flatFee of commonFlatFees) {
+    if (Math.abs(diff - flatFee) <= 50) return true; // ±50 paise rounding tolerance for flat fees
+  }
+
   return false;
 }
+
+/** Returns true if this bank transaction is a Stripe payout (bulk settlement). */
+function isStripePayoutTransaction(bankTxn: BankTransaction): boolean {
+  const desc = (bankTxn.description || "").toLowerCase();
+  const ref  = (bankTxn.referenceId  || "").toLowerCase();
+  return desc.includes("stripe payout") ||
+         desc.includes("stripe transfer") ||
+         ref.includes("po_") ||
+         ref.includes("payout");
+}
+
 
 function getEffectiveAmountMinor(txn: BankTransaction | LedgerEntry): number {
   return txn.convertedAmountMinor !== undefined && txn.convertedAmountMinor !== null
@@ -205,7 +224,25 @@ function generateCandidates(
       (bankTxn.currency === bookTxn.currency) ||
       (reportCurrencyBank && reportCurrencyBook && reportCurrencyBank === reportCurrencyBook);
 
-    if (!currencyMatch) continue;
+    // FX bypass: when currencies differ (e.g. INR bank vs USD ledger) and the Gemini
+    // enrichment hasn't run (no convertedAmountMinor), compute an implied rate from the
+    // raw minor-unit amounts and accept the candidate if the rate is within realistic
+    // INR/foreign-currency bounds (30–200 covers USD, EUR, GBP, SGD etc.).
+    // The amount gate below is then skipped for these FX candidates because the amounts
+    // are in incomparable units — counterparty and date signals do the real validation.
+    let isFxCandidate = false;
+    if (!currencyMatch && currenciesDiffer) {
+      const bankRaw = BigInt(bankTxn.amount);
+      const bookRaw = BigInt(bookTxn.amount);
+      const inrRaw  = bankTxn.currency === "INR" ? bankRaw : bookRaw;
+      const fxRaw   = bankTxn.currency === "INR" ? bookRaw : bankRaw;
+      if (fxRaw === 0n) continue;
+      const impliedRate = Number(inrRaw) / Number(fxRaw);
+      if (impliedRate < 30 || impliedRate > 200) continue;
+      isFxCandidate = true; // pass through; skip the amount gate
+    } else if (!currencyMatch) {
+      continue; // non-INR cross-currency without a valid rate — reject
+    }
 
     const bankAmtMinor = BigInt(getEffectiveAmountMinor(bankTxn));
     const bookAmtMinor = BigInt(getEffectiveAmountMinor(bookTxn));
@@ -216,7 +253,9 @@ function generateCandidates(
     const calculatedTolerance = (comparisonAmount * TOLERANCE_BPS) / 10000n;
     const allowedTolerance = calculatedTolerance > MIN_AMOUNT_TOLERANCE ? calculatedTolerance : MIN_AMOUNT_TOLERANCE;
 
-    if (!options?.skipAmountGate && diff > allowedTolerance) continue;
+    // Skip amount gate for FX candidates (amounts are in different currency units)
+    if (!isFxCandidate && !options?.skipAmountGate && diff > allowedTolerance) continue;
+
 
     const dayDiff = Math.abs(differenceInDays(bankTxn.date, bookTxn.date));
     let maxDateDifference = 7;
@@ -801,6 +840,11 @@ export function matchTransactions(
       const gapPct = Math.abs(bankAmtNum - bookAmtNum) / Math.max(bankAmtNum, bookAmtNum);
 
       if (gapPct > 0.20) continue;  // gap too large → reject, goes to exceptions
+
+      // Skip exact-amount matches here — they belong in Pass 5 (timing/tolerance).
+      // Without this guard, Pass 4 would incorrectly tag timing-difference entries
+      // (F1, F8) as "partial_payment" simply because bankAmt <= bookAmt is trivially true.
+      if (gapPct < 0.001) continue;
 
       const refMatch = referenceMatches(bankTxn.referenceId, cand.candidate.invoiceRef);
       const nameMatch = nameMatches(bankTxn.counterparty, cand.candidate.counterparty);
