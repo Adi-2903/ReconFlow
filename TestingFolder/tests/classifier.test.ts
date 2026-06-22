@@ -34,7 +34,7 @@ async function runClassifierTests() {
   assert(res1.matchOutcome === "MATCHED", "Should be MATCHED");
   assert(res1.discrepancyType === "NONE", "Should have no discrepancy (NONE)");
   assert(res1.confidenceBand === "HIGH", "Band should be HIGH");
-  assert(res1.evidence.some(e => e.code === "FX_CONVERSION_STABLE"), "Evidence should include clean match");
+  assert(res1.evidence.some(e => e.code === "MATCHED_EXACT_CLEAN"), "Evidence should include clean match");
   console.log("  PASSED: Clean exact match classified.");
 
   // 2. TIMING_DIFFERENCE TEST

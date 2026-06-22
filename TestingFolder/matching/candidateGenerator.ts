@@ -1,6 +1,8 @@
 import { CanonicalTransaction } from "../types/CanonicalTransaction";
 import { CandidateResult, CandidateReason, ConfidenceBand, CandidateReasonType } from "../types/CandidateResult";
 import { daysBetween, referenceMatches, nameMatches, directionMatches } from "./utils";
+import { isDigitTransposition } from "../../core/matching/classifier";
+import { hasReferenceConflict } from "../../core/matching/matchingHelpers";
 
 const TOLERANCE_BPS = 2000n; // 20% in basis points
 const MIN_AMOUNT_TOLERANCE = 500n; // 500 paise / ₹5
@@ -146,9 +148,25 @@ export function generateCandidates(
         }
 
         // Reference similarity
-        if (referenceMatches(bankTxn.referenceNumber, bookTxn.referenceNumber)) {
-            score += 30;
-            reasons.push({ reason: "reference_match", points: 30 });
+        const bankRef = (bankTxn.referenceNumber || "").trim().toLowerCase();
+        const bookRef = (bookTxn.referenceNumber || "").trim().toLowerCase();
+        if (bankRef && bookRef) {
+            if (bankRef.includes(bookRef) || bookRef.includes(bankRef)) {
+                score += 30;
+                reasons.push({ reason: "reference_match", points: 30 });
+            } else {
+                const bankSignals = bankTxn.matchingSignals || {};
+                const bookSignals = bookTxn.matchingSignals || {};
+                const bankInv = bankSignals.invoiceNumber || "";
+                const bookInv = bookSignals.invoiceNumber || "";
+                if (isDigitTransposition(bankRef, bookRef) || (bankInv && bookInv && isDigitTransposition(bankInv, bookInv))) {
+                    score += 15;
+                    reasons.push({ reason: "reference_typo_transposition" as CandidateReasonType, points: 15 });
+                } else {
+                    score -= 20;
+                    reasons.push({ reason: "reference_mismatch_penalty" as CandidateReasonType, points: -20 });
+                }
+            }
         }
 
         // Counterparty similarity
@@ -163,6 +181,29 @@ export function generateCandidates(
         if (bankSource && bookSource && bankSource.toLowerCase() === bookSource.toLowerCase()) {
             score += 15;
             reasons.push({ reason: "source_alignment", points: 15 });
+        }
+
+        // Reference conflict penalty — must be applied here (before results.push / sort)
+        // so the penalised score participates in candidate ranking.
+        const refAlreadyMatched = reasons.some(r => r.reason === "reference_match");
+        const refConflict = hasReferenceConflict(
+            bankTxn.referenceNumber,
+            bookTxn.referenceNumber,
+            refAlreadyMatched
+        );
+        const signalMatch = reasons.some(r =>
+            r.reason === "utr_match" ||
+            r.reason === "invoice_match" ||
+            r.reason === "voucher_match"
+        );
+        if (refConflict && !signalMatch) {
+            // Both sides carry non-empty refs that disagree and no signal disambiguates.
+            // Apply a heavy penalty so the candidate falls below the Pass 1 threshold
+            // and drops to later passes. Do NOT hard-reject — preserves recall for
+            // txns without signals (e.g. ordinary ref-mismatch that still matches on
+            // counterparty + amount + date in Pass 5).
+            score -= 50;
+            reasons.push({ reason: "reference_conflict_penalty" as CandidateReasonType, points: -50 });
         }
 
         // Confidence band mapping

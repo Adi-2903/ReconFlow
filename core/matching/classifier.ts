@@ -20,7 +20,9 @@ export type ClassificationEvidenceCode =
   | "NAME_SPELLING_TYPO"
   | "DUPLICATE_PAYMENT_ROW"
   | "MISSING_INVOICE_REF"
-  | "OPERATING_EXPENSE";
+  | "OPERATING_EXPENSE"
+  | "MATCHED_EXACT_CLEAN"
+  | "PARTIAL_PAYMENT_CONFIRMED";
 
 export interface ClassificationEvidence {
   code: ClassificationEvidenceCode;
@@ -63,7 +65,7 @@ function getEditDistance(a: string, b: string): number {
   return matrix[b.length][a.length];
 }
 
-function isDigitTransposition(s1: string, s2: string): boolean {
+export function isDigitTransposition(s1: string, s2: string): boolean {
   const d1 = s1.replace(/\D/g, "");
   const d2 = s2.replace(/\D/g, "");
   if (!d1 || !d2 || d1.length !== d2.length) return false;
@@ -98,19 +100,21 @@ function matchesFeeFormula(bankAmt: number, ledgerAmt: number): boolean {
   const diff = ledgerAmt - bankAmt;
   if (diff <= 0) return false;
 
+  const allowedTolerance = Math.max(500, Math.round(ledgerAmt * 0.005));
+
   // 1. Stripe INR: 2.9% + 2500 paise (Rs. 25)
   const expectedStripeINR = Math.round(ledgerAmt * 0.029) + 2500;
-  if (Math.abs(diff - expectedStripeINR) <= 100) return true;
+  if (Math.abs(diff - expectedStripeINR) <= allowedTolerance) return true;
 
   // 2. Stripe USD: 2.9% + 3000 cents/paise ($0.30)
   const expectedStripeUSD = Math.round(ledgerAmt * 0.029) + 3000;
-  if (Math.abs(diff - expectedStripeUSD) <= 100) return true;
+  if (Math.abs(diff - expectedStripeUSD) <= allowedTolerance) return true;
 
   // 3. Razorpay / generic percentages (2%, 3%, 1.18%, 2.36%, 3.776%, 4.72%)
   const commonRates = [0.0118, 0.0236, 0.03776, 0.0472, 0.02, 0.029, 0.03];
   for (const rate of commonRates) {
     const expectedFee = Math.round(ledgerAmt * rate);
-    if (Math.abs(diff - expectedFee) <= 100) return true;
+    if (Math.abs(diff - expectedFee) <= allowedTolerance) return true;
   }
 
   return false;
@@ -295,7 +299,7 @@ export function classifyMatch(
   // Check PARTIALLY_MATCHED
   if (matchOutcome === "PARTIALLY_MATCHED") {
     evidence.push({
-      code: "MISSING_INVOICE_REF", // Reuse/suitable fallback
+      code: "PARTIAL_PAYMENT_CONFIRMED",
       message: `Bank payment satisfies only a portion of the ledger invoice (paid ${bankAmt / 100} of ${ledgerSum / 100}).`,
     });
     return {
@@ -314,11 +318,19 @@ export function classifyMatch(
     // Check ref digit transpositions
     const bankRef = bankTxn.referenceId || "";
     const bookRef = ledgerEntries[0]?.invoiceRef || "";
-    if (bankRef && bookRef && isDigitTransposition(bankRef, bookRef)) {
+    const bankSignals = bankTxn.matchingSignals || {};
+    const bookSignals = ledgerEntries[0]?.matchingSignals || {};
+    const bankInv = bankSignals.invoiceNumber || "";
+    const bookInv = bookSignals.invoiceNumber || "";
+
+    if ((bankRef && bookRef && isDigitTransposition(bankRef, bookRef)) || 
+        (bankInv && bookInv && isDigitTransposition(bankInv, bookInv))) {
       isTypo = true;
+      const displayBank = bankInv || bankRef;
+      const displayBook = bookInv || bookRef;
       evidence.push({
         code: "REFERENCE_TRANSPOSITION",
-        message: `Reference digit transposition typo detected: bank shows '${bankRef}', book shows '${bookRef}'.`,
+        message: `Reference digit transposition typo detected: bank shows '${displayBank}', book shows '${displayBook}'.`,
       });
     }
 
@@ -370,7 +382,7 @@ export function classifyMatch(
 
   // Default clean exact match
   evidence.push({
-    code: "FX_CONVERSION_STABLE", // Fallback code representing stable clean match
+    code: "MATCHED_EXACT_CLEAN",
     message: "Amount, date, and reference match exactly with no discrepancies.",
   });
   return {

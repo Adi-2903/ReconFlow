@@ -1,5 +1,6 @@
 import { differenceInDays } from "date-fns";
-import { classifyMatch, ClassificationResult } from "./classifier";
+import { classifyMatch, ClassificationResult, isDigitTransposition } from "./classifier";
+import { isStripePayoutTransaction, hasReferenceConflict } from "./matchingHelpers";
 
 
 export interface BankTransaction {
@@ -150,15 +151,17 @@ function matchesProcessorFee(bankAmtMinor: number, bookAmtMinor: number): boolea
   const diff = bookAmtMinor - bankAmtMinor;
   if (diff <= 0) return false;
   
+  const allowedTolerance = Math.max(500, Math.round(bookAmtMinor * 0.005));
+  
   const commonRates = [0.0118, 0.0236, 0.03776, 0.0472, 0.029, 0.02, 0.03];
   for (const rate of commonRates) {
     const expectedFee = Math.round(bookAmtMinor * rate);
-    if (Math.abs(diff - expectedFee) <= 100) { // allow 100 paise (Rs 1) rounding
+    if (Math.abs(diff - expectedFee) <= allowedTolerance) { // allow dynamic tolerance
       return true;
     }
   }
   const expectedStripeUSD = Math.round(bookAmtMinor * 0.029) + 3000;
-  if (Math.abs(diff - expectedStripeUSD) <= 100) {
+  if (Math.abs(diff - expectedStripeUSD) <= allowedTolerance) {
     return true;
   }
   return false;
@@ -195,13 +198,12 @@ function generateCandidates(
     const currenciesDiffer = bankTxn.currency && bookTxn.currency && bankTxn.currency !== bookTxn.currency;
     if (currenciesDiffer && bankTxn.fxStatus === "MISSING_RATE") continue;
 
+    const reportCurrencyBank = bankTxn.baseCurrency || bankTxn.currency;
+    const reportCurrencyBook = bookTxn.baseCurrency || bookTxn.currency;
     const currencyMatch =
       (!bankTxn.currency || !bookTxn.currency) ||
       (bankTxn.currency === bookTxn.currency) ||
-      (bankTxn.convertedAmountMinor !== undefined && bankTxn.convertedAmountMinor !== null &&
-       bookTxn.convertedAmountMinor !== undefined && bookTxn.convertedAmountMinor !== null &&
-       bankTxn.baseCurrency && bookTxn.baseCurrency &&
-       bankTxn.baseCurrency === bookTxn.baseCurrency);
+      (reportCurrencyBank && reportCurrencyBook && reportCurrencyBank === reportCurrencyBook);
 
     if (!currencyMatch) continue;
 
@@ -279,8 +281,18 @@ function generateCandidates(
         scoreVal += 30;
         reasons.push({ reason: "reference_match", points: 30 });
       } else {
-        scoreVal -= 20;
-        reasons.push({ reason: "reference_mismatch_penalty", points: -20 });
+        const bankSignals = bankTxn.matchingSignals || {};
+        const bookSignals = bookTxn.matchingSignals || {};
+        const bankInv = bankSignals.invoiceNumber || "";
+        const bookInv = bookSignals.invoiceNumber || "";
+
+        if (isDigitTransposition(bankRef, bookRef) || (bankInv && bookInv && isDigitTransposition(bankInv, bookInv))) {
+          scoreVal += 15;
+          reasons.push({ reason: "reference_typo_transposition", points: 15 });
+        } else {
+          scoreVal -= 20;
+          reasons.push({ reason: "reference_mismatch_penalty", points: -20 });
+        }
       }
     }
 
@@ -294,6 +306,27 @@ function generateCandidates(
     if (bankSource && bookSource && bankSource.toLowerCase() === bookSource.toLowerCase()) {
       scoreVal += 15;
       reasons.push({ reason: "source_alignment", points: 15 });
+    }
+
+    // Reference conflict penalty — must be applied here (before results.push / sort)
+    // so the penalised score participates in candidate ranking.
+    const refAlreadyMatched = reasons.some(r => r.reason === "reference_match");
+    const refConflict = hasReferenceConflict(
+      bankTxn.referenceId,
+      bookTxn.invoiceRef,
+      refAlreadyMatched
+    );
+    const signalMatch = reasons.some(r =>
+      r.reason === "utr_match" ||
+      r.reason === "invoice_match" ||
+      r.reason === "voucher_match"
+    );
+    if (refConflict && !signalMatch) {
+      // Both sides carry non-empty refs that disagree and no signal disambiguates.
+      // Apply a heavy penalty so the candidate falls below the Pass 1 threshold
+      // and drops to later passes. Do NOT hard-reject — preserves recall.
+      scoreVal -= 50;
+      reasons.push({ reason: "reference_conflict_penalty", points: -50 });
     }
 
     let confidenceBand: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW" = "LOW";
@@ -328,12 +361,14 @@ function matchesProcessorFeeForCombo(bankAmtMinor: number, combo: TransactionSta
   const diff = sumBookAmt - bankAmtMinor;
   if (diff <= 0) return false;
 
+  const allowedTolerance = combo.reduce((sum, bs) => sum + Math.max(500, Math.round(bs.remainingAmountMinor * 0.005)), 0);
+
   // 1. Stripe INR: 2.9% + Rs. 25 (2500 paise)
   const expectedStripeINR = combo.reduce((sum, bs) => {
     const amt = bs.remainingAmountMinor;
     return sum + Math.round(amt * 0.029) + 2500;
   }, 0);
-  if (Math.abs(diff - expectedStripeINR) <= 100 * combo.length) {
+  if (Math.abs(diff - expectedStripeINR) <= allowedTolerance) {
     return true;
   }
 
@@ -342,7 +377,7 @@ function matchesProcessorFeeForCombo(bankAmtMinor: number, combo: TransactionSta
     const amt = bs.remainingAmountMinor;
     return sum + Math.round(amt * 0.029) + 3000;
   }, 0);
-  if (Math.abs(diff - expectedStripeUSD) <= 100 * combo.length) {
+  if (Math.abs(diff - expectedStripeUSD) <= allowedTolerance) {
     return true;
   }
 
@@ -352,7 +387,7 @@ function matchesProcessorFeeForCombo(bankAmtMinor: number, combo: TransactionSta
     const expectedFee = combo.reduce((sum, bs) => {
       return sum + Math.round(bs.remainingAmountMinor * rate);
     }, 0);
-    if (Math.abs(diff - expectedFee) <= 100 * combo.length) {
+    if (Math.abs(diff - expectedFee) <= allowedTolerance) {
       return true;
     }
   }
@@ -433,6 +468,9 @@ export function matchTransactions(
         const dateDiffA = Math.abs(differenceInDays(bankTxn.date, a.candidate.candidate.date));
         const dateDiffB = Math.abs(differenceInDays(bankTxn.date, b.candidate.candidate.date));
         if (dateDiffA !== dateDiffB) return dateDiffA - dateDiffB;
+        const refA = a.candidate.candidate.invoiceRef || "";
+        const refB = b.candidate.candidate.invoiceRef || "";
+        if (refA !== refB) return refA.localeCompare(refB);
         return a.candidate.candidate.id.localeCompare(b.candidate.candidate.id);
       });
 
@@ -554,6 +592,18 @@ export function matchTransactions(
         if (dayDiff > 5.0) return false;
         if (!directionMatches(bankTxn, bs.txn)) return false;
 
+        // Currency guard — always applies even for Stripe payouts
+        const currenciesDiffer = bankTxn.currency && bs.txn.currency
+          && bankTxn.currency !== bs.txn.currency;
+        const sharesBase = (bankTxn.baseCurrency || bankTxn.currency)
+          === (bs.txn.baseCurrency || bs.txn.currency);
+        if (currenciesDiffer && !sharesBase) return false;
+
+        // Stripe escape hatch: bypass counterparty/ref gate only.
+        // Date, direction, and currency guards above still apply.
+        if (isStripePayoutTransaction(bankTxn)) return true;
+
+        // Standard counterparty/ref gate
         const sim = getCounterpartySimilarity(bankTxn.counterparty, bs.txn.counterparty);
         const hasRefOverlap = referenceMatches(bankTxn.referenceId, bs.txn.invoiceRef) ||
           (bankTxn.description && bs.txn.memo && getCounterpartySimilarity(bankTxn.description, bs.txn.memo) >= 0.4);

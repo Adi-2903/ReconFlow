@@ -6,6 +6,7 @@ import { generateCandidates } from "./candidateGenerator";
 import { CandidateReason, ConfidenceBand, CandidateReasonType, CandidateResult } from "../types/CandidateResult";
 import { daysBetween, referenceMatches, nameMatches, directionMatches, normalizeReference, normalizeName } from "./utils";
 import { classifyMatch } from "../../core/matching/classifier";
+import { isStripePayoutTransaction } from "../../core/matching/matchingHelpers";
 
 
 function getEffectiveAmountMinor(txn: CanonicalTransaction): bigint {
@@ -62,18 +63,20 @@ function matchesProcessorFee(bankAmtMinor: bigint, bookAmtMinor: bigint): boolea
     const diff = bookAmtMinor - bankAmtMinor;
     if (diff <= 0n) return false;
     
+    const allowedTolerance = Math.max(500, Math.round(Number(bookAmtMinor) * 0.005));
+
     // Check if difference matches typical Razorpay / Stripe fees:
     // 1.18%, 2.36%, 3.776%, 4.72%, 2.9%, 2%, 3%
     const commonRates = [0.0118, 0.0236, 0.03776, 0.0472, 0.029, 0.02, 0.03];
     for (const rate of commonRates) {
         const expectedFee = Math.round(Number(bookAmtMinor) * rate);
-        if (Math.abs(Number(diff) - expectedFee) <= 100) { // allow 1 INR/USD rounding
+        if (Math.abs(Number(diff) - expectedFee) <= allowedTolerance) { // allow dynamic tolerance
             return true;
         }
     }
     // Stripe standard USD payout: 2.9% + $0.30 (30 cents = 3000 paise equivalent)
     const expectedStripeUSD = Math.round(Number(bookAmtMinor) * 0.029) + 3000;
-    if (Math.abs(Number(diff) - expectedStripeUSD) <= 100) {
+    if (Math.abs(Number(diff) - expectedStripeUSD) <= allowedTolerance) {
         return true;
     }
     return false;
@@ -84,12 +87,14 @@ function matchesProcessorFeeForCombo(bankAmtMinor: bigint, combo: TransactionSta
     const diff = sumBookAmt - bankAmtMinor;
     if (diff <= 0n) return false;
 
+    const allowedTolerance = combo.reduce((sum, bs) => sum + Math.max(500, Math.round(Number(bs.remainingAmountMinor) * 0.005)), 0);
+
     // 1. Check Stripe INR fee: 2.9% + Rs. 25 (2500 paise) per transaction
     const expectedStripeINR = combo.reduce((sum, bs) => {
         const amt = Number(bs.remainingAmountMinor);
         return sum + Math.round(amt * 0.029) + 2500;
     }, 0);
-    if (Math.abs(Number(diff) - expectedStripeINR) <= 100 * combo.length) {
+    if (Math.abs(Number(diff) - expectedStripeINR) <= allowedTolerance) {
         return true;
     }
 
@@ -98,7 +103,7 @@ function matchesProcessorFeeForCombo(bankAmtMinor: bigint, combo: TransactionSta
         const amt = Number(bs.remainingAmountMinor);
         return sum + Math.round(amt * 0.029) + 3000;
     }, 0);
-    if (Math.abs(Number(diff) - expectedStripeUSD) <= 100 * combo.length) {
+    if (Math.abs(Number(diff) - expectedStripeUSD) <= allowedTolerance) {
         return true;
     }
 
@@ -108,7 +113,7 @@ function matchesProcessorFeeForCombo(bankAmtMinor: bigint, combo: TransactionSta
         const expectedFee = combo.reduce((sum, bs) => {
             return sum + Math.round(Number(bs.remainingAmountMinor) * rate);
         }, 0);
-        if (Math.abs(Number(diff) - expectedFee) <= 100 * combo.length) {
+        if (Math.abs(Number(diff) - expectedFee) <= allowedTolerance) {
             return true;
         }
     }
@@ -282,6 +287,9 @@ export function runMatcher(
                 const dateDiffA = daysBetween(bankTxn.transactionDate, a.candidate.candidate.transactionDate);
                 const dateDiffB = daysBetween(bankTxn.transactionDate, b.candidate.candidate.transactionDate);
                 if (dateDiffA !== dateDiffB) return dateDiffA - dateDiffB;
+                const refA = a.candidate.candidate.referenceNumber || "";
+                const refB = b.candidate.candidate.referenceNumber || "";
+                if (refA !== refB) return refA.localeCompare(refB);
                 return a.candidate.candidate.id.localeCompare(b.candidate.candidate.id);
             });
 
@@ -377,6 +385,7 @@ export function runMatcher(
 
     // ==========================================
     // PASS 3: SUBSET MATCH (Layer 6C)
+
     // ==========================================
     // Pass 3A: One-to-Many (1 Bank to N Books)
     for (const bankState of bankStates.values()) {
@@ -392,7 +401,19 @@ export function runMatcher(
                 const dayDiff = daysBetween(bankTxn.transactionDate, bs.txn.transactionDate);
                 if (dayDiff > 5.0) return false;
                 if (!directionMatches(bankTxn, bs.txn)) return false;
-                
+
+                // Currency guard — always applies even for Stripe payouts
+                const currenciesDiffer = bankTxn.currency && bs.txn.currency
+                    && bankTxn.currency !== bs.txn.currency;
+                const sharesBase = (bankTxn.baseCurrency || bankTxn.currency)
+                    === (bs.txn.baseCurrency || bs.txn.currency);
+                if (currenciesDiffer && !sharesBase) return false;
+
+                // Stripe escape hatch: bypass counterparty/ref gate only.
+                // Date, direction, and currency guards above still apply.
+                if (isStripePayoutTransaction(bankTxn)) return true;
+
+                // Standard counterparty/ref gate
                 const sim = getCounterpartySimilarity(bankTxn.counterparty, bs.txn.counterparty);
                 const hasRefOverlap = referenceMatches(bankTxn.referenceNumber, bs.txn.referenceNumber) ||
                     (bankTxn.description && bs.txn.description && getCounterpartySimilarity(bankTxn.description, bs.txn.description) >= 0.4);
@@ -574,6 +595,8 @@ export function runMatcher(
             const currenciesDiffer = bankTxn.currency && cand.candidate.currency && bankTxn.currency !== cand.candidate.currency;
             const meetsToleranceOrHasRef = refMatch || (nameMatch && (Number(bankAmt) >= Number(bookState.remainingAmountMinor) * 0.8));
 
+
+
             // Strict remaining balance validation: payment cannot exceed remaining amount. Same currency only.
             if (!currenciesDiffer && (refMatch || nameMatch) && isPartialAmountValid && meetsToleranceOrHasRef) {
                 const finalScore = cand.score + 5;
@@ -669,6 +692,8 @@ export function runMatcher(
                     }
                 }
             }
+
+
 
             // Standard Tolerance match (near match)
             if (dayDiff <= 7.0 && (refMatch || nameMatch)) {

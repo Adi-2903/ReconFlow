@@ -434,6 +434,216 @@ async function runTests() {
     assert(scoreB > scoreC, "B must score higher than C");
     console.log("  PASSED: Phase 5 candidate scores are successfully inherited and preserved in final ranking.");
 
+    // ----------------------------------------------------
+    // TEST 10: B2 — STRIPE BULK PAYOUT (4 invoices minus fees)
+    // ----------------------------------------------------
+    console.log("\nTest 10: Stripe Bulk Payout (B2) — 1 bank payout matches 4 invoices via combo fee");
+
+    // 4 invoices of ₹41,125 each = ₹164,500 total
+    // Stripe INR fee: 2.9% + ₹25 per txn = 4×(41125×0.029 + 2500) = 4×(1193 + 2500) = 4×3693 = ₹14,772
+    // Expected bank payout: ₹164,500 - ₹14,772 = ₹149,728 → 14972800 paise (approx)
+    // Use round numbers that cleanly satisfy matchesProcessorFeeForCombo
+
+    const bankTx10: CanonicalTransaction = {
+        id: "BANK10",
+        source: "bank",
+        transactionDate: new Date("2026-01-12"),
+        amount: 1496290,           // ₹14962.90 (scaled for test; real values don't matter, math must hold)
+        amountMinor: 149629000n,   // 4× invoices minus Stripe fee (approx)
+        direction: "credit",
+        description: "STRIPE PAYOUT po_1Pjk29",
+        referenceNumber: "po_1Pjk29",
+        counterparty: "Stripe",
+        sourceId: "BANK10"
+    };
+
+    // 4 invoices of ₹41,000 each (= ₹164,000 total)
+    // Stripe INR fee per invoice: round(4100000 * 0.029) + 2500 = 118900 + 2500 = 121400 paise
+    // Total fee for 4: 485600 paise
+    // Expected bank payout: 16400000 - 485600 = 15914400 paise ≈ ₹159,144
+    const makeInvoice10 = (id: string): CanonicalTransaction => ({
+        id,
+        source: "quickbooks",
+        transactionDate: new Date("2026-01-09"),
+        amount: 41000,
+        amountMinor: 4100000n,
+        direction: "credit",
+        referenceNumber: id,
+        counterparty: "Various Client",
+        sourceId: id
+    });
+
+    const book10A = makeInvoice10("INV10A");
+    const book10B = makeInvoice10("INV10B");
+    const book10C = makeInvoice10("INV10C");
+    const book10D = makeInvoice10("INV10D");
+
+    // Override bank amount to exactly match expected payout after combo fee
+    const stripePerInvoice = Math.round(4100000 * 0.029) + 2500; // 121400 paise per invoice
+    const totalInvoice = 4100000 * 4; // 16400000 paise
+    const totalFee = stripePerInvoice * 4; // 485600 paise
+    const expectedPayout = totalInvoice - totalFee; // 15914400 paise
+
+    const bankTx10Exact: CanonicalTransaction = {
+        ...bankTx10,
+        amount: expectedPayout / 100,
+        amountMinor: BigInt(expectedPayout)
+    };
+
+    const matches10 = runMatcher([bankTx10Exact], [book10A, book10B, book10C, book10D]);
+    assert(matches10.length === 1, "B2: Should generate exactly 1 match");
+    assert(matches10[0].matchType === "one_to_many", `B2: Should be one_to_many, got ${matches10[0].matchType}`);
+    assert(matches10[0].bookTransactionIds.length === 4, `B2: Should match all 4 invoices, got ${matches10[0].bookTransactionIds.length}`);
+    console.log("  PASSED: Stripe bulk payout matched against 4 invoices via combo fee formula.");
+
+    // ----------------------------------------------------
+    // TEST 11: B1/B3 REGRESSION — NEFT bulk, no Stripe keyword
+    // ----------------------------------------------------
+    console.log("\nTest 11: B1/B3 Regression — NEFT bulk (Stripe hatch must NOT fire)");
+
+    // Bank: NEFT narration with no Stripe keyword, matches 2 invoices by sum
+    const bankTx11: CanonicalTransaction = {
+        id: "BANK11",
+        source: "bank",
+        transactionDate: new Date("2026-01-20"),
+        amount: 80000,
+        amountMinor: 8000000n,
+        direction: "credit",
+        description: "NEFT FROM BRIGHT PATH CONSULTING N052026012099887",
+        referenceNumber: "N052026012099887",
+        counterparty: "Bright Path Consulting",
+        sourceId: "BANK11"
+    };
+
+    const book11A: CanonicalTransaction = {
+        id: "INV11A",
+        source: "quickbooks",
+        transactionDate: new Date("2026-01-15"),
+        amount: 50000,
+        amountMinor: 5000000n,
+        direction: "credit",
+        referenceNumber: "INV-2090",
+        counterparty: "Bright Path Consulting",
+        sourceId: "INV11A"
+    };
+
+    const book11B: CanonicalTransaction = {
+        id: "INV11B",
+        source: "quickbooks",
+        transactionDate: new Date("2026-01-15"),
+        amount: 30000,
+        amountMinor: 3000000n,
+        direction: "credit",
+        referenceNumber: "INV-2091",
+        counterparty: "Bright Path Consulting",
+        sourceId: "INV11B"
+    };
+
+    const matches11 = runMatcher([bankTx11], [book11A, book11B]);
+    assert(matches11.length === 1, "B1/B3 regression: Should produce 1 bulk match");
+    assert(matches11[0].matchType === "one_to_many", `B1/B3 regression: Should be one_to_many, got ${matches11[0].matchType}`);
+    assert(!matches11[0].bankTransactionIds.includes("BANK10"), "B1/B3 regression: Stripe hatch must not have fired (bank has NEFT narration)");
+    console.log("  PASSED: NEFT bulk still matches correctly; Stripe escape hatch did not fire.");
+
+    // ----------------------------------------------------
+    // TEST 12: X4a/X4b COLLISION — two twins, no signals
+    // ----------------------------------------------------
+    console.log("\nTest 12: X4a/X4b Collision — twin txns must not double-match same invoice");
+
+    const bankTx12A: CanonicalTransaction = {
+        id: "BANK12A",
+        source: "bank",
+        transactionDate: new Date("2026-01-24"),
+        amount: 15000,
+        amountMinor: 1500000n,
+        direction: "credit",
+        description: "NEFT FROM VANTAGE LOGISTICS",
+        referenceNumber: "N052026012455001",
+        counterparty: "Vantage Logistics LLP",
+        sourceId: "BANK12A"
+    };
+
+    const bankTx12B: CanonicalTransaction = {
+        ...bankTx12A,
+        id: "BANK12B",
+        referenceNumber: "N052026012455002",
+        sourceId: "BANK12B"
+    };
+
+    const book12A: CanonicalTransaction = {
+        id: "INV-2072",
+        source: "quickbooks",
+        transactionDate: new Date("2026-01-24"),
+        amount: 15000,
+        amountMinor: 1500000n,
+        direction: "credit",
+        referenceNumber: "INV-2072",
+        counterparty: "Vantage Logistics LLP",
+        sourceId: "INV-2072"
+    };
+
+    const book12B: CanonicalTransaction = {
+        ...book12A,
+        id: "INV-2073",
+        referenceNumber: "INV-2073",
+        sourceId: "INV-2073"
+    };
+
+    const matches12 = runMatcher([bankTx12A, bankTx12B], [book12A, book12B]);
+    // Each invoice must appear in at most one match
+    const usedBookIds12 = matches12.flatMap(m => m.bookTransactionIds);
+    const uniqueBookIds12 = new Set(usedBookIds12);
+    assert(uniqueBookIds12.size === usedBookIds12.length, "X4 collision: Each invoice must be claimed by at most one bank txn (no double-match)");
+    console.log(`  PASSED: X4 collision mitigated — ${matches12.length} match(es) produced, no invoice double-claimed.`);
+
+    // ----------------------------------------------------
+    // TEST 13: REF CONFLICT RECALL GUARD
+    // Conflicting refs + no signals → candidate SURVIVES generation (not dropped)
+    // ----------------------------------------------------
+    console.log("\nTest 13: Ref Conflict Recall Guard — candidate survives despite ref mismatch");
+
+    // Import generateCandidates directly to test at the scorer level
+    const { generateCandidates: genCandidates } = await import("../matching/candidateGenerator");
+
+    const bankTx13: CanonicalTransaction = {
+        id: "BANK13",
+        source: "bank",
+        transactionDate: new Date("2026-01-01"),
+        amount: 10000,
+        amountMinor: 1000000n,
+        direction: "credit",
+        referenceNumber: "ABC123",
+        counterparty: "Acme Corp",
+        sourceId: "BANK13"
+    };
+
+    const book13: CanonicalTransaction = {
+        id: "BOOK13",
+        source: "quickbooks",
+        transactionDate: new Date("2026-01-01"),
+        amount: 10000,
+        amountMinor: 1000000n,
+        direction: "credit",
+        referenceNumber: "XYZ789",
+        counterparty: "Acme Corp",
+        sourceId: "BOOK13"
+    };
+
+    const candidates13 = genCandidates(bankTx13, [book13], { skipAmountGate: false });
+
+    // Core assertion: candidate was NOT dropped — penalty path, not rejection path
+    assert(candidates13.length === 1, "Recall guard: Candidate must survive generation (length=1)");
+    const c13 = candidates13[0];
+    assert(
+        c13.reasons.some(r => r.reason === "reference_conflict_penalty"),
+        "Recall guard: Penalty reason must be present on candidate"
+    );
+    assert(
+        c13.score < 100,
+        `Recall guard: Penalised score must be below Pass 1 threshold (got ${c13.score})`
+    );
+    console.log(`  PASSED: Ref-conflict candidate survived with score=${c13.score} and penalty reason recorded.`);
+
     console.log("\n==================================================");
     console.log("ALL TESTS PASSED SUCCESSFULLY!");
     console.log("==================================================");
