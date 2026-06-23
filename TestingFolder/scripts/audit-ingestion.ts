@@ -258,9 +258,10 @@ async function main() {
     console.log(`  Expected outcome: ${expectedOutcome}`);
 
     if (expectedOutcome === "unmatched_ledger_only") {
-      // Confirm ledger row is unmatched (no match containing its ID)
+      // Confirm ledger row is unmatched (either no match, or an explicit unmatched_ledger match)
       const matchesWithLedger = generatedMatches.filter(m => m.bookTransactionIds.some(bid => dbLedgerRows.some(l => l.id === bid)));
-      if (matchesWithLedger.length === 0) {
+      const isUnmatched = matchesWithLedger.length === 0 || (matchesWithLedger.length === 1 && matchesWithLedger[0].matchType === "unmatched_ledger");
+      if (isUnmatched) {
         console.log(`  PASSED: Ledger row ${sc.ledger_id} remained correctly unmatched.`);
         passedScenarios++;
       } else {

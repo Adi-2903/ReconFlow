@@ -208,18 +208,22 @@ export function inferDateFormat(dateStrings: string[], locale?: string): string 
   }
 
   if (hasYearFirst) {
+    console.log("INFERRED: YYYY-MM-DD");
     return "YYYY-MM-DD";
   }
   if (hasDayGreaterThan12) {
+    console.log("INFERRED: DD/MM/YYYY");
     return "DD/MM/YYYY";
   }
   if (hasMonthGreaterThan12) {
+    console.log("INFERRED: MM/DD/YYYY");
     return "MM/DD/YYYY";
   }
 
   if (locale && (locale.includes("US") || locale.includes("en-US"))) {
+    console.log("INFERRED: MM/DD/YYYY from locale");
     return "MM/DD/YYYY";
   }
+  console.log("INFERRED: DD/MM/YYYY fallback");
   return "DD/MM/YYYY";
 }
-

@@ -166,6 +166,13 @@ export async function runReconciliation(
 
     await db.transaction(async (tx) => {
       for (const match of enhancedMatches) {
+        // unmatched_ledger: a ledger entry with no corresponding bank transaction.
+        // Counted as an exception for reporting; no match record or status update needed.
+        if (match.matchType === "unmatched_ledger") {
+          exceptions++;
+          continue;
+        }
+
         const isAutoApprove = match.matchType === "exact" && match.confidenceScore >= 0.95;
         const status = isAutoApprove ? "approved" : "pending";
 

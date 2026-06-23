@@ -1,7 +1,10 @@
 // TestingFolder/tests/engine.test.ts
 
-import { runMatcher } from "../matching/runMatcher";
+import { runMatcher as rawRunMatcher } from "../matching/runMatcher";
 import { CanonicalTransaction } from "../types/CanonicalTransaction";
+
+const runMatcher = (bankTxns: CanonicalTransaction[], bookTxns: CanonicalTransaction[]) => 
+    rawRunMatcher(bankTxns, bookTxns).filter(m => m.matchType !== "unmatched_ledger");
 
 function assert(condition: boolean, message: string) {
     if (!condition) {

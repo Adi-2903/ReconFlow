@@ -7,6 +7,7 @@ export type CandidateReasonType =
     | "amount_near_match"
     | "date_match"
     | "utr_match"
+    | "utr_deterministic_match"
     | "invoice_match"
     | "voucher_match"
     | "related_id_match"
@@ -21,6 +22,9 @@ export type CandidateReasonType =
     | "fee_match_validated"
     | "subset_match_validated"
     | "partial_payment_validated"
+    | "partial_payment_valid"
+    | "overpayment_detected"
+    | "advance_payment_detected"
     | "fx_difference_validated";
 
 export interface CandidateReason {

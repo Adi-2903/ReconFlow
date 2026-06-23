@@ -626,8 +626,17 @@ export function runMatcher(
 
 
 
+            const hasTypo = cand.reasons.some(r => 
+                r.reason === "reference_typo_transposition" || 
+                r.reason === "counterparty_typo_match"
+            );
+
+            if (cand.candidate.referenceNumber === "INV-2051") {
+                console.log(`F4 Pass 5 check: dayDiff=${dayDiff}, refMatch=${refMatch}, nameMatch=${nameMatch}, hasTypo=${hasTypo}`);
+            }
+
             // Standard Tolerance match (near match)
-            if (dayDiff <= 7.0 && (refMatch || nameMatch)) {
+            if (dayDiff <= 7.0 && (refMatch || nameMatch || hasTypo)) {
                 const diffAmt = bankAmt > bookAmt ? bankAmt - bookAmt : bookAmt - bankAmt;
                 const comparisonAmount = bankAmt > bookAmt ? bankAmt : bookAmt;
                 const calculatedTolerance = (comparisonAmount * 2000n) / 10000n; // 20% BPS
@@ -729,6 +738,25 @@ export function runMatcher(
             match.matchOutcome = classification.matchOutcome;
             match.discrepancyType = classification.discrepancyType;
             match.evidence = classification.evidence;
+        }
+    }
+
+    // ==========================================
+    // PASS 6: UNMATCHED LEDGER ENTRIES
+    // ==========================================
+    for (const bookState of bookStates.values()) {
+        if (bookState.status !== "MATCHED") {
+            matches.push({
+                matchOutcome: "UNKNOWN",
+                bankTransactionIds: [],
+                bookTransactionIds: [bookState.txn.id],
+                score: 0,
+                confidenceBand: "NONE",
+                matchType: "unmatched_ledger" as MatchType,
+                reasons: [],
+                discrepancyType: "NONE",
+                evidence: []
+            });
         }
     }
 

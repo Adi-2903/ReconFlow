@@ -23,14 +23,25 @@ export function isStripePayoutTransaction(txn: {
   description?: string;
   matchingSignals?: { channel?: string; source?: string };
 }): boolean {
+  const desc = (txn.description || "").toLowerCase();
+
+  if (desc.includes("stripe payout") || desc.includes("stripe transfer") || desc.includes("stripe payout") || desc.includes("payout")) {
+    // If it's explicitly a payout from description
+    return true;
+  }
+
+  if (desc.includes("stripe checkout") || desc.includes("charge")) {
+    // If it's explicitly a charge, do not treat it as a payout
+    return false;
+  }
+
   const source = (txn.matchingSignals?.source || "").toLowerCase();
   if (source === "stripe") return true;
 
   const channel = (txn.matchingSignals?.channel || "").toUpperCase();
   if (channel === "STRIPE") return true;
 
-  const desc = (txn.description || "").toLowerCase();
-  return desc.includes("stripe payout") || desc.includes("stripe transfer");
+  return false;
 }
 
 /**

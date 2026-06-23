@@ -1,7 +1,7 @@
 // core/matching/classifier.ts
 
 import { getConfidenceBand, isDigitTransposition, getEditDistance } from "./matchingHelpers";
-import { matchesProcessorFee } from "./feeFormulas";
+import { matchesProcessorFee, detectTdsDeduction } from "./feeFormulas";
 
 export type MatchOutcome = "MATCHED" | "PARTIALLY_MATCHED" | "UNMATCHED";
 
@@ -23,6 +23,7 @@ export type ClassificationEvidenceCode =
   | "STRIPE_FEE_FORMULA"
   | "RAZORPAY_FEE_FORMULA"
   | "GENERIC_PROCESSING_FEE"
+  | "TDS_DEDUCTION"
   | "FX_CONVERSION_STABLE"
   | "TIMING_LAG_DETECTED"
   | "REFERENCE_TRANSPOSITION"
@@ -32,6 +33,9 @@ export type ClassificationEvidenceCode =
   | "OPERATING_EXPENSE"
   | "MATCHED_EXACT_CLEAN"
   | "PARTIAL_PAYMENT_CONFIRMED"
+  | "ADVANCE_PAYMENT_DETECTED"
+  | "OVERPAYMENT_DETECTED"
+  | "UTR_EXACT_MATCH"
   | "AMOUNT_SHORTFALL"
   | "COUNTERPARTY_MISMATCH"
   | "REFERENCE_MISMATCH"
@@ -90,15 +94,20 @@ export function classifyMatch(
   allBankTxns?: { amount: number; date: Date; description: string; referenceId: string; counterparty?: string }[],
   totalScore?: number
 ): ClassificationResult {
-  // Determine Outcome
+  // ── Determine Outcome ──────────────────────────────────────────────────────
+  // "unmatched_ledger" represents a ledger entry with no corresponding bank
+  // transaction. Route it to the UNMATCHED path alongside "none".
   let matchOutcome: MatchOutcome = "MATCHED";
-  if (ledgerEntries.length === 0 || matchType === "none" || matchType === "unmatched") {
+  if (ledgerEntries.length === 0 || matchType === "none" || matchType === "unmatched" || matchType === "unmatched_ledger") {
     matchOutcome = "UNMATCHED";
   } else if (matchType === "partial_payment") {
-    matchOutcome = "PARTIALLY_MATCHED";
+    // Overpayment and advance payment both result in both sides being fully
+    // consumed; only a genuine underpayment remains PARTIALLY_MATCHED.
+    const hasOverpayment = reasons.some(r => r.reason === "overpayment_detected" || r.reason === "advance_payment_detected");
+    matchOutcome = hasOverpayment ? "MATCHED" : "PARTIALLY_MATCHED";
   }
 
-  // Mapped confidence and band
+  // ── Confidence band ────────────────────────────────────────────────────────
   let confidenceBand: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW" | "NONE" = "NONE";
   let confidence = 0.0;
 
@@ -113,7 +122,7 @@ export function classifyMatch(
 
   const evidence: ClassificationEvidence[] = [];
 
-  // 1. UNMATCHED CASES
+  // ── 1. UNMATCHED CASES ─────────────────────────────────────────────────────
   if (matchOutcome === "UNMATCHED") {
     const fullText = `${bankTxn.description} ${bankTxn.referenceId}`.toLowerCase();
 
@@ -135,7 +144,6 @@ export function classifyMatch(
           t.referenceId === bankTxn.referenceId
       );
       if (matchesSiblings.length > 1) {
-        // If there are duplicates, check if one of the siblings is matched
         isDuplicate = true;
         evidence.push({
           code: "DUPLICATE_PAYMENT_ROW",
@@ -156,10 +164,8 @@ export function classifyMatch(
 
     // DUPLICATE INVOICE EXCEPTION
     if (ledgerEntries && ledgerEntries.length > 1) {
-      // Very naive duplicate invoice check: if multiple ledger entries have the exact same invoiceRef, amount, date
       const uniqueInvoices = new Set(ledgerEntries.map(l => l.invoiceRef));
       if (uniqueInvoices.size < ledgerEntries.length && ledgerEntries.some(l => l.invoiceRef)) {
-          // there's a duplicate invoice
           evidence.push({
             code: "DUPLICATE_INVOICE_DETECTED",
             message: "Multiple identical invoices found in ledger for the same bank transaction."
@@ -205,7 +211,7 @@ export function classifyMatch(
     };
   }
 
-  // 2. MATCHED OR PARTIALLY_MATCHED CASES
+  // ── 2. MATCHED OR PARTIALLY_MATCHED CASES ─────────────────────────────────
   if (ledgerEntries.length === 0) {
       // Defensive guard
       return {
@@ -215,6 +221,21 @@ export function classifyMatch(
           confidence: 0,
           evidence: []
       };
+  }
+
+  // UTR EXACT MATCH — deterministic, no further discrepancy checks needed
+  if (matchType === "utr_exact") {
+    evidence.push({
+      code: "UTR_EXACT_MATCH",
+      message: "UTR (Unique Transaction Reference) matched exactly — RBI-mandated unique identifier confirms ground-truth reconciliation.",
+    });
+    return {
+      matchOutcome: "MATCHED",
+      discrepancyType: "NONE",
+      confidenceBand,
+      confidence,
+      evidence,
+    };
   }
 
   const bankAmt = bankTxn.amount;
@@ -227,7 +248,6 @@ export function classifyMatch(
     const convLedgerSum = ledgerEntries.reduce((sum, l) => sum + (l.convertedAmountMinor ?? l.amount), 0);
     const absDiff = Math.abs(convBank - convLedgerSum);
 
-    // If matchType is fx_difference, we trust the engine's tolerance
     if (matchType === "fx_difference" || absDiff <= 100) {
       evidence.push({
         code: "FX_CONVERSION_STABLE",
@@ -243,17 +263,37 @@ export function classifyMatch(
     }
   }
 
-  // Check PROCESSING_FEE
+  // Check PROCESSING_FEE (incl. TDS)
   if (matchType === "fee_adjustment" || matchesProcessorFee(bankAmt, ledgerSum)) {
     const feeDiff = ledgerSum - bankAmt;
     const ratePct = ((feeDiff / ledgerSum) * 100).toFixed(2);
     const isStripe = bankTxn.description.toUpperCase().includes("STRIPE");
     const isRazorpay = bankTxn.description.toUpperCase().includes("RAZORPAY");
-    
-    evidence.push({
-      code: isStripe ? "STRIPE_FEE_FORMULA" : isRazorpay ? "RAZORPAY_FEE_FORMULA" : "GENERIC_PROCESSING_FEE",
-      message: `Discrepancy of ${feeDiff} paise (${ratePct}%) matches standard payment processor fee formula.`,
-    });
+
+    if (isStripe) {
+      evidence.push({
+        code: "STRIPE_FEE_FORMULA",
+        message: `Discrepancy of ${feeDiff} paise (${ratePct}%) matches standard payment processor fee formula.`,
+      });
+    } else if (isRazorpay) {
+      evidence.push({
+        code: "RAZORPAY_FEE_FORMULA",
+        message: `Discrepancy of ${feeDiff} paise (${ratePct}%) matches standard payment processor fee formula.`,
+      });
+    } else {
+      const tdsRule = detectTdsDeduction(bankAmt, ledgerSum);
+      if (tdsRule) {
+        evidence.push({
+          code: "TDS_DEDUCTION",
+          message: `${tdsRule.description}: deduction of ${feeDiff} paise (${ratePct}%) on gross amount of ${ledgerSum / 100}.`,
+        });
+      } else {
+        evidence.push({
+          code: "GENERIC_PROCESSING_FEE",
+          message: `Discrepancy of ${feeDiff} paise (${ratePct}%) matches standard payment processor fee formula.`,
+        });
+      }
+    }
     return {
       matchOutcome,
       discrepancyType: "PROCESSING_FEE",
@@ -263,7 +303,39 @@ export function classifyMatch(
     };
   }
 
-  // Check PARTIALLY_MATCHED
+  // Check OVERPAYMENT / ADVANCE_PAYMENT
+  // Signalled by the engine via reasons when bank > book remaining amount.
+  if (reasons.some(r => r.reason === "overpayment_detected")) {
+    const excess = bankAmt - ledgerSum;
+    evidence.push({
+      code: "OVERPAYMENT_DETECTED",
+      message: `Bank payment of ${bankAmt / 100} exceeds invoice balance of ${ledgerSum / 100} by ${excess / 100}. Excess amount requires accountant review.`,
+    });
+    return {
+      matchOutcome: "MATCHED",
+      discrepancyType: "AMOUNT_DIFFERENCE",
+      confidenceBand,
+      confidence,
+      evidence,
+    };
+  }
+
+  if (reasons.some(r => r.reason === "advance_payment_detected")) {
+    const excess = bankAmt - ledgerSum;
+    evidence.push({
+      code: "ADVANCE_PAYMENT_DETECTED",
+      message: `Bank payment of ${bankAmt / 100} exceeds the full invoice amount of ${ledgerSum / 100} by ${excess / 100}. Likely an advance or prepayment — requires accountant review.`,
+    });
+    return {
+      matchOutcome: "MATCHED",
+      discrepancyType: "AMOUNT_DIFFERENCE",
+      confidenceBand,
+      confidence,
+      evidence,
+    };
+  }
+
+  // Check PARTIALLY_MATCHED (genuine underpayment, bank < book)
   if (matchOutcome === "PARTIALLY_MATCHED") {
     evidence.push({
       code: "PARTIAL_PAYMENT_CONFIRMED",
@@ -278,7 +350,30 @@ export function classifyMatch(
     };
   }
 
-  // Check TYPO & REFERENCE/COUNTERPARTY MISMATCH
+  // ── Issue 6: TIMING_DIFFERENCE check runs BEFORE TYPO check ───────────────
+  // Timing differences are structural realities of bank settlement; typos are
+  // metadata quality issues. When both exist, the timing difference is the
+  // primary accounting discrepancy.
+
+  // Check TIMING_DIFFERENCE first
+  if (matchType !== "exact") {
+    const dateDiff = Math.abs(bankTxn.date.getTime() - ledgerEntries[0].date.getTime()) / (1000 * 60 * 60 * 24);
+    if (dateDiff > 1.0 && Math.abs(bankAmt - ledgerSum) <= 100) {
+      evidence.push({
+        code: "TIMING_LAG_DETECTED",
+        message: `Amount matches exactly, but transaction date is delayed by ${Math.floor(dateDiff)} days.`,
+      });
+      return {
+        matchOutcome,
+        discrepancyType: "TIMING_DIFFERENCE",
+        confidenceBand,
+        confidence,
+        evidence,
+      };
+    }
+  }
+
+  // Check TYPO & REFERENCE/COUNTERPARTY MISMATCH (after timing)
   if (matchType !== "exact") {
     let isTypo = false;
 
@@ -290,7 +385,7 @@ export function classifyMatch(
     const bankInv = bankSignals.invoiceNumber || "";
     const bookInv = bookSignals.invoiceNumber || "";
 
-    if ((bankRef && bookRef && isDigitTransposition(bankRef, bookRef)) || 
+    if ((bankRef && bookRef && isDigitTransposition(bankRef, bookRef)) ||
         (bankInv && bookInv && isDigitTransposition(bankInv, bookInv))) {
       isTypo = true;
       const displayBank = bankInv || bankRef;
@@ -364,7 +459,6 @@ export function classifyMatch(
 
   // Check AMOUNT_DIFFERENCE for non-fee, non-FX matches that aren't partial payments
   if (Math.abs(bankAmt - ledgerSum) > 100) {
-      // There's a remaining amount difference!
       evidence.push({
           code: "AMOUNT_SHORTFALL",
           message: `Amount discrepancy of ${Math.abs(bankAmt - ledgerSum)} paise not explained by fee or FX.`,
@@ -376,23 +470,6 @@ export function classifyMatch(
           confidence,
           evidence
       };
-  }
-
-  // Check TIMING_DIFFERENCE
-  // Compute max date difference
-  const dateDiff = Math.abs(bankTxn.date.getTime() - ledgerEntries[0].date.getTime()) / (1000 * 60 * 60 * 24);
-  if (dateDiff > 1.0 && Math.abs(bankAmt - ledgerSum) <= 100) {
-    evidence.push({
-      code: "TIMING_LAG_DETECTED",
-      message: `Amount matches exactly, but transaction date is delayed by ${Math.floor(dateDiff)} days.`,
-    });
-    return {
-      matchOutcome,
-      discrepancyType: "TIMING_DIFFERENCE",
-      confidenceBand,
-      confidence,
-      evidence,
-    };
   }
 
   // Check LOW CONFIDENCE / MANUAL REVIEW
