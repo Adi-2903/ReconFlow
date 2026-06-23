@@ -16,6 +16,7 @@ export interface EvidencePanelProps {
     evidenceList?: Array<{ code: string; message: string }> | null;
     reasonText: string;
     scoringBreakdown: { amountScore: number; dateScore: number; textScore: number };
+    riskScore: number; // 0 – 100 integer (Phase 8)
     status: 'pending' | 'approved' | 'rejected';
     flags?: string[];
   } | null;
@@ -121,6 +122,20 @@ function EvidenceContent({ match, onApprove, onReject, onClose }: { match: NonNu
               {match.discrepancyType.replace(/_/g, " ")}
             </div>
           )}
+          {/* Phase 8 — Risk Score composite badge (factor breakdown deferred to Phase 9) */}
+          <div
+            className={`px-2.5 py-0.5 rounded-full border text-[10px] font-bold tracking-wider ${
+              match.riskScore >= 70
+                ? "bg-red-50 border-red-300 text-red-700"
+                : match.riskScore >= 35
+                ? "bg-amber-50 border-amber-300 text-amber-700"
+                : "bg-green-50 border-green-300 text-green-700"
+            }`}
+            title="Risk score (Phase 8)"
+          >
+            {match.riskScore >= 70 ? "⚠️ High Risk" : match.riskScore >= 35 ? "Med Risk" : "✓ Low Risk"}
+            {" "}{match.riskScore}/100
+          </div>
         </div>
       </div>
 

@@ -69,6 +69,24 @@ export function getConfidenceBand(score: number): "VERY_HIGH" | "HIGH" | "MEDIUM
   return "NONE";
 }
 
+/**
+ * Canonical inverse of getConfidenceBand.
+ * Maps a confidence band back to a representative 0.0–1.0 confidence float.
+ * Use this wherever a numeric confidence is derived from a raw score to avoid
+ * each phase re-encoding its own ternary chain.
+ */
+export function bandToConfidence(
+  band: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW" | "NONE"
+): number {
+  switch (band) {
+    case "VERY_HIGH": return 0.99;
+    case "HIGH":      return 0.85;
+    case "MEDIUM":    return 0.70;
+    case "LOW":       return 0.40;
+    default:          return 0.0; // NONE / unmatched
+  }
+}
+
 export function getEditDistance(a: string, b: string): number {
   if (a.length === 0) return b.length;
   if (b.length === 0) return a.length;

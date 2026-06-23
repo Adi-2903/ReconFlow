@@ -16,6 +16,7 @@ export type CandidateReasonType =
     | "reference_mismatch_penalty"
     | "reference_conflict_penalty"
     | "counterparty_match"
+    | "counterparty_typo_match"
     | "source_alignment"
     | "exact_match_validated"
     | "tolerance_match_validated"

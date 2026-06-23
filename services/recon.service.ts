@@ -195,6 +195,7 @@ export async function runReconciliation(
             classificationEvidence: match.classification.evidence,
             reasonText,
             evidence,
+            riskScore: match.riskScore,
             status,
           });
         }

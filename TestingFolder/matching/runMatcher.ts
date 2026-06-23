@@ -6,8 +6,9 @@ import { generateCandidates } from "./candidateGenerator";
 import { CandidateReason, ConfidenceBand, CandidateReasonType, CandidateResult } from "../types/CandidateResult";
 import { daysBetween, referenceMatches, nameMatches, directionMatches, normalizeReference, normalizeName } from "./utils";
 import { classifyMatch } from "../../core/matching/classifier";
-import { isStripePayoutTransaction, getConfidenceBand } from "../../core/matching/matchingHelpers";
+import { isStripePayoutTransaction, getConfidenceBand, bandToConfidence } from "../../core/matching/matchingHelpers";
 import { matchesProcessorFee, matchesProcessorFeeForCombo } from "../../core/matching/feeFormulas";
+import { computeRiskScore } from "../../core/matching/riskEngine";
 
 function getEffectiveAmountMinor(txn: CanonicalTransaction): bigint {
     const amt = txn.convertedAmountMinor !== undefined && txn.convertedAmountMinor !== null
@@ -245,6 +246,7 @@ export function runMatcher(
                 score: finalScore,
                 confidenceBand: getConfidenceBand(finalScore) as ConfidenceBand,
                 matchType: "exact",
+                riskScore: 0,
                 reasons: baseReasons
             });
         }
@@ -309,6 +311,7 @@ export function runMatcher(
                 score: finalScore,
                 confidenceBand: getConfidenceBand(finalScore) as ConfidenceBand,
                 matchType: "fee_adjustment",
+                riskScore: 0,
                 reasons: baseReasons
             });
         }
@@ -415,6 +418,7 @@ export function runMatcher(
                     score: finalScore,
                     confidenceBand: getConfidenceBand(finalScore) as ConfidenceBand,
                     matchType: "one_to_many",
+                    riskScore: 0,
                     reasons: [{ reason: "subset_match_validated" as CandidateReasonType, points: 15 }]
                 });
             }
@@ -496,6 +500,7 @@ export function runMatcher(
                     score: finalScore,
                     confidenceBand: getConfidenceBand(finalScore) as ConfidenceBand,
                     matchType: "many_to_one",
+                    riskScore: 0,
                     reasons: [{ reason: "subset_match_validated" as CandidateReasonType, points: 15 }]
                 });
             }
@@ -566,6 +571,7 @@ export function runMatcher(
                 score: finalScore,
                 confidenceBand: getConfidenceBand(finalScore) as ConfidenceBand,
                 matchType: "partial_payment",
+                riskScore: 0,
                 reasons: baseReasons
             });
         }
@@ -683,6 +689,7 @@ export function runMatcher(
                 score: best.score,
                 confidenceBand: getConfidenceBand(best.score) as ConfidenceBand,
                 matchType: best.matchType,
+                riskScore: 0,
                 reasons: best.reasons
             });
         }
@@ -753,11 +760,40 @@ export function runMatcher(
                 score: 0,
                 confidenceBand: "NONE",
                 matchType: "unmatched_ledger" as MatchType,
+                riskScore: 0,
                 reasons: [],
                 discrepancyType: "NONE",
                 evidence: []
             });
         }
+    }
+
+    // Phase 8 — Risk Scoring loop.
+    // Uses bandToConfidence(getConfidenceBand(score)) — the shared canonical mapper.
+    // BACKFILL NOTE: during live test runs all bank transactions in the run are available;
+    // for historical backfill the migration passes empty arrays (Option B strategy).
+    for (const match of matches) {
+      const bankTxn = bankTxns.find(b => match.bankTransactionIds.includes(b.id));
+      if (!bankTxn) {
+        // unmatched_ledger — no bank side; assign minimum risk
+        match.riskScore = 0;
+        continue;
+      }
+      const matchedBooks = bookTxns.filter(b => match.bookTransactionIds.includes(b.id));
+      const matchingConfidence = bandToConfidence(getConfidenceBand(match.score));
+      const breakdown = computeRiskScore({
+        amountMinor: Number(getEffectiveAmountMinor(bankTxn)),
+        matchingConfidence,
+        matchType: match.matchType,
+        discrepancyType: match.discrepancyType || "NONE",
+        bankDate: bankTxn.transactionDate,
+        ledgerDates: matchedBooks.map(b => b.transactionDate),
+        allBankDescriptions: bankTxns.map(b => b.description || ""),
+        allBankCounterparties: bankTxns.map(b => b.counterparty || ""),
+        thisBankDescription: bankTxn.description || "",
+        thisBankCounterparty: bankTxn.counterparty || undefined,
+      });
+      match.riskScore = breakdown.compositeScore;
     }
 
     return matches;

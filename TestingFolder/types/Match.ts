@@ -26,6 +26,7 @@ export interface Match {
     discrepancyType?: string;
     evidence?: Array<{ code: string; message: string }>;
 
+    riskScore: number; // 0 – 100 integer (Phase 8)
     explanation?: string;
     reasons?: CandidateReason[];
 }

@@ -12,6 +12,7 @@ export const sharedMatches: MatchData[] = [
     discrepancyType: "NONE",
     evidenceList: [{ code: "MATCHED_EXACT_CLEAN", message: "Clean exact match on amount and date." }],
     reasonText: "Exact match on amount and date.",
+    riskScore: 10,
     status: "pending",
   },
   {
@@ -24,6 +25,7 @@ export const sharedMatches: MatchData[] = [
     discrepancyType: "TIMING_DIFFERENCE",
     evidenceList: [{ code: "TIMING_LAG_DETECTED", message: "Amount matches, but date delay is 66 days." }],
     reasonText: "Amount matches perfectly. Date gap of 66 days identified, but customer name match confirms relation.",
+    riskScore: 46,
     status: "pending",
   },
   {
@@ -36,6 +38,7 @@ export const sharedMatches: MatchData[] = [
     discrepancyType: "PROCESSING_FEE",
     evidenceList: [{ code: "STRIPE_FEE_FORMULA", message: "Discrepancy of ₹232.00 matches Stripe fee rate." }],
     reasonText: "AI identified a ₹232.00 processing fee difference typical of Stripe payouts.",
+    riskScore: 23,
     status: "pending",
   },
   {
@@ -53,6 +56,7 @@ export const sharedMatches: MatchData[] = [
     discrepancyType: "NONE",
     evidenceList: [{ code: "MATCHED_EXACT_CLEAN", message: "Invoices sum exactly matches bank total." }],
     reasonText: "Sum of 3 ledger entries (10k + 15k + 10k) exactly matches the single bank deposit.",
+    riskScore: 12,
     status: "pending",
   },
   {
@@ -65,6 +69,7 @@ export const sharedMatches: MatchData[] = [
     discrepancyType: "NONE",
     evidenceList: [{ code: "OPERATING_EXPENSE", message: "Critical direction mismatch flagged." }],
     reasonText: "Amount matches, but AI flagged a critical mismatch: Bank shows a REFUND (deposit), but ledger shows a BILL PAYMENT (withdrawal). Opposite directions.",
+    riskScore: 71,
     status: "pending",
   },
 ];

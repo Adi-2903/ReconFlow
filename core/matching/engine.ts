@@ -2,6 +2,7 @@ import { differenceInDays } from "date-fns";
 import { classifyMatch, ClassificationResult } from "./classifier";
 import { isStripePayoutTransaction, hasReferenceConflict, getConfidenceBand, isDigitTransposition } from "./matchingHelpers";
 import { matchesProcessorFee, matchesProcessorFeeForCombo } from "./feeFormulas";
+import { computeRiskScore } from "./riskEngine";
 
 
 export interface BankTransaction {
@@ -67,6 +68,7 @@ export interface MatchResult {
     textScore: number;
   };
   classification: ClassificationResult;
+  riskScore: number; // 0 – 100 integer (Phase 8)
 }
 
 // ── Scoring and Helper Functions ──────────────────────────────────────────────
@@ -466,7 +468,8 @@ export function matchTransactions(
           amountScore: 1.0,
           dateScore: 1.0,
           textScore: 1.0
-        }
+        },
+        riskScore: 0
       });
     }
   }
@@ -539,7 +542,8 @@ export function matchTransactions(
           amountScore: 1.0,
           dateScore: 1.0,
           textScore: 1.0
-        }
+        },
+        riskScore: 0
       });
     }
   }
@@ -663,7 +667,8 @@ export function matchTransactions(
             amountScore: 0.95,
             dateScore: 0.90,
             textScore: 0.85
-          }
+        },
+        riskScore: 0
         });
       }
     }
@@ -751,7 +756,8 @@ export function matchTransactions(
             amountScore: 0.95,
             dateScore: 0.90,
             textScore: 0.85
-          }
+        },
+        riskScore: 0
         });
       }
     }
@@ -824,7 +830,8 @@ export function matchTransactions(
           amountScore: 0.90,
           dateScore: 0.85,
           textScore: 0.90
-        }
+        },
+        riskScore: 0
       });
     }
   }
@@ -936,7 +943,8 @@ export function matchTransactions(
           amountScore: 0.60,
           dateScore: 0.85,
           textScore: 0.90
-        }
+        },
+        riskScore: 0
       });
     }
   }
@@ -1042,7 +1050,8 @@ export function matchTransactions(
           amountScore: 0.80,
           dateScore: 0.85,
           textScore: 0.80
-        }
+        },
+        riskScore: 0
       });
     }
   }
@@ -1060,7 +1069,7 @@ export function matchTransactions(
         score: 0,
         confidenceBand: "NONE",
         matchType: "none",
-        scoringBreakdown: { amountScore: 0, dateScore: 0, textScore: 0 }
+        scoringBreakdown: { amountScore: 0, dateScore: 0, textScore: 0 }, riskScore: 0
       });
     }
   }
@@ -1076,7 +1085,7 @@ export function matchTransactions(
         score: 0,
         confidenceBand: "NONE",
         matchType: "unmatched_ledger",
-        scoringBreakdown: { amountScore: 0, dateScore: 0, textScore: 0 }
+        scoringBreakdown: { amountScore: 0, dateScore: 0, textScore: 0 }, riskScore: 0
       });
     }
   }
@@ -1125,6 +1134,26 @@ export function matchTransactions(
     );
   }
 
+  // Phase 8 — Risk Scoring: compute riskScore for every result after classification.
+  // Banks array is passed as-is for session-frequency anomaly detection.
+  for (const res of results) {
+    const primaryBank = banks.find(b => res.bankTransactionIds.includes(b.id));
+    const matchedLedgersForRisk = ledgers.filter(l => res.ledgerEntryIds.includes(l.id));
+    const breakdown = computeRiskScore({
+      amountMinor: primaryBank?.amount ?? 0,
+      matchingConfidence: res.confidenceScore,
+      matchType: res.matchType,
+      discrepancyType: res.classification?.discrepancyType ?? "NONE",
+      bankDate: primaryBank?.date ?? new Date(),
+      ledgerDates: matchedLedgersForRisk.map(l => l.date),
+      allBankDescriptions: banks.map(b => b.description),
+      allBankCounterparties: banks.map(b => b.counterparty || ""),
+      thisBankDescription: primaryBank?.description ?? "",
+      thisBankCounterparty: primaryBank?.counterparty,
+    });
+    res.riskScore = breakdown.compositeScore;
+  }
+
   // Sort: UTR first, then high confidence, exceptions last
   const typeOrder: Record<MatchType, number> = {
     utr_exact: 0,
@@ -1149,3 +1178,4 @@ export function matchTransactions(
 
   return results as MatchResult[];
 }
+

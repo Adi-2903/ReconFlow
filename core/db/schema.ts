@@ -543,6 +543,7 @@ export const matches = pgTable("matches", {
   classificationEvidence: jsonb("classification_evidence"),
   reasonText: text("reason_text"),
   evidence: jsonb("evidence"), // Added for AI explanations
+  riskScore: integer("risk_score").notNull().default(0),
   status: text("status").default("pending"),
   approvedBy: text("approved_by"),
   approvedAt: timestamp("approved_at"),

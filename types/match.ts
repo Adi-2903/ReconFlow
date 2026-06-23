@@ -14,5 +14,7 @@ export type MatchData = {
   discrepancyType?: "NONE" | "TIMING_DIFFERENCE" | "PROCESSING_FEE" | "FOREIGN_EXCHANGE" | "TYPO" | "DUPLICATE" | "MISSING_ENTRY" | string;
   evidenceList?: ClassificationEvidence[] | null;
   reasonText: string;
+  riskScore: number; // 0 – 100 integer (Phase 8)
   status: "pending" | "approved" | "rejected";
 };
+

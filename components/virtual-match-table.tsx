@@ -114,6 +114,20 @@ const MatchRowView = React.memo(({
                   : match.matchType}
               </span>
             </div>
+            <div className="flex items-center justify-center mt-0.5">
+              <span
+                className={`px-1.5 py-[1px] rounded text-[9px] font-bold tracking-wider ${
+                  match.riskScore >= 70
+                    ? "bg-red-100 text-red-700"
+                    : match.riskScore >= 35
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-green-100 text-green-700"
+                }`}
+                title={`Risk score: ${match.riskScore}/100`}
+              >
+                Risk {match.riskScore}
+              </span>
+            </div>
           </>
         ) : (
           <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">

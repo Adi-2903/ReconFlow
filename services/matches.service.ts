@@ -22,6 +22,7 @@ export interface MatchListItem {
   evidenceList: any[] | null;
   reasonText: string;
   scoringBreakdown: { amountScore: number; dateScore: number; textScore: number };
+  riskScore: number;
   status: string | null;
 }
 
@@ -116,13 +117,15 @@ export async function listMatches(
       evidenceList: (match as any).classificationEvidence || null,
       reasonText: match.reasonText || "",
       scoringBreakdown: { amountScore: 0, dateScore: 0, textScore: 0 },
+      riskScore: (match as any).riskScore as number,
       status: match.status,
     };
   });
 
+  // Primary sort: riskScore DESC (highest risk reviewed first).
+  // Secondary sort: confidenceScore ASC (lower confidence within same risk tier reviewed first).
   results.sort((a, b) => {
-    if (a.matchType === "none" && b.matchType !== "none") return -1;
-    if (b.matchType === "none" && a.matchType !== "none") return 1;
+    if (b.riskScore !== a.riskScore) return b.riskScore - a.riskScore;
     return a.confidenceScore - b.confidenceScore;
   });
 
