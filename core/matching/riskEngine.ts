@@ -3,13 +3,19 @@
 // Phase 8 — Risk Scoring Engine
 //
 // Pure, side-effect-free module. No DB access. Fully unit-testable.
-// Three production guardrails are baked in:
+// Production guardrails baked in:
 //   1. compositeScore is Math.round()ed before returning — safe for integer DB columns.
 //   2. Empty frequency key (blank description + counterparty) forces occurrences = 1,
 //      so all-empty CSV rows are flagged as anomalous rather than silently recurring.
 //   3. Age calculation uses Math.floor() after normalising both timestamps to
 //      midnight UTC, preventing timezone drift from bumping transactions into
 //      the next age band prematurely.
+//   4. amountMinor is Math.abs()ed before use — debit transactions may carry negative
+//      values; without this guard Math.log10 returns -Infinity and the composite
+//      score becomes NaN, which corrupts the integer DB column.
+//   5. allBankDescriptions and allBankCounterparties must be the same length when
+//      both are non-empty. A length mismatch emits a console.warn and falls back
+//      to descriptions-only to prevent silent undefined coercions.
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -57,16 +63,18 @@ export interface RiskInput {
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 /**
- * Normalises a string to a simple lowercase token for frequency grouping.
- * Returns the first non-empty significant token, or "" for fully blank input.
+ * Normalises a string to a stable lowercase token for frequency grouping.
+ * Uses the full cleaned string (not just the first word) to avoid cross-
+ * counterparty collisions such as "AXIS BANK" vs "AXIS FINANCE" collapsing
+ * to the same key "axis".
+ * Returns "" for fully blank input.
  */
 function normalizeFrequencyKey(text: string): string {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, "")
     .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")[0] ?? ""; // use first word only to reduce tokenisation noise
+    .trim();
 }
 
 /**
@@ -79,9 +87,14 @@ function toMidnightUTC(d: Date): number {
 
 // ── Factor calculators ────────────────────────────────────────────────────────
 
-/** Factor 1 — Amount Score (25% weight). Logarithmic scale to prevent cliffs. */
+/**
+ * Factor 1 — Amount Score (25% weight). Logarithmic scale to prevent cliffs.
+ * Guardrail: Math.abs() is applied first — debit transactions may carry negative
+ * amountMinor values. Without this, Math.log10 would return -Infinity (or NaN
+ * for amountMinor = -100), corrupting the composite score and the DB column.
+ */
 function computeAmountScore(amountMinor: number): number {
-  const amountInRupees = amountMinor / 100;
+  const amountInRupees = Math.abs(amountMinor) / 100;
   return Math.min(100, Math.log10(amountInRupees + 1) * 20);
 }
 
@@ -148,6 +161,29 @@ function computeFrequencyScore(
     return 0;
   }
 
+  // Guardrail: warn on array length mismatch to prevent silent undefined coercions.
+  // When both arrays are non-empty they must be parallel (same index = same transaction).
+  if (
+    allBankCounterparties.length > 0 &&
+    allBankDescriptions.length > 0 &&
+    allBankCounterparties.length !== allBankDescriptions.length
+  ) {
+    console.warn(
+      `[riskEngine] allBankCounterparties.length (${allBankCounterparties.length}) ` +
+      `!== allBankDescriptions.length (${allBankDescriptions.length}). ` +
+      "Falling back to descriptions-only for frequency scoring."
+    );
+    // Fall back to descriptions-only to avoid undefined[i] coercions
+    const fallbackKeys = allBankDescriptions.map((d) => normalizeFrequencyKey(d));
+    const fallbackKey = normalizeFrequencyKey(thisBankDescription);
+    if (fallbackKey === "") return 80;
+    const fallbackOccurrences = fallbackKeys.filter((k) => k === fallbackKey).length;
+    if (fallbackOccurrences >= 5) return 0;
+    if (fallbackOccurrences >= 3) return 20;
+    if (fallbackOccurrences >= 2) return 50;
+    return 80;
+  }
+
   const key = normalizeFrequencyKey(thisBankCounterparty || thisBankDescription);
 
   // Guardrail: blank rows are unique, not recurring
@@ -155,9 +191,11 @@ function computeFrequencyScore(
     return 80;
   }
 
+  // Build population keys. Prefer counterparty (more stable identifier) when available;
+  // fall back to description for entries with no counterparty.
   const allKeys = allBankCounterparties.length > 0
     ? allBankCounterparties.map((cp, i) =>
-        normalizeFrequencyKey(cp || allBankDescriptions[i] || "")
+        normalizeFrequencyKey((cp || allBankDescriptions[i]) ?? "")
       )
     : allBankDescriptions.map((d) => normalizeFrequencyKey(d));
 
@@ -172,17 +210,44 @@ function computeFrequencyScore(
 /**
  * Factor 5 — Classification Score (20% weight).
  * Directly consumes Phase 7 discrepancyType output.
+ *
+ * All DiscrepancyType variants emitted by classifier.ts are explicitly mapped.
+ * No variant falls to the default — prevents silently under-scoring high-risk
+ * matches such as MANUAL_REVIEW or DUPLICATE_INVOICE.
+ *
+ * Risk semantics:
+ *   NONE / low-risk clean matches                    →  0
+ *   PROCESSING_FEE  (known, explainable deduction)   → 20
+ *   TIMING_DIFFERENCE (structural bank lag)          → 30
+ *   FOREIGN_EXCHANGE (rate slippage)                 → 40
+ *   AMOUNT_DIFFERENCE (unexplained shortfall)        → 50
+ *   TYPO (data quality issue)                        → 50
+ *   REFERENCE_DIFFERENCE (ref mismatch)              → 55
+ *   COUNTERPARTY_DIFFERENCE (name mismatch)          → 60
+ *   MANUAL_REVIEW (low confidence, human needed)     → 70
+ *   DUPLICATE_INVOICE (invoice collision in ledger)  → 75
+ *   DUPLICATE (double payment on bank side)          → 80
+ *   MISSING_ENTRY (no ledger counterpart at all)     → 100
  */
 function computeClassificationScore(discrepancyType: string): number {
   switch (discrepancyType) {
-    case "NONE":               return 0;
-    case "PROCESSING_FEE":    return 20;
-    case "TIMING_DIFFERENCE": return 30;
-    case "FOREIGN_EXCHANGE":  return 40;
-    case "TYPO":              return 50;
-    case "DUPLICATE":         return 80;
-    case "MISSING_ENTRY":     return 100;
-    default:                  return 0;
+    case "NONE":                     return 0;
+    case "PROCESSING_FEE":           return 20;
+    case "TIMING_DIFFERENCE":        return 30;
+    case "FOREIGN_EXCHANGE":         return 40;
+    case "AMOUNT_DIFFERENCE":        return 50;
+    case "TYPO":                     return 50;
+    case "REFERENCE_DIFFERENCE":     return 55;
+    case "COUNTERPARTY_DIFFERENCE":  return 60;
+    case "MANUAL_REVIEW":            return 70;
+    case "DUPLICATE_INVOICE":        return 75;
+    case "DUPLICATE":                return 80;
+    case "MISSING_ENTRY":            return 100;
+    default:
+      // Unknown future type — emit a warning so it surfaces in logs rather than
+      // silently scoring 0 and masking a potential integration gap.
+      console.warn(`[riskEngine] Unknown discrepancyType "${discrepancyType}" — defaulting classification score to 50 (medium risk).`);
+      return 50;
   }
 }
 

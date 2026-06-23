@@ -50,6 +50,7 @@ async function runMigration() {
     const matchBatch = await db
       .select()
       .from(matches)
+      .orderBy(matches.id)   // deterministic pagination — prevents double-processing on restart
       .limit(BATCH_SIZE)
       .offset(offset);
 

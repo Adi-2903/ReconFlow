@@ -1137,19 +1137,40 @@ export function matchTransactions(
   // Phase 8 — Risk Scoring: compute riskScore for every result after classification.
   // Banks array is passed as-is for session-frequency anomaly detection.
   for (const res of results) {
-    const primaryBank = banks.find(b => res.bankTransactionIds.includes(b.id));
+    // unmatched_ledger: no bank side. Assign riskScore = 0 rather than calling
+    // computeRiskScore with synthetic data (amount=0, date=today), which would
+    // produce a meaningless score driven by today's date rather than actual risk.
+    if (res.matchType === "unmatched_ledger") {
+      res.riskScore = 0;
+      continue;
+    }
+
+    const matchedBankTxns = banks.filter(b => res.bankTransactionIds.includes(b.id));
+    const primaryBank = matchedBankTxns[0];
+
+    if (!primaryBank) {
+      res.riskScore = 0;
+      continue;
+    }
+
     const matchedLedgersForRisk = ledgers.filter(l => res.ledgerEntryIds.includes(l.id));
+
+    // For many-to-one matches multiple bank transactions contribute to a single
+    // ledger entry. Use the aggregate amount so the amount-based risk factor
+    // reflects the true transaction size, not just the first bank entry.
+    const aggregateAmountMinor = matchedBankTxns.reduce((sum, b) => sum + b.amount, 0);
+
     const breakdown = computeRiskScore({
-      amountMinor: primaryBank?.amount ?? 0,
+      amountMinor: aggregateAmountMinor,
       matchingConfidence: res.confidenceScore,
       matchType: res.matchType,
       discrepancyType: res.classification?.discrepancyType ?? "NONE",
-      bankDate: primaryBank?.date ?? new Date(),
+      bankDate: primaryBank.date,
       ledgerDates: matchedLedgersForRisk.map(l => l.date),
       allBankDescriptions: banks.map(b => b.description),
       allBankCounterparties: banks.map(b => b.counterparty || ""),
-      thisBankDescription: primaryBank?.description ?? "",
-      thisBankCounterparty: primaryBank?.counterparty,
+      thisBankDescription: primaryBank.description ?? "",
+      thisBankCounterparty: primaryBank.counterparty,
     });
     res.riskScore = breakdown.compositeScore;
   }
