@@ -702,7 +702,10 @@ export function matchTransactions(
 
       for (const combo of combos) {
         const sumAmt = combo.reduce((sum, bs) => sum + bs.remainingAmountMinor, 0);
-        if (Math.abs(sumAmt - bookAmt) <= 100) {
+        const isExactSum = Math.abs(sumAmt - bookAmt) <= 100;
+        const isFeeSum = matchesProcessorFeeForCombo(bookAmt, combo);
+
+        if (isExactSum || isFeeSum) {
           const baseScores = combo.map((bs) => {
             const candidatesResult = generateCandidates(bs.txn, [bookTxn], { skipAmountGate: true });
             return candidatesResult.length > 0 ? candidatesResult[0].score : 50;
