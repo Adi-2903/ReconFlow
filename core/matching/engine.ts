@@ -1,6 +1,6 @@
 import { differenceInDays } from "date-fns";
-import { classifyMatch, ClassificationResult, isDigitTransposition } from "./classifier";
-import { isStripePayoutTransaction, hasReferenceConflict, getConfidenceBand } from "./matchingHelpers";
+import { classifyMatch, ClassificationResult } from "./classifier";
+import { isStripePayoutTransaction, hasReferenceConflict, getConfidenceBand, isDigitTransposition } from "./matchingHelpers";
 import { matchesProcessorFee, matchesProcessorFeeForCombo } from "./feeFormulas";
 
 
@@ -138,17 +138,6 @@ function getCombinations<T>(arr: T[], minSize: number, maxSize: number): T[][] {
   };
   f(0, []);
   return result;
-}
-
-
-/** Returns true if this bank transaction is a Stripe payout (bulk settlement). */
-function isStripePayoutTransaction(bankTxn: BankTransaction): boolean {
-  const desc = (bankTxn.description || "").toLowerCase();
-  const ref  = (bankTxn.referenceId  || "").toLowerCase();
-  return desc.includes("stripe payout") ||
-         desc.includes("stripe transfer") ||
-         ref.includes("po_") ||
-         ref.includes("payout");
 }
 
 

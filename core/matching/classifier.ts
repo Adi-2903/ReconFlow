@@ -396,7 +396,7 @@ export function classifyMatch(
   }
 
   // Check LOW CONFIDENCE / MANUAL REVIEW
-  if (confidenceBand === "LOW" && matchOutcome !== "UNMATCHED") {
+  if (confidenceBand === "LOW") {
       evidence.push({
           code: "MANUAL_REVIEW_REQUIRED",
           message: "Match confidence is low. Requires manual accountant review.",
