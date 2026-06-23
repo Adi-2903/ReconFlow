@@ -26,10 +26,11 @@ export interface TdsDeductionRule {
  * in matchesProcessorFee, matchesProcessorFeeForCombo, and the classifier.
  */
 export const TDS_DEDUCTION_RULES: readonly TdsDeductionRule[] = [
-  { section: "194C", rate: 0.01,  description: "TDS on contractor/sub-contractor payments (194C) @ 1%" },
-  { section: "194H", rate: 0.02,  description: "TDS on commission or brokerage (194H) @ 2%" },
-  { section: "194A", rate: 0.05,  description: "TDS on interest other than securities (194A) @ 5%" },
-  { section: "194J", rate: 0.10,  description: "TDS on professional/technical services (194J) @ 10%" },
+  { section: "194C-individual", rate: 0.01, description: "TDS on contractor payments to individual (194C) @ 1%" },
+  { section: "194C-company",    rate: 0.02, description: "TDS on contractor payments to company (194C) @ 2%" },
+  { section: "194H",            rate: 0.02, description: "TDS on commission or brokerage (194H) @ 2%" },
+  { section: "194A",            rate: 0.05, description: "TDS on interest other than securities (194A) @ 5%" },
+  { section: "194J",            rate: 0.10, description: "TDS on professional/technical services (194J) @ 10%" },
 ];
 
 /**
@@ -116,15 +117,15 @@ export function matchesProcessorFeeForCombo(bankAmtMinor: bigint | number, combo
   // 1. Stripe INR
   const expectedStripeINR = combo.reduce((sum, bs) => {
     const amt = typeof bs.remainingAmountMinor === 'bigint' ? Number(bs.remainingAmountMinor) : bs.remainingAmountMinor;
-    return sum + Math.round(amt * 0.029) + 2500;
-  }, 0);
+    return sum + Math.round(amt * 0.029);
+  }, 0) + 2500;
   if (Math.abs(diff - expectedStripeINR) <= allowedTolerance) return true;
 
   // 2. Stripe USD
   const expectedStripeUSD = combo.reduce((sum, bs) => {
     const amt = typeof bs.remainingAmountMinor === 'bigint' ? Number(bs.remainingAmountMinor) : bs.remainingAmountMinor;
-    return sum + Math.round(amt * 0.029) + 3000;
-  }, 0);
+    return sum + Math.round(amt * 0.029);
+  }, 0) + 3000;
   if (Math.abs(diff - expectedStripeUSD) <= allowedTolerance) return true;
 
   // 3. Simple rates
