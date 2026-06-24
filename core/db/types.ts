@@ -30,10 +30,9 @@ export interface ScoreBreakdown {
  * All cache lookups filter on PROMPT_VERSION — a bump automatically
  * invalidates stale cache entries without deleting them.
  */
-export const PROMPT_VERSION = "p9-v1" as const;
+export const PROMPT_VERSION = "p9-v2" as const;
 
 export type RecommendedAction =
-  | "AUTO_APPROVE"
   | "MANUAL_REVIEW"
   | "REQUEST_DOCUMENTATION"
   | "CHECK_LEDGER"

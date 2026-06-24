@@ -85,33 +85,34 @@ type TemplateSpec = {
 const TEMPLATES: Partial<Record<string, TemplateSpec>> = {
   // Exact match
   NONE: {
-    explanationTemplate: "Exact match on amount and date. No discrepancy detected.",
-    suggestedAction: "AUTO_APPROVE",
-    requiresHumanReview: false,
+    // MANUAL_REVIEW is a temporary placeholder here to be revisited in a future phase
+    explanationTemplate: "Amount and date match exactly. This appears to be a clean settlement. Verify and approve if appropriate.",
+    suggestedAction: "MANUAL_REVIEW",
+    requiresHumanReview: true,
     likelyReason: "exact_match",
   },
   // Known payment processor fee deducted before settlement
   PROCESSING_FEE: {
     explanationTemplate:
-      "Processing fee of {difference} deducted by payment gateway before settlement.",
-    suggestedAction: "AUTO_APPROVE",
-    requiresHumanReview: false,
+      "A processing fee of {difference} appears to have been deducted by the payment gateway. Verify this against the settlement statement.",
+    suggestedAction: "CHECK_BANK_STATEMENT",
+    requiresHumanReview: true,
     likelyReason: "razorpay_fee",
   },
   // Bank settlement timing lag
   TIMING_DIFFERENCE: {
     explanationTemplate:
-      "Amount matches exactly. Bank settlement lag detected — ledger entry may have been recorded before the bank processed the transaction.",
-    suggestedAction: "AUTO_APPROVE",
-    requiresHumanReview: false,
+      "Amount matches exactly. A bank settlement lag was detected. Verify that the date difference is acceptable.",
+    suggestedAction: "MANUAL_REVIEW",
+    requiresHumanReview: true,
     likelyReason: "date_delay",
   },
   // FX conversion difference
   FOREIGN_EXCHANGE: {
     explanationTemplate:
-      "FX conversion difference of {difference}. The bank and ledger entries are in different currencies — residual is within expected exchange rate spread.",
-    suggestedAction: "AUTO_APPROVE",
-    requiresHumanReview: false,
+      "An FX conversion difference of {difference} was detected. The residual is within the expected spread. Verify the exchange rate.",
+    suggestedAction: "MANUAL_REVIEW",
+    requiresHumanReview: true,
     likelyReason: "fx_conversion",
   },
   // Genuine partial underpayment
@@ -267,7 +268,6 @@ async function withTimeout<T>(promise: Promise<T>, ms = 5000): Promise<T> {
 const LLMResponseSchema = z.object({
   explanationTemplate: z.string().min(10),
   suggestedAction: z.enum([
-    "AUTO_APPROVE",
     "MANUAL_REVIEW",
     "REQUEST_DOCUMENTATION",
     "CHECK_LEDGER",
@@ -275,7 +275,7 @@ const LLMResponseSchema = z.object({
     "INVESTIGATE_DUPLICATE",
     "FOLLOW_UP_VENDOR",
   ] as const),
-  requiresHumanReview: z.boolean().optional().default(true),
+  requiresHumanReview: z.literal(true),
 });
 
 // ── Cache Access ──────────────────────────────────────────────────────────────
@@ -373,9 +373,10 @@ RULES:
 - explanationTemplate: a single sentence (max 25 words) describing the discrepancy.
   Use only these placeholders where appropriate: {bankCounterparty}, {ledgerCounterparty},
   {bankReference}, {ledgerReference}, {difference}. Do not invent new placeholders.
-- suggestedAction: one of AUTO_APPROVE | MANUAL_REVIEW | REQUEST_DOCUMENTATION |
+- suggestedAction: one of MANUAL_REVIEW | REQUEST_DOCUMENTATION |
   CHECK_LEDGER | CHECK_BANK_STATEMENT | INVESTIGATE_DUPLICATE | FOLLOW_UP_VENDOR.
-- requiresHumanReview: boolean.
+- You must never recommend automatic approval.
+- requiresHumanReview: must always be true.
 - Do NOT include confidence scores, counterparty names, or reference numbers in your response.`;
 
 async function callLLM(

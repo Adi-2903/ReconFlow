@@ -261,11 +261,11 @@ async function runTests() {
 
     assert(result.reasoning.source === "PARAMETERIZED", "Should use PARAMETERIZED source");
     assert(provider.getCallCount() === 0, "LLM must NOT be called for deterministic path");
-    assert(result.reasoning.suggestedAction === "AUTO_APPROVE", "PROCESSING_FEE should auto-approve");
-    assert(!result.reasoning.requiresHumanReview, "PROCESSING_FEE should not require review");
+    assert(result.reasoning.suggestedAction === "CHECK_BANK_STATEMENT", "PROCESSING_FEE should suggest CHECK_BANK_STATEMENT");
+    assert(result.reasoning.requiresHumanReview === true, "PROCESSING_FEE should require human review");
   });
 
-  await test("TIMING_DIFFERENCE → source: PARAMETERIZED, auto-approve", async () => {
+  await test("TIMING_DIFFERENCE → source: PARAMETERIZED, requires review", async () => {
     const classification = makeClassification({
       discrepancyType: "TIMING_DIFFERENCE",
       confidenceBand: "HIGH",
@@ -279,7 +279,8 @@ async function runTests() {
     );
 
     assert(result.reasoning.source === "PARAMETERIZED", "Should use PARAMETERIZED");
-    assert(result.reasoning.suggestedAction === "AUTO_APPROVE", "Should auto-approve");
+    assert(result.reasoning.suggestedAction === "MANUAL_REVIEW", "Should suggest MANUAL_REVIEW");
+    assert(result.reasoning.requiresHumanReview === true, "Should require review");
     assert(provider.getCallCount() === 0, "LLM must NOT be called");
   });
 
