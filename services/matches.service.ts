@@ -1,5 +1,6 @@
 import { db } from "@/core/db";
 import { matches, canonicalTransactions, auditEvents } from "@/core/db/schema";
+import { getOrCreateUserOrganization } from "@/core/db/org-helper";
 import { eq, and, ne, inArray, sql, asc } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -83,17 +84,96 @@ function getSortedLockIds(match: {
   return [...new Set(ids)].sort();
 }
 
-// ─── Service functions ────────────────────────────────────────────────────────
+/**
+ * resolveCallerOrg
+ *
+ * Resolves the caller's organizationId via the organizationMembers table,
+ * then verifies that every supplied canonical_transaction UUID belongs to
+ * that organisation.  Throws a 403 if the caller has no org membership or
+ * if any transaction ID belongs to a different org.
+ *
+ * This is the single enforcement point for tenant isolation across all
+ * Phase 10 review operations.  It deliberately does NOT use a DB transaction
+ * because it is a read-only preflight; the real mutation happens inside
+ * db.transaction() which re-verifies state under FOR UPDATE NOWAIT.
+ *
+ * @param userId          - authenticated user's UUID
+ * @param txnIds          - one or more canonicalTransaction UUIDs to verify
+ * @returns               - the caller's resolved organizationId
+ */
+async function resolveCallerOrg(
+  userId: string,
+  txnIds: string[]
+): Promise<string> {
+  // 1. Resolve caller's org (reuses the established pattern from recon.service,
+  //    settings.service, etc.)
+  const orgId = await getOrCreateUserOrganization(userId);
+
+  if (txnIds.length === 0) return orgId;
+
+  // 2. Verify every transaction belongs to this org.
+  //    Fetch only organizationId — we do not need full rows here.
+  const rows = await db
+    .select({ id: canonicalTransactions.id, orgId: canonicalTransactions.organizationId })
+    .from(canonicalTransactions)
+    .where(inArray(canonicalTransactions.id, txnIds));
+
+  for (const row of rows) {
+    if (row.orgId !== orgId) {
+      throw Object.assign(
+        new Error("Forbidden: transaction belongs to a different organisation"),
+        { statusCode: 403 }
+      );
+    }
+  }
+
+  // 3. Detect any IDs that were not found at all (not a tenant-isolation
+  //    concern, but surfacing a clear 404 here avoids a confusing 409 later).
+  const foundIds = new Set(rows.map((r) => r.id));
+  const missing = txnIds.filter((id) => !foundIds.has(id));
+  if (missing.length > 0) {
+    throw Object.assign(
+      new Error(`Transactions not found: ${missing.join(", ")}`),
+      { statusCode: 404 }
+    );
+  }
+
+  return orgId;
+}
+
 
 export async function listMatches(
   userId: string,
   filter: string = "all"
 ): Promise<MatchListItem[]> {
+  // Resolve the caller's organization so we can scope the query.
+  // canonicalTransactions already carries organizationId; we push the filter
+  // into the JOIN condition rather than a post-hoc JS filter so the database
+  // enforces it and we never load foreign-org rows into memory.
+  const orgId = await getOrCreateUserOrganization(userId);
+
   const allMatches = await db
     .select({ match: matches, bankTx: canonicalTransactions })
     .from(matches)
-    .innerJoin(canonicalTransactions, eq(matches.bankTransactionId, canonicalTransactions.id))
-    .where(eq(matches.userId, userId));
+    .innerJoin(
+      canonicalTransactions,
+      and(
+        eq(matches.bankTransactionId, canonicalTransactions.id),
+        // Tenant isolation: only return matches whose bank transaction belongs
+        // to the caller's organisation.
+        eq(canonicalTransactions.organizationId, orgId)
+      )
+    )
+    .where(
+      and(
+        eq(matches.userId, userId),
+        // F-02: exclude superseded matches — they are permanently terminal records
+        // that exist only to preserve the audit trail of what the engine
+        // suggested before a manual match overrode it. They must never appear
+        // in any reviewer-facing list.
+        ne(matches.status, "superseded")
+      )
+    );
 
   let filtered = allMatches;
   if (filter === "pending") {
@@ -117,10 +197,16 @@ export async function listMatches(
   const allLedgerIds = Array.from(ledgerIdSet);
   let ledgers: any[] = [];
   if (allLedgerIds.length > 0) {
+    // Scope the ledger fetch to the same org for safety.
     ledgers = await db
       .select()
       .from(canonicalTransactions)
-      .where(inArray(canonicalTransactions.id, allLedgerIds));
+      .where(
+        and(
+          inArray(canonicalTransactions.id, allLedgerIds),
+          eq(canonicalTransactions.organizationId, orgId)
+        )
+      );
   }
 
   const ledgerMap = new Map<string, any>();
@@ -170,14 +256,14 @@ export async function listMatches(
           : null,
       confidenceScore: Number(match.confidenceScore || 0),
       matchType: match.matchType,
-      matchOutcome: (match as any).matchOutcome || null,
-      discrepancyType: (match as any).discrepancyType || null,
-      evidenceList: (match as any).classificationEvidence || null,
+      matchOutcome: match.matchOutcome || null,
+      discrepancyType: match.discrepancyType || null,
+      evidenceList: (match.classificationEvidence as any[]) || null,
       reasonText: match.reasonText || "",
       scoringBreakdown: { amountScore: 0, dateScore: 0, textScore: 0 },
-      riskScore: (match as any).riskScore as number,
+      riskScore: match.riskScore as number,
       status: match.status,
-      reviewType: (match as any).reviewType ?? "AUTO",
+      reviewType: match.reviewType ?? "AUTO",
     };
   });
 
@@ -190,6 +276,7 @@ export async function listMatches(
 
   return results;
 }
+
 
 /**
  * approveMatch
@@ -217,6 +304,13 @@ export async function approveMatch(
 
   const sortedIds = getSortedLockIds(matchRow);
 
+  // ── Tenant isolation pre-flight ────────────────────────────────────────────
+  // Verify that every canonical_transaction involved in this match belongs to
+  // the caller's organisation. Throws 403 if any ID is cross-org, 404 if any
+  // ID does not exist. Must run before the DB transaction so the error is
+  // surfaced cleanly without a lock being held.
+  const orgId = await resolveCallerOrg(userId, sortedIds);
+
   await db.transaction(async (tx) => {
     // ── 1. Lock the match row ──────────────────────────────────────────────────
     const lockedMatches = await tx
@@ -232,8 +326,28 @@ export async function approveMatch(
 
     const currentMatch = lockedMatches[0];
 
+    // ── TOCTOU Re-verification ─────────────────────────────────────────────────
+    // Re-verify ownership and immutability under lock to eliminate race conditions
+    if (currentMatch.userId !== userId) {
+      throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
+    }
+    const currentSortedIds = getSortedLockIds(currentMatch);
+    if (currentSortedIds.join(",") !== sortedIds.join(",")) {
+      throw new ReviewConflictError(
+        "CONCURRENT_CLAIM",
+        "This match was modified by another reviewer. Please refresh and try again."
+      );
+    }
+
     // ── 2. Assert status — distinguish finalized vs concurrent claim ───────────
-    if (currentMatch.status === "approved" || currentMatch.status === "rejected") {
+    // F-02: superseded is a permanent terminal state (engine match overridden by
+    // a manual match) and must map to ALREADY_FINALIZED — not CONCURRENT_CLAIM —
+    // so the reviewer is told not to retry rather than to wait and try again.
+    if (
+      currentMatch.status === "approved" ||
+      currentMatch.status === "rejected" ||
+      currentMatch.status === "superseded"
+    ) {
       throw new ReviewConflictError(
         "ALREADY_FINALIZED",
         "This match has already been finalized. Please refresh to see the current state."
@@ -249,13 +363,21 @@ export async function approveMatch(
     // ── 3. Lock canonical_transactions in sorted UUID order ───────────────────
     if (sortedIds.length > 0) {
       const lockedTxns = await tx
-        .select({ id: canonicalTransactions.id, status: canonicalTransactions.status })
+        .select({ id: canonicalTransactions.id, status: canonicalTransactions.status, orgId: canonicalTransactions.organizationId })
         .from(canonicalTransactions)
         .where(inArray(canonicalTransactions.id, sortedIds))
         .for("update", { noWait: true });
 
-      // Assert all rows still belong to this match group (no concurrent reassignment)
+      // TOCTOU Re-verification: ensure all records still exist
+      if (lockedTxns.length !== sortedIds.length) {
+        throw Object.assign(new Error("Transactions not found"), { statusCode: 404 });
+      }
+
+      // Assert all rows still belong to this org and match group (no concurrent reassignment)
       for (const row of lockedTxns) {
+        if (row.orgId !== orgId) {
+          throw Object.assign(new Error("Forbidden: transaction belongs to a different organisation"), { statusCode: 403 });
+        }
         if (row.status === "LOCKED_APPROVED") {
           throw new ReviewConflictError(
             "ALREADY_FINALIZED",
@@ -308,6 +430,11 @@ export async function rejectMatch(
 
   const sortedIds = getSortedLockIds(matchRow);
 
+  // ── Tenant isolation pre-flight ────────────────────────────────────────────
+  // Mirrors the check in approveMatch — ensures the caller's org owns every
+  // canonical_transaction that would be released back to AVAILABLE.
+  const orgId = await resolveCallerOrg(userId, sortedIds);
+
   await db.transaction(async (tx) => {
     // ── 1. Lock the match row ──────────────────────────────────────────────────
     const lockedMatches = await tx
@@ -323,8 +450,27 @@ export async function rejectMatch(
 
     const currentMatch = lockedMatches[0];
 
+    // ── TOCTOU Re-verification ─────────────────────────────────────────────────
+    if (currentMatch.userId !== userId) {
+      throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
+    }
+    const currentSortedIds = getSortedLockIds(currentMatch);
+    if (currentSortedIds.join(",") !== sortedIds.join(",")) {
+      throw new ReviewConflictError(
+        "CONCURRENT_CLAIM",
+        "This match was modified by another reviewer. Please refresh and try again."
+      );
+    }
+
     // ── 2. Assert status ───────────────────────────────────────────────────────
-    if (currentMatch.status === "approved" || currentMatch.status === "rejected") {
+    // F-02: superseded must map to ALREADY_FINALIZED, not CONCURRENT_CLAIM.
+    // A superseded match was permanently overridden by a manual match and cannot
+    // be rejected; telling the reviewer to "try again" is semantically wrong.
+    if (
+      currentMatch.status === "approved" ||
+      currentMatch.status === "rejected" ||
+      currentMatch.status === "superseded"
+    ) {
       throw new ReviewConflictError(
         "ALREADY_FINALIZED",
         "This match has already been finalized. Please refresh to see the current state."
@@ -339,11 +485,22 @@ export async function rejectMatch(
 
     // ── 3. Lock canonical_transactions in sorted UUID order ───────────────────
     if (sortedIds.length > 0) {
-      await tx
-        .select({ id: canonicalTransactions.id })
+      const lockedTxns = await tx
+        .select({ id: canonicalTransactions.id, orgId: canonicalTransactions.organizationId })
         .from(canonicalTransactions)
         .where(inArray(canonicalTransactions.id, sortedIds))
         .for("update", { noWait: true });
+
+      // TOCTOU Re-verification
+      if (lockedTxns.length !== sortedIds.length) {
+        throw Object.assign(new Error("Transactions not found"), { statusCode: 404 });
+      }
+
+      for (const row of lockedTxns) {
+        if (row.orgId !== orgId) {
+          throw Object.assign(new Error("Forbidden: transaction belongs to a different organisation"), { statusCode: 403 });
+        }
+      }
     }
 
     // ── 4. Apply the rejection ────────────────────────────────────────────────
@@ -412,6 +569,13 @@ export async function manualMatch(
   // Sort all IDs alphabetically for consistent lock acquisition order
   const sortedIds = [...new Set([bankTransactionId, ...ledgerEntryIds])].sort();
 
+  // ── Tenant isolation pre-flight ────────────────────────────────────────────
+  // Verify that the bank transaction AND every selected ledger entry all belong
+  // to the caller's organisation before we acquire any locks. resolveCallerOrg
+  // also handles the "transaction not found" case, so we remove the duplicate
+  // check that was previously inside the DB transaction.
+  const orgId = await resolveCallerOrg(userId, sortedIds);
+
   let newMatchId: string = "";
 
   await db.transaction(async (tx) => {
@@ -419,23 +583,24 @@ export async function manualMatch(
     // This prevents deadlock regardless of what order other concurrent
     // transactions acquire their locks.
     const lockedRows = await tx
-      .select({ id: canonicalTransactions.id, status: canonicalTransactions.status })
+      .select({ id: canonicalTransactions.id, status: canonicalTransactions.status, orgId: canonicalTransactions.organizationId })
       .from(canonicalTransactions)
       .where(inArray(canonicalTransactions.id, sortedIds))
       .for("update", { noWait: true });
 
-    // Verify all requested IDs were found
-    const foundIds = new Set(lockedRows.map((r) => r.id));
-    const missing = sortedIds.filter((id) => !foundIds.has(id));
-    if (missing.length > 0) {
+    // TOCTOU Re-verification: Verify all requested IDs were found
+    if (lockedRows.length !== sortedIds.length) {
       throw Object.assign(
-        new Error(`Transactions not found: ${missing.join(", ")}`),
+        new Error("Transactions not found"),
         { statusCode: 404 }
       );
     }
 
-    // ── 2. Assert each row is available ────────────────────────────────────────
+    // ── 2. Assert each row is available and belongs to org ─────────────────────
     for (const row of lockedRows) {
+      if (row.orgId !== orgId) {
+        throw Object.assign(new Error("Forbidden: transaction belongs to a different organisation"), { statusCode: 403 });
+      }
       if (row.status === "LOCKED_APPROVED") {
         throw new ReviewConflictError(
           "ALREADY_FINALIZED",
@@ -486,7 +651,7 @@ export async function manualMatch(
         reasonText: reason ?? "Manual match created by reviewer",
         riskScore: 0,
       })
-      .returning({ id: matches.id });
+      .returning();
 
     newMatchId = newMatch.id;
 
@@ -519,9 +684,23 @@ export async function bulkApproveMatches(
   threshold: number,
   actorEmail: string
 ): Promise<BulkApproveResult> {
+  // Resolve caller's org once, then scope the pending-matches fetch via a JOIN
+  // on canonicalTransactions.organizationId so we never load or approve matches
+  // that belong to a different organisation.
+  const orgId = await getOrCreateUserOrganization(userId);
+
   const pendingMatches = await db
-    .select()
+    .select({ match: matches })
     .from(matches)
+    .innerJoin(
+      canonicalTransactions,
+      and(
+        eq(matches.bankTransactionId, canonicalTransactions.id),
+        // Tenant isolation: only consider matches whose bank transaction belongs
+        // to the caller's organisation.
+        eq(canonicalTransactions.organizationId, orgId)
+      )
+    )
     .where(
       and(
         eq(matches.userId, userId),
@@ -530,7 +709,9 @@ export async function bulkApproveMatches(
       )
     );
 
-  const toApprove = pendingMatches.filter((m) => Number(m.confidenceScore) >= threshold);
+  const toApprove = pendingMatches
+    .map((r) => r.match)
+    .filter((m) => Number(m.confidenceScore) >= threshold);
   if (toApprove.length === 0) return { approvedCount: 0 };
 
   // Bulk approve: each match approved individually inside the same transaction.

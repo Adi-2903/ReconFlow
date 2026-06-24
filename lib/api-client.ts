@@ -138,10 +138,10 @@ export const api = {
       ),
 
     /** Bulk approve all pending matches above a confidence threshold */
-    bulkApprove: (runId: string, threshold: number) =>
+    bulkApprove: (threshold: number) =>
       request<{ approvedCount: number }>("/api/matches/bulk-approve", {
         method: "POST",
-        body: JSON.stringify({ runId, threshold }),
+        body: JSON.stringify({ threshold }),
       }),
   },
 

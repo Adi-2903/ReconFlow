@@ -124,7 +124,12 @@ export async function GET(req: NextRequest) {
       const [bankRow] = await db
         .select()
         .from(canonicalTransactions)
-        .where(eq(canonicalTransactions.id, bankId))
+        .where(
+          and(
+            eq(canonicalTransactions.id, bankId),
+            eq(canonicalTransactions.organizationId, organizationId)
+          )
+        )
         .limit(1);
 
       if (!bankRow) {

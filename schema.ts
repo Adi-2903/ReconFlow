@@ -585,6 +585,10 @@ export const matches = pgTable("matches", {
   approvedBy: text("approved_by"),
   approvedAt: timestamp("approved_at"),
   createdAt: timestamp("created_at").defaultNow(),
+}, (table) => {
+  return {
+    statusCheck: check("chk_matches_status", sql`${table.status} IN ('pending', 'approved', 'rejected', 'superseded')`)
+  };
 });
 
 export const auditEvents = pgTable("audit_events", {

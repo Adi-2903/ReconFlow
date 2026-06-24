@@ -82,44 +82,6 @@ export interface MatchResult {
 
 // ── Scoring and Helper Functions ──────────────────────────────────────────────
 
-function normalizeReference(ref?: string): string {
-  if (!ref) return "";
-  return ref.toUpperCase().replace(/[^A-Z0-9]/g, "");
-}
-
-function normalizeName(name?: string): string {
-  if (!name) return "";
-  return name
-    .toUpperCase()
-    .replace(/\b(CORPORATION|CORP|PVT|PRIVATE|LTD|LIMITED|SOLUTIONS|SOLUTION)\b/g, "")
-    .replace(/[^A-Z0-9]/g, "");
-}
-
-function referenceMatches(bankRef?: string, bookRef?: string): boolean {
-  const a = normalizeReference(bankRef);
-  const b = normalizeReference(bookRef);
-  if (!a || !b) return false;
-  return a === b || a.includes(b) || b.includes(a);
-}
-
-function nameMatches(bank?: string, book?: string): boolean {
-  const a = normalizeName(bank);
-  const b = normalizeName(book);
-  if (!a || !b) return false;
-  return a === b || a.includes(b) || b.includes(a);
-}
-
-function directionMatches(a: BankTransaction | LedgerEntry, b: BankTransaction | LedgerEntry): boolean {
-  if (!a.direction || !b.direction) return true; // default match if direction is not provided
-  
-  // normalize directions: inflow/credit vs outflow/debit
-  const getDir = (d: string) => {
-    const norm = d.toLowerCase();
-    if (norm === "credit" || norm === "inflow") return "in";
-    return "out";
-  };
-  return getDir(a.direction) === getDir(b.direction);
-}
 
 function getCounterpartySimilarity(a?: string, b?: string): number {
   if (!a || !b) return 0;
@@ -154,11 +116,6 @@ function getCombinations<T>(arr: T[], minSize: number, maxSize: number): T[][] {
 }
 
 
-function getEffectiveAmountMinor(txn: BankTransaction | LedgerEntry): number {
-  return txn.convertedAmountMinor !== undefined && txn.convertedAmountMinor !== null
-    ? txn.convertedAmountMinor
-    : txn.amount;
-}
 
 // candidateGenerator.ts owns all candidate scoring / ranking logic.
 // Re-exported here for backwards compatibility with any imports that

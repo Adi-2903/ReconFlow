@@ -1,6 +1,6 @@
 import { db } from "@/core/db";
 import { matches, canonicalTransactions } from "@/core/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,7 +65,16 @@ export async function getReportSummary(
     })
     .from(matches)
     .innerJoin(canonicalTransactions, eq(matches.bankTransactionId, canonicalTransactions.id))
-    .where(eq(matches.userId, userId));
+    .where(
+      and(
+        eq(matches.userId, userId),
+        // F-02: superseded matches are permanently overridden engine suggestions.
+        // Excluding them at the SQL level ensures they cannot inflate any report
+        // counter (totalTransactions, autoMatched, manualReview, exceptions) or
+        // appear in the exceptions list as "Resolved" items.
+        ne(matches.status, "superseded")
+      )
+    );
 
   // Filter to period in JS (handles both ISO string and Date column formats)
   const filteredMatches = allMatches.filter((m) => {

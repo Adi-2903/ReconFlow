@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/core/db";
 import { auditEvents, matches } from "@/core/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, count } from "drizzle-orm";
 
 /**
  * GET /api/audit-logs
@@ -49,6 +49,14 @@ export async function GET(req: NextRequest) {
       conditions.push(eq(auditEvents.matchId, matchId));
     }
 
+    // F-08: Run COUNT(*) with the same conditions before fetching the page.
+    // This returns the real total number of matching audit events so the caller
+    // can compute page counts correctly, without loading every row into memory.
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(auditEvents)
+      .where(and(...conditions));
+
     const rows = await db
       .select()
       .from(auditEvents)
@@ -62,7 +70,7 @@ export async function GET(req: NextRequest) {
       matchId: row.matchId ?? null,
       action: row.action,
       actorEmail: row.actorEmail ?? null,
-      reason: (row as any).reason ?? null,
+      reason: row.reason ?? null,
       timestamp:
         row.timestamp instanceof Date
           ? row.timestamp.toISOString()
@@ -70,7 +78,7 @@ export async function GET(req: NextRequest) {
       metadata: row.metadata ?? null,
     }));
 
-    return Response.json({ data, total: data.length });
+    return Response.json({ data, total });
   } catch (error) {
     console.error("Audit logs error:", error);
     return Response.json({ error: "Internal server error" }, { status: 500 });
