@@ -6,6 +6,8 @@ import { eq, and, or, sql, desc } from "drizzle-orm";
 
 export interface ExceptionItem {
   id: string;
+  bankTransactionId: string;
+  ledgerEntryIds: string[];
   amount: number;
   date: string;
   source: string;
@@ -40,6 +42,8 @@ export async function listExceptions(userId: string): Promise<ExceptionsResult> 
   const exceptionsData = await db
     .select({
       id: matches.id,
+      bankTransactionId: matches.bankTransactionId,
+      ledgerEntryIds: matches.ledgerEntryIds,
       amountMinor: canonicalTransactions.amountMinor,
       date: canonicalTransactions.transactionDate,
       referenceId: canonicalTransactions.referenceNumber,
@@ -78,6 +82,8 @@ export async function listExceptions(userId: string): Promise<ExceptionsResult> 
 
     return {
       id: exc.id,
+      bankTransactionId: exc.bankTransactionId || "",
+      ledgerEntryIds: exc.ledgerEntryIds || [],
       amount: Number(exc.amountMinor),
       date: new Date(exc.date).toLocaleDateString("en-IN", {
         month: "short",

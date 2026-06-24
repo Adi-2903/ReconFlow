@@ -1,8 +1,6 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { db } from "@/core/db";
-import { users, matches, auditEvents, canonicalTransactions } from "@/core/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { rejectMatch, ReviewConflictError } from "@/services/matches.service";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,52 +17,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const actorEmail = session?.user?.email || "unknown";
 
-    const matchResult = await db.select().from(matches).where(eq(matches.id, matchId)).limit(1);
-    if (!matchResult.length) {
-      return Response.json({ error: "Match not found" }, { status: 404 });
-    }
-    const match = matchResult[0];
+    const body = await req.json().catch(() => ({}));
+    const reason: string | undefined = typeof body?.reason === "string" ? body.reason.trim() || undefined : undefined;
 
-    if (match.userId !== internalUserId) {
-      return Response.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    if (match.status !== "pending") {
-      return Response.json({ error: "Conflict: Match is already processed" }, { status: 409 });
-    }
-
-    await db.transaction(async (tx) => {
-      await tx
-        .update(matches)
-        .set({
-          status: "rejected",
-        })
-        .where(eq(matches.id, matchId));
-
-      await tx.insert(auditEvents).values({
-        userId: internalUserId,
-        matchId: matchId,
-        action: "rejected",
-        actorEmail: actorEmail,
-      });
-
-      if (match.bankTransactionId) {
-        await tx
-          .update(canonicalTransactions)
-          .set({ status: "AVAILABLE" })
-          .where(eq(canonicalTransactions.id, match.bankTransactionId));
-      }
-
-      if (match.ledgerEntryIds && match.ledgerEntryIds.length > 0) {
-        await tx
-          .update(canonicalTransactions)
-          .set({ status: "AVAILABLE" })
-          .where(inArray(canonicalTransactions.id, match.ledgerEntryIds));
-      }
-    });
-
-    return Response.json({ success: true, matchId, status: "rejected" });
+    const result = await rejectMatch(internalUserId, matchId, actorEmail, reason);
+    return Response.json(result);
   } catch (error) {
+    if (error instanceof ReviewConflictError) {
+      return Response.json(
+        { error: error.message, code: error.code },
+        { status: 409 }
+      );
+    }
+    const err = error as any;
+    if (err?.statusCode === 404) return Response.json({ error: "Match not found" }, { status: 404 });
+    if (err?.statusCode === 403) return Response.json({ error: "Forbidden" }, { status: 403 });
+    if (err?.code === "55P03" || (err?.message as string)?.includes("could not obtain lock")) {
+      return Response.json(
+        { error: "This match is currently being reviewed. Please try again.", code: "CONCURRENT_CLAIM" },
+        { status: 409 }
+      );
+    }
     console.error("Reject match error:", error);
     return Response.json({ error: "Internal server error" }, { status: 500 });
   }

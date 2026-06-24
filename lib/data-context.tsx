@@ -8,8 +8,9 @@ import { toast } from "sonner";
 interface DataContextType {
   matches: MatchData[];
   setMatches: React.Dispatch<React.SetStateAction<MatchData[]>>;
-  handleApprove: (id: string) => void;
-  handleReject: (id: string) => void;
+  handleApprove: (id: string, reason?: string) => Promise<boolean>;
+  handleReject: (id: string, reason?: string) => Promise<boolean>;
+  handleManualMatch: (bankTransactionId: string, ledgerEntryIds: string[], reason?: string) => Promise<boolean>;
   refreshMatches: () => Promise<void>;
   refreshExceptions: () => Promise<void>;
   isLoading: boolean;
@@ -97,29 +98,137 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refreshMatches, refreshExceptions]);
 
-  const handleApprove = async (id: string) => {
-    setMatches((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, status: "approved" } : m))
-    );
-    try {
-      await fetch(`/api/matches/${id}/approve`, { method: "POST" });
+  const handleApprove = async (id: string, reason?: string): Promise<boolean> => {
+    if (isDemoMode) {
+      setMatches((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, status: "approved" as const } : m))
+      );
       toast.success("Match approved");
+      return true;
+    }
+    try {
+      const res = await fetch(`/api/matches/${id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      if (res.ok) {
+        setMatches((prev) =>
+          prev.map((m) => (m.id === id ? { ...m, status: "approved" as const } : m))
+        );
+        toast.success("Match approved");
+        refreshExceptions();
+        return true;
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 409) {
+          if (errData.code === "ALREADY_FINALIZED") {
+            toast.error("Match already finalized by another user.");
+          } else if (errData.code === "CONCURRENT_CLAIM") {
+            toast.error("One or more selected entries were claimed. Suggestions refreshed.");
+          } else {
+            toast.error(errData.error || "Match already reviewed by another user. Please refresh.");
+          }
+          refreshMatches();
+          refreshExceptions();
+        } else {
+          toast.error(errData.error || "Failed to approve match");
+        }
+        return false;
+      }
     } catch (e) {
       console.error("Failed to approve match on server", e);
       toast.error("Failed to approve match");
+      return false;
     }
   };
 
-  const handleReject = async (id: string) => {
-    setMatches((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, status: "rejected" } : m))
-    );
-    try {
-      await fetch(`/api/matches/${id}/reject`, { method: "POST" });
+  const handleReject = async (id: string, reason?: string): Promise<boolean> => {
+    if (isDemoMode) {
+      setMatches((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, status: "rejected" as const } : m))
+      );
       toast.success("Match rejected");
+      return true;
+    }
+    try {
+      const res = await fetch(`/api/matches/${id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      if (res.ok) {
+        setMatches((prev) =>
+          prev.map((m) => (m.id === id ? { ...m, status: "rejected" as const } : m))
+        );
+        toast.success("Match rejected");
+        refreshExceptions();
+        return true;
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 409) {
+          if (errData.code === "ALREADY_FINALIZED") {
+            toast.error("Match already finalized by another user.");
+          } else if (errData.code === "CONCURRENT_CLAIM") {
+            toast.error("One or more selected entries were claimed. Suggestions refreshed.");
+          } else {
+            toast.error(errData.error || "Match already reviewed by another user. Please refresh.");
+          }
+          refreshMatches();
+          refreshExceptions();
+        } else {
+          toast.error(errData.error || "Failed to reject match");
+        }
+        return false;
+      }
     } catch (e) {
       console.error("Failed to reject match on server", e);
       toast.error("Failed to reject match");
+      return false;
+    }
+  };
+
+  const handleManualMatch = async (
+    bankTransactionId: string,
+    ledgerEntryIds: string[],
+    reason?: string
+  ): Promise<boolean> => {
+    if (isDemoMode) {
+      toast.success("Manual match created (demo mode)");
+      return true;
+    }
+    try {
+      const res = await fetch(`/api/matches/${bankTransactionId}/manual-match`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ledgerEntryIds, reason }),
+      });
+      if (res.ok) {
+        toast.success("Manual match created");
+        await refreshMatches();
+        await refreshExceptions();
+        return true;
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 409) {
+          if (errData.code === "ALREADY_FINALIZED") {
+            toast.error("Match already finalized by another user.");
+          } else if (errData.code === "CONCURRENT_CLAIM") {
+            toast.error("One or more selected entries were claimed. Suggestions refreshed.");
+          } else {
+            toast.error(errData.error || "Match already reviewed by another user. Please refresh.");
+          }
+          refreshMatches();
+          refreshExceptions();
+        } else {
+          toast.error(errData.error || "Failed to create manual match");
+        }
+        return false;
+      }
+    } catch (e) {
+      console.error("Failed to create manual match on server", e);
+      toast.error("Failed to create manual match");
+      return false;
     }
   };
 
@@ -129,6 +238,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setMatches,
       handleApprove,
       handleReject,
+      handleManualMatch,
       refreshMatches,
       refreshExceptions,
       isLoading,

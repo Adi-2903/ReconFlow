@@ -42,6 +42,8 @@ export const runStatusEnum = pgEnum("run_status", [
     "REVIEW_READY", "COMPLETED"
 ]);
 
+export const reviewTypeEnum = pgEnum("review_type", ["AUTO", "MANUAL"]);
+
 export const importStatusEnum = pgEnum("import_status", [
     "UPLOADED", "PARSING", "CLEANING", "MAPPING", "ENRICHING", "COMPLETED", "FAILED"
 ]);
@@ -579,6 +581,7 @@ export const matches = pgTable("matches", {
   evidence: jsonb("evidence"), // Added for AI explanations
   riskScore: integer("risk_score").notNull().default(0),
   status: text("status").default("pending"),
+  reviewType: reviewTypeEnum("review_type").default("AUTO").notNull(),
   approvedBy: text("approved_by"),
   approvedAt: timestamp("approved_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -590,6 +593,7 @@ export const auditEvents = pgTable("audit_events", {
   matchId: uuid("match_id").references(() => matches.id),
   action: text("action").notNull(),
   actorEmail: text("actor_email"),
+  reason: text("reason"),
   timestamp: timestamp("timestamp").defaultNow(),
   metadata: jsonb("metadata"),
 });

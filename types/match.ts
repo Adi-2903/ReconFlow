@@ -5,6 +5,8 @@ export interface ClassificationEvidence {
 
 export type MatchData = {
   id: string;
+  bankTransactionId?: string | null;
+  ledgerEntryIds?: string[] | null;
   bankRow: { amount: number; date: string; description: string; reference: string };
   ledgerRow: { amount: number; memo: string; invoiceRef: string } | null;
   ledgerRows?: Array<{ amount: number; memo: string; invoiceRef: string }>;
@@ -16,5 +18,6 @@ export type MatchData = {
   reasonText: string;
   riskScore: number; // 0 – 100 integer (Phase 8)
   status: "pending" | "approved" | "rejected";
+  reviewType?: "AUTO" | "MANUAL";
 };
 
