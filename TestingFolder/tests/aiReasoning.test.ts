@@ -535,7 +535,7 @@ async function runTests() {
     assert(result.reasoning.likelyReason === "date_delay", "likelyReason should be date_delay");
   });
 
-  await test("FOREIGN_EXCHANGE → PARAMETERIZED, CHECK_BANK_STATEMENT, requiresHumanReview", async () => {
+  await test("FOREIGN_EXCHANGE → PARAMETERIZED, MANUAL_REVIEW, requiresHumanReview", async () => {
     const classification = makeClassification({ discrepancyType: "FOREIGN_EXCHANGE", confidenceBand: "HIGH" });
     const result = await generateMatchReasoning(
       "txn-fx-01", "org-001",
@@ -543,7 +543,7 @@ async function runTests() {
       makeMatch(classification), new RunTracker(), new MockFailingProvider()
     );
     assert(result.reasoning.source === "PARAMETERIZED", "FOREIGN_EXCHANGE → PARAMETERIZED");
-    assert(result.reasoning.suggestedAction === "CHECK_BANK_STATEMENT", "FOREIGN_EXCHANGE → CHECK_BANK_STATEMENT");
+    assert(result.reasoning.suggestedAction === "MANUAL_REVIEW", "FOREIGN_EXCHANGE → MANUAL_REVIEW");
     assert(result.reasoning.requiresHumanReview, "FOREIGN_EXCHANGE → requiresHumanReview must be true");
   });
 
@@ -667,7 +667,7 @@ async function runTests() {
     const classification = makeClassification({ discrepancyType: "MANUAL_REVIEW", confidenceBand: "LOW" });
     const match = makeMatch(classification, { matchType: "fuzzy", confidenceScore: 0.40 });
     const result = await generateMatchReasoning(
-      "txn-llm-auto", "org-001", makeBankTxn(), [makeLedger()], match,
+      "txn-llm-auto", "org-001", makeBankTxn({ amount: 105_000 }), [makeLedger()], match,
       new RunTracker(), new MockAutoApproveProvider()
     );
     // Zod rejects AUTO_APPROVE → falls back to STATIC
@@ -681,7 +681,7 @@ async function runTests() {
     const classification = makeClassification({ discrepancyType: "MANUAL_REVIEW", confidenceBand: "LOW" });
     const match = makeMatch(classification, { matchType: "fuzzy", confidenceScore: 0.40 });
     const result = await generateMatchReasoning(
-      "txn-llm-review", "org-001", makeBankTxn(), [makeLedger()], match,
+      "txn-llm-review", "org-001", makeBankTxn({ amount: 110_000 }), [makeLedger()], match,
       new RunTracker(), new MockSuccessProvider()
     );
     assert(result.reasoning.requiresHumanReview === true,
@@ -692,7 +692,7 @@ async function runTests() {
     const classification = makeClassification({ discrepancyType: "MANUAL_REVIEW", confidenceBand: "LOW" });
     const match = makeMatch(classification, { matchType: "fuzzy", confidenceScore: 0.35 });
     const result = await generateMatchReasoning(
-      "txn-fence-01", "org-001", makeBankTxn(), [makeLedger()], match, new RunTracker(), new MockMarkdownFencedProvider()
+      "txn-fence-01", "org-001", makeBankTxn({ amount: 115_000 }), [makeLedger()], match, new RunTracker(), new MockMarkdownFencedProvider()
     );
     // Should not throw or fall back to STATIC from a fenced response
     if (result.reasoning.source === "LLM") {
@@ -709,7 +709,7 @@ async function runTests() {
     const classification = makeClassification({ discrepancyType: "MANUAL_REVIEW", confidenceBand: "LOW" });
     const match = makeMatch(classification, { matchType: "fuzzy", confidenceScore: 0.40 });
     const result = await generateMatchReasoning(
-      "txn-ver-01", "org-001", makeBankTxn(), [makeLedger()], match, new RunTracker(), new MockSuccessProvider()
+      "txn-ver-01", "org-001", makeBankTxn({ amount: 120_000 }), [makeLedger()], match, new RunTracker(), new MockSuccessProvider()
     );
     assert(result.reasoning.version === "v1", "reasoning.version must always be v1");
   });
@@ -767,7 +767,7 @@ async function runTests() {
     const match = makeMatch(classification, { matchType: "fuzzy", confidenceScore: 0.40 });
 
     const result = await generateMatchReasoning(
-      "txn-005", "org-001", makeBankTxn(), [makeLedger()], match, tracker, provider
+      "txn-005", "org-001", makeBankTxn({ amount: 125_000 }), [makeLedger()], match, tracker, provider
     );
 
     assert(provider.getCallCount() === 0, "LLM must NOT be called when circuit breaker is tripped");
@@ -795,7 +795,7 @@ async function runTests() {
     const classification = makeClassification({ discrepancyType: "MANUAL_REVIEW", confidenceBand: "LOW" });
     const match = makeMatch(classification, { matchType: "fuzzy", confidenceScore: 0.40 });
     const result = await generateMatchReasoning(
-      "txn-006", "org-001", makeBankTxn(), [makeLedger()], match, new RunTracker(), new MockTimeoutProvider()
+      "txn-006", "org-001", makeBankTxn({ amount: 130_000 }), [makeLedger()], match, new RunTracker(), new MockTimeoutProvider()
     );
     assert(result.reasoning.source === "STATIC", "Timeout must result in STATIC fallback");
     assert(result.reasoning.suggestedAction === "MANUAL_REVIEW", "Timeout fallback → MANUAL_REVIEW");
@@ -813,7 +813,7 @@ async function runTests() {
     const classification = makeClassification({ discrepancyType: "MANUAL_REVIEW", confidenceBand: "LOW" });
     const match = makeMatch(classification, { matchType: "fuzzy", confidenceScore: 0.40 });
     const result = await generateMatchReasoning(
-      "txn-007", "org-001", makeBankTxn(), [makeLedger()], match, new RunTracker(), new MockMalformedProvider()
+      "txn-007", "org-001", makeBankTxn({ amount: 135_000 }), [makeLedger()], match, new RunTracker(), new MockMalformedProvider()
     );
     assert(result.reasoning.source === "STATIC", "Malformed response → STATIC fallback");
     assert(result.reasoning.suggestedAction === "MANUAL_REVIEW", "Malformed response → MANUAL_REVIEW");
@@ -824,7 +824,7 @@ async function runTests() {
     const classification = makeClassification({ discrepancyType: "MANUAL_REVIEW", confidenceBand: "LOW" });
     const match = makeMatch(classification, { matchType: "fuzzy", confidenceScore: 0.40 });
     const result = await generateMatchReasoning(
-      "txn-brk-01", "org-001", makeBankTxn(), [makeLedger()], match, new RunTracker(), new MockBrokenJsonProvider()
+      "txn-brk-01", "org-001", makeBankTxn({ amount: 140_000 }), [makeLedger()], match, new RunTracker(), new MockBrokenJsonProvider()
     );
     assert(result.reasoning.source === "STATIC", "Broken JSON → STATIC fallback");
     assert(result.reasoning.requiresHumanReview === true, "Broken JSON → requiresHumanReview");
@@ -834,7 +834,7 @@ async function runTests() {
     const classification = makeClassification({ discrepancyType: "MANUAL_REVIEW", confidenceBand: "LOW" });
     const match = makeMatch(classification, { matchType: "fuzzy", confidenceScore: 0.40 });
     const result = await generateMatchReasoning(
-      "txn-short-01", "org-001", makeBankTxn(), [makeLedger()], match, new RunTracker(), new MockShortTemplateProvider()
+      "txn-short-01", "org-001", makeBankTxn({ amount: 145_000 }), [makeLedger()], match, new RunTracker(), new MockShortTemplateProvider()
     );
     assert(result.reasoning.source === "STATIC", "Short explanationTemplate → STATIC fallback");
     // Verify fallback template itself is longer than 10 chars
@@ -855,7 +855,7 @@ async function runTests() {
       },
     };
     const result = await generateMatchReasoning(
-      "txn-bad-action", "org-001", makeBankTxn(), [makeLedger()], match, new RunTracker(), badProvider
+      "txn-bad-action", "org-001", makeBankTxn({ amount: 150_000 }), [makeLedger()], match, new RunTracker(), badProvider
     );
     assert(result.reasoning.source === "STATIC", "Invalid enum value → STATIC fallback");
   });
@@ -866,7 +866,7 @@ async function runTests() {
     const classification = makeClassification({ discrepancyType: "MANUAL_REVIEW", confidenceBand: "LOW" });
     const match = makeMatch(classification, { matchType: "fuzzy", confidenceScore: 0.40 });
     const result = await generateMatchReasoning(
-      "txn-auto-approve-rejected", "org-001", makeBankTxn(), [makeLedger()], match,
+      "txn-auto-approve-rejected", "org-001", makeBankTxn({ amount: 155_000 }), [makeLedger()], match,
       new RunTracker(), new MockAutoApproveProvider()
     );
     assert(result.reasoning.source === "STATIC",
@@ -892,7 +892,7 @@ async function runTests() {
       },
     };
     const result = await generateMatchReasoning(
-      "txn-false-review", "org-001", makeBankTxn(), [makeLedger()], match,
+      "txn-false-review", "org-001", makeBankTxn({ amount: 160_000 }), [makeLedger()], match,
       new RunTracker(), falseReviewProvider
     );
     assert(result.reasoning.requiresHumanReview === true,
@@ -1001,7 +1001,7 @@ async function runTests() {
     const classification = makeClassification({ discrepancyType: "MANUAL_REVIEW", confidenceBand: "LOW" });
     const match = makeMatch(classification, { matchType: "fuzzy", confidenceScore: 0.40 });
     const result = await generateMatchReasoning(
-      "txn-010", "org-001", makeBankTxn(), [makeLedger()], match, new RunTracker(), new MockSuccessProvider()
+      "txn-010", "org-001", makeBankTxn({ amount: 165_000 }), [makeLedger()], match, new RunTracker(), new MockSuccessProvider()
     );
     // MANUAL_REVIEW not in TEMPLATES → FALLBACK_TEMPLATE.likelyReason = "no_match"
     if (result.reasoning.source === "LLM" || result.reasoning.source === "STATIC") {
@@ -1015,7 +1015,7 @@ async function runTests() {
     const classification = makeClassification({ discrepancyType: "COUNTERPARTY_DIFFERENCE", confidenceBand: "LOW" });
     const match = makeMatch(classification, { matchType: "fuzzy", confidenceScore: 0.40 });
     const result = await generateMatchReasoning(
-      "txn-011", "org-001", makeBankTxn(), [makeLedger()], match, new RunTracker(), new MockSuccessProvider()
+      "txn-011", "org-001", makeBankTxn({ amount: 170_000 }), [makeLedger()], match, new RunTracker(), new MockSuccessProvider()
     );
     // Whether LLM or CACHE_HIT, likelyReason must come from TEMPLATES["COUNTERPARTY_DIFFERENCE"]
     if (result.reasoning.source === "LLM" || result.reasoning.source === "CACHE_HIT") {
