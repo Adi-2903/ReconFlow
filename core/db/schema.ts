@@ -115,6 +115,7 @@ export const organizations = pgTable("organizations", {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
     baseCurrency: char("base_currency", { length: 3 }).notNull().default("USD"),
+    timezone: text("timezone").notNull().default("Asia/Kolkata"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -490,6 +491,26 @@ export const auditLogs = pgTable("audit_logs", {
     beforeState: jsonb("before_state"),
     afterState: jsonb("after_state"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const dailyMetrics = pgTable("daily_metrics", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    metricDate: date("metric_date").notNull(),
+    organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    totalCount: integer("total_count").default(0).notNull(),
+    matchedCount: integer("matched_count").default(0).notNull(),
+    pendingCount: integer("pending_count").default(0).notNull(),
+    unmatchedCount: integer("unmatched_count").default(0).notNull(),
+    highRiskCount: integer("high_risk_count").default(0).notNull(),
+    totalVolumeMinor: bigint("total_volume_minor", { mode: "bigint" }).default(sql`0`).notNull(),
+    feeVolumeMinor: bigint("fee_volume_minor", { mode: "bigint" }).default(sql`0`).notNull(),
+    fxVolumeMinor: bigint("fx_volume_minor", { mode: "bigint" }).default(sql`0`).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+    return {
+        uniqueDailyMetric: unique("uq_daily_metric_org_date").on(table.organizationId, table.metricDate),
+    };
 });
 
 // ============================================================================

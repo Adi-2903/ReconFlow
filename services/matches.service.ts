@@ -1,7 +1,127 @@
 import { db } from "@/core/db";
-import { matches, canonicalTransactions, auditEvents } from "@/core/db/schema";
+import { matches, canonicalTransactions, auditEvents, organizations, dailyMetrics } from "@/core/db/schema";
 import { getOrCreateUserOrganization } from "@/core/db/org-helper";
 import { eq, and, ne, inArray, sql, asc } from "drizzle-orm";
+import { toMetricDate } from "@/core/utils/dateUtils";
+
+// ─── Daily Metrics Helpers ────────────────────────────────────────────────────
+
+/**
+ * Computes the metric aggregates exactly how rebuildDailyMetricsRange does it, 
+ * but scoped to a single canonical transaction for write-time delta calculation.
+ */
+async function getTransactionMetricContribution(tx: any, transactionId: string) {
+  const records = await tx
+    .select({
+      txn: canonicalTransactions,
+      match: matches,
+    })
+    .from(canonicalTransactions)
+    .leftJoin(matches, eq(matches.bankTransactionId, canonicalTransactions.id))
+    .where(eq(canonicalTransactions.id, transactionId));
+
+  if (records.length === 0) return null;
+
+  const orgId = records[0].txn.organizationId;
+  const [org] = await tx.select({ timezone: organizations.timezone }).from(organizations).where(eq(organizations.id, orgId)).limit(1);
+  const timezone = org?.timezone || "Asia/Kolkata";
+  
+  const metricDate = toMetricDate(records[0].txn.transactionDate, timezone);
+  
+  const agg = {
+    totalCount: 0,
+    matchedCount: 0,
+    pendingCount: 0,
+    unmatchedCount: 0,
+    highRiskCount: 0,
+    totalVolumeMinor: 0n,
+    feeVolumeMinor: 0n,
+    fxVolumeMinor: 0n,
+  };
+
+  for (const row of records) {
+    agg.totalCount += 1;
+    const amountMinor = BigInt(row.txn.amountMinor?.toString() || "0");
+    agg.totalVolumeMinor += amountMinor;
+
+    if (row.match) {
+      if (row.match.status === "approved") agg.matchedCount += 1;
+      else if (row.match.status === "pending") agg.pendingCount += 1;
+      else agg.unmatchedCount += 1;
+
+      if (row.match.riskScore && row.match.riskScore > 0) agg.highRiskCount += 1;
+
+      if (row.match.discrepancyType === "PROCESSING_FEE") agg.feeVolumeMinor += amountMinor;
+      else if (row.match.discrepancyType === "FOREIGN_EXCHANGE") agg.fxVolumeMinor += amountMinor;
+    } else {
+      agg.unmatchedCount += 1;
+    }
+  }
+
+  return { orgId, metricDate, agg };
+}
+
+/**
+ * Computes the delta between before/after state and idempotently applies 
+ * the update to daily_metrics inside the transaction.
+ */
+async function applyMetricDelta(tx: any, orgId: string, metricDate: string, before: any, after: any) {
+  const delta = {
+    totalCount: after.totalCount - before.totalCount,
+    matchedCount: after.matchedCount - before.matchedCount,
+    pendingCount: after.pendingCount - before.pendingCount,
+    unmatchedCount: after.unmatchedCount - before.unmatchedCount,
+    highRiskCount: after.highRiskCount - before.highRiskCount,
+    totalVolumeMinor: after.totalVolumeMinor - before.totalVolumeMinor,
+    feeVolumeMinor: after.feeVolumeMinor - before.feeVolumeMinor,
+    fxVolumeMinor: after.fxVolumeMinor - before.fxVolumeMinor,
+  };
+
+  if (
+    delta.totalCount === 0 &&
+    delta.matchedCount === 0 &&
+    delta.pendingCount === 0 &&
+    delta.unmatchedCount === 0 &&
+    delta.highRiskCount === 0 &&
+    delta.totalVolumeMinor === 0 &&
+    delta.feeVolumeMinor === 0 &&
+    delta.fxVolumeMinor === 0
+  ) {
+    return;
+  }
+
+  // Acquire lock to prevent concurrent write-time or rebuild updates
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('METRICS_' || ${orgId}::text))`);
+
+  await tx
+    .insert(dailyMetrics)
+    .values({
+      metricDate,
+      organizationId: orgId,
+      totalCount: delta.totalCount,
+      matchedCount: delta.matchedCount,
+      pendingCount: delta.pendingCount,
+      unmatchedCount: delta.unmatchedCount,
+      highRiskCount: delta.highRiskCount,
+      totalVolumeMinor: delta.totalVolumeMinor,
+      feeVolumeMinor: delta.feeVolumeMinor,
+      fxVolumeMinor: delta.fxVolumeMinor,
+    })
+    .onConflictDoUpdate({
+      target: [dailyMetrics.organizationId, dailyMetrics.metricDate],
+      set: {
+        totalCount: sql`${dailyMetrics.totalCount} + EXCLUDED.total_count`,
+        matchedCount: sql`${dailyMetrics.matchedCount} + EXCLUDED.matched_count`,
+        pendingCount: sql`${dailyMetrics.pendingCount} + EXCLUDED.pending_count`,
+        unmatchedCount: sql`${dailyMetrics.unmatchedCount} + EXCLUDED.unmatched_count`,
+        highRiskCount: sql`${dailyMetrics.highRiskCount} + EXCLUDED.high_risk_count`,
+        totalVolumeMinor: sql`${dailyMetrics.totalVolumeMinor} + EXCLUDED.total_volume_minor`,
+        feeVolumeMinor: sql`${dailyMetrics.feeVolumeMinor} + EXCLUDED.fee_volume_minor`,
+        fxVolumeMinor: sql`${dailyMetrics.fxVolumeMinor} + EXCLUDED.fx_volume_minor`,
+        updatedAt: sql`now()`,
+      }
+    });
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -387,6 +507,10 @@ export async function approveMatch(
       }
     }
 
+    const beforeMetrics = currentMatch.bankTransactionId 
+      ? await getTransactionMetricContribution(tx, currentMatch.bankTransactionId) 
+      : null;
+
     // ── 4. Apply the approval ─────────────────────────────────────────────────
     await tx
       .update(matches)
@@ -406,6 +530,14 @@ export async function approveMatch(
         .update(canonicalTransactions)
         .set({ status: "LOCKED_APPROVED" })
         .where(inArray(canonicalTransactions.id, sortedIds));
+    }
+
+    // ── Metric Calculation & Apply (AFTER) ────────────────────────────────────
+    if (beforeMetrics && currentMatch.bankTransactionId) {
+      const afterMetrics = await getTransactionMetricContribution(tx, currentMatch.bankTransactionId);
+      if (afterMetrics) {
+        await applyMetricDelta(tx, beforeMetrics.orgId, beforeMetrics.metricDate, beforeMetrics.agg, afterMetrics.agg);
+      }
     }
   });
 
@@ -503,6 +635,10 @@ export async function rejectMatch(
       }
     }
 
+    const beforeMetrics = currentMatch.bankTransactionId 
+      ? await getTransactionMetricContribution(tx, currentMatch.bankTransactionId) 
+      : null;
+
     // ── 4. Apply the rejection ────────────────────────────────────────────────
     await tx
       .update(matches)
@@ -523,6 +659,14 @@ export async function rejectMatch(
         .update(canonicalTransactions)
         .set({ status: "AVAILABLE" })
         .where(inArray(canonicalTransactions.id, sortedIds));
+    }
+
+    // ── Metric Calculation & Apply (AFTER) ────────────────────────────────────
+    if (beforeMetrics && currentMatch.bankTransactionId) {
+      const afterMetrics = await getTransactionMetricContribution(tx, currentMatch.bankTransactionId);
+      if (afterMetrics) {
+        await applyMetricDelta(tx, beforeMetrics.orgId, beforeMetrics.metricDate, beforeMetrics.agg, afterMetrics.agg);
+      }
     }
   });
 
@@ -623,6 +767,8 @@ export async function manualMatch(
       }
     }
 
+    const beforeMetrics = await getTransactionMetricContribution(tx, bankTransactionId);
+
     // ── 3. Supersede any existing AUTO match for this bank transaction ─────────
     // We update status to "superseded" rather than deleting, preserving the
     // audit trail of what the engine suggested before the analyst overrode it.
@@ -674,6 +820,14 @@ export async function manualMatch(
         ledgerCount: ledgerEntryIds.length,
       },
     });
+
+    // ── Metric Calculation & Apply (AFTER) ────────────────────────────────────
+    if (beforeMetrics) {
+      const afterMetrics = await getTransactionMetricContribution(tx, bankTransactionId);
+      if (afterMetrics) {
+        await applyMetricDelta(tx, beforeMetrics.orgId, beforeMetrics.metricDate, beforeMetrics.agg, afterMetrics.agg);
+      }
+    }
   });
 
   return { success: true, matchId: newMatchId };

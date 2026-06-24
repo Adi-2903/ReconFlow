@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { VirtualMatchTable } from "@/components/virtual-match-table";
 import { EvidencePanel } from "@/components/evidence-panel/EvidencePanel";
 import { MatchTableSkeleton } from "@/components/skeletons";
@@ -26,12 +26,39 @@ export default function DashboardPage() {
     setSelectedMatchId(id);
   };
 
-  const autoMatchedCount = matches.filter((m) => m.matchType === "exact" || m.status === "approved").length;
-  const needReviewCount = matches.filter((m) => m.status === "pending" && (m.matchType === "fuzzy" || m.matchType === "bulk")).length;
-  const exceptionsCount = matches.filter((m) => m.matchType === "none" && m.status !== "approved").length;
-  const totalReconciledValue = matches
-    .filter((m) => m.matchType === "exact" || m.status === "approved")
-    .reduce((sum, m) => sum + Math.abs(m.bankRow.amount), 0);
+  const [summary, setSummary] = useState({
+    totalCount: 0,
+    matchedCount: 0,
+    pendingCount: 0,
+    unmatchedCount: 0,
+    totalVolumeMinor: 0
+  });
+
+  useEffect(() => {
+    let active = true;
+    const fetchSummary = async () => {
+      // Default to current month for dashboard
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
+      try {
+        const res = await fetch(`/api/reports?type=summary&periodStart=${start}&periodEnd=${end}`);
+        if (res.ok && active) {
+          const data = await res.json();
+          setSummary(data);
+        }
+      } catch (e) {
+        console.error("Failed to fetch dashboard summary", e);
+      }
+    };
+    fetchSummary();
+    return () => { active = false; };
+  }, []);
+
+  const autoMatchedCount = summary.matchedCount;
+  const needReviewCount = summary.pendingCount;
+  const exceptionsCount = summary.unmatchedCount + summary.pendingCount;
+  const totalReconciledValue = summary.totalVolumeMinor / 100;
   
   const formatter = new Intl.NumberFormat("en-IN", {
     style: "currency",
