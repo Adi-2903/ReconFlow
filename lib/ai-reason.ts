@@ -30,6 +30,7 @@ import { aiExplanationCache } from "@/core/db/schema";
 import { PROMPT_VERSION, type AIReasoning, type RecommendedAction } from "@/types";
 import { GeminiProvider, type LLMProvider } from "@/lib/llm-provider";
 import { buildPromptContext, type PromptContext } from "@/lib/prompt-context";
+import { renderExplanation } from "@/lib/render-explanation";
 import type { BankTransaction, LedgerEntry, MatchResult } from "@/core/matching/engine";
 
 // ── Observability ─────────────────────────────────────────────────────────────
@@ -470,7 +471,7 @@ export async function generateMatchReasoning(
 
     return {
       reasoning,
-      renderedExplanation: renderTemplateInline(spec.explanationTemplate, bankTxn, candidates, match),
+      renderedExplanation: renderExplanation(spec.explanationTemplate, bankTxn, candidates, bankTxn.amount - candidates.reduce((s, c) => s + c.amount, 0)),
     };
   }
 
@@ -499,7 +500,7 @@ export async function generateMatchReasoning(
       modelUsed: null,
       tokenCount: null,
       latencyMs,
-      likelyReason: "no_match",
+      likelyReason: (TEMPLATES[discrepancyType] ?? FALLBACK_TEMPLATE).likelyReason,
     };
 
     emitObservabilityEvent({
@@ -518,7 +519,7 @@ export async function generateMatchReasoning(
 
     return {
       reasoning,
-      renderedExplanation: renderTemplateInline(cached.explanationTemplate, bankTxn, candidates, match),
+      renderedExplanation: renderExplanation(cached.explanationTemplate, bankTxn, candidates, bankTxn.amount - candidates.reduce((s, c) => s + c.amount, 0)),
     };
   }
 
@@ -541,7 +542,7 @@ export async function generateMatchReasoning(
       modelUsed: provider.name,
       tokenCount: null,
       latencyMs,
-      likelyReason: "no_match",
+      likelyReason: (TEMPLATES[discrepancyType] ?? FALLBACK_TEMPLATE).likelyReason,
     };
 
     emitObservabilityEvent({
@@ -563,7 +564,7 @@ export async function generateMatchReasoning(
 
     return {
       reasoning,
-      renderedExplanation: renderTemplateInline(llmResult.explanationTemplate, bankTxn, candidates, match),
+      renderedExplanation: renderExplanation(llmResult.explanationTemplate, bankTxn, candidates, bankTxn.amount - candidates.reduce((s, c) => s + c.amount, 0)),
     };
   } catch (err) {
     tracker.recordFailure();
@@ -597,27 +598,7 @@ export async function generateMatchReasoning(
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
-/** Renders a template inline using renderExplanation logic (avoids a circular import). */
-function renderTemplateInline(
-  template: string,
-  bankTxn: BankTransaction,
-  candidates: LedgerEntry[],
-  match: MatchResult
-): string {
-  const candidate = candidates[0];
-  const diffMinor = bankTxn.amount - candidates.reduce((s, c) => s + c.amount, 0);
 
-  let result = template;
-  result = result.replace(/{bankCounterparty}/g, bankTxn.counterparty || "Unknown");
-  result = result.replace(/{bankReference}/g, bankTxn.referenceId || "N/A");
-  result = result.replace(/{bankDescription}/g, bankTxn.description || "");
-  result = result.replace(/{bankAmount}/g, `₹${(Math.abs(bankTxn.amount) / 100).toFixed(2)}`);
-  result = result.replace(/{ledgerCounterparty}/g, candidate?.counterparty || "");
-  result = result.replace(/{ledgerReference}/g, candidate?.invoiceRef || "");
-  result = result.replace(/{ledgerMemo}/g, candidate?.memo || "");
-  result = result.replace(/{difference}/g, `₹${(Math.abs(diffMinor) / 100).toFixed(2)}`);
-  return result.trim();
-}
 
 function buildFallback(
   matchId: string,

@@ -14,3 +14,9 @@ coverage/
 .vercel/
 # OS metadata
 Thumbs.db
+
+# For Aditya
+.agents/
+TestingFolder/data/ground_truth.json
+TestingFolder/data/TEST_PLAN.md
+query_script.ts
