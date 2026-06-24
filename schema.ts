@@ -414,12 +414,46 @@ export const aiExplanations = pgTable("ai_explanations", {
     id: uuid("id").primaryKey().defaultRandom(),
     organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     matchGroupId: uuid("match_group_id").references(() => matchGroups.id, { onDelete: "cascade" }),
-    prompt: text("prompt").notNull(),
-    response: text("response").notNull(),
+    // nullable — not set for STATIC/PARAMETERIZED sources
+    prompt: text("prompt"),
+    response: text("response"),
     confidence: numeric("confidence", { precision: 5, scale: 2 }),
     reasoning: jsonb("reasoning").$type<AIReasoning>(),
+    // PROMPT_VERSION constant — used for cache invalidation on prompt changes
+    promptVersion: text("prompt_version").notNull(),
+    // 'STATIC' | 'PARAMETERIZED' | 'CACHE_HIT' | 'LLM'
+    source: text("source").notNull(),
+    modelUsed: text("model_used"),
+    tokenCount: integer("token_count"),
+    latencyMs: integer("latency_ms"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * Persistent LLM explanation cache.
+ * Composite unique index on (reason_hash, prompt_version) ensures:
+ *   - One cache row per structural scenario per prompt version.
+ *   - A PROMPT_VERSION bump invalidates stale entries automatically
+ *     (old rows remain but are never returned; prunable by a background job).
+ *   - onConflictDoNothing() is safe — hash collision under the same version
+ *     is astronomically unlikely with SHA-256. A structured warning log is
+ *     emitted so this blind spot is visible in the observability dashboard.
+ */
+export const aiExplanationCache = pgTable("ai_explanation_cache", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    reasonHash: text("reason_hash").notNull(),
+    promptVersion: text("prompt_version").notNull(),
+    suggestedAction: text("suggested_action").notNull(),
+    explanationTemplate: text("explanation_template").notNull(),
+    model: text("model").notNull(),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+    hashVersionIdx: uniqueIndex("idx_ai_reason_hash_version").on(
+        table.reasonHash,
+        table.promptVersion
+    ),
+}));
 
 // ============================================================================
 // 8. METADATA & AUDIT

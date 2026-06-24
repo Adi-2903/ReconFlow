@@ -6,11 +6,39 @@ import {
   reconRuns,
   matches,
   connectors,
+  aiExplanations,
 } from "@/core/db/schema";
 import { eq, and, gte, lte, count, inArray } from "drizzle-orm";
 import { matchTransactions } from "@/core/matching/engine";
-import { generateMatchReason, DEFAULT_FEE_PATTERNS } from "@/lib/ai-reason";
+import { generateMatchReasoning, RunTracker } from "@/lib/ai-reason";
+import { renderExplanation } from "@/lib/render-explanation";
 import { getOrCreateUserOrganization } from "@/core/db/org-helper";
+import { PROMPT_VERSION } from "@/types";
+
+// ── Inline concurrency limiter (no p-limit dependency) ────────────────────────
+// Caps concurrent LLM calls at MAX_CONCURRENT to prevent flooding Gemini
+// during a large batch. Uses a simple semaphore pattern.
+const MAX_CONCURRENT_AI = 5;
+
+async function limitConcurrency<T>(
+  tasks: Array<() => Promise<T>>,
+  limit: number
+): Promise<T[]> {
+  const results: T[] = new Array(tasks.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < tasks.length) {
+      const i = nextIndex++;
+      results[i] = await tasks[i]();
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, tasks.length) }, () => worker())
+  );
+  return results;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -136,28 +164,38 @@ export async function runReconciliation(
     // Run 4-pass matching engine
     const matchResults = matchTransactions(engineBanks, engineLedgers);
 
-    // AI Reasoning (skipped for exact/none — saves tokens)
-    const aiTasks = matchResults.map(async (match) => {
+    // AI Reasoning Phase 9
+    // Uses a shared RunTracker (circuit breaker) so one bad Gemini response
+    // doesn't poison the entire run. Concurrency is capped at MAX_CONCURRENT_AI.
+    const tracker = new RunTracker();
+
+    const aiTaskFns = matchResults.map((match) => async () => {
+      // Skip trivially exact matches and fully unmatched ledger entries
       const skipAI =
         (match.matchType === "exact" && match.confidenceScore >= 0.95) ||
-        match.matchType === "none";
+        match.matchType === "unmatched_ledger";
 
-      if (skipAI) return { ...match, aiResult: null };
+      if (skipAI) return { ...match, aiResult: null as null };
 
       const bankTxn = engineBanks.find((b) => match.bankTransactionIds.includes(b.id))!;
-      const candidates = engineLedgers.filter((l) =>
-        match.ledgerEntryIds.includes(l.id)
-      );
-      const aiResult = await generateMatchReason(bankTxn, candidates, DEFAULT_FEE_PATTERNS);
-      return { ...match, aiResult };
+      const candidates = engineLedgers.filter((l) => match.ledgerEntryIds.includes(l.id));
+
+      try {
+        const { reasoning, renderedExplanation } = await generateMatchReasoning(
+          bankTxn.id,
+          orgId,
+          bankTxn,
+          candidates,
+          match,
+          tracker
+        );
+        return { ...match, aiResult: reasoning, renderedExplanation };
+      } catch {
+        return { ...match, aiResult: null as null, renderedExplanation: undefined };
+      }
     });
 
-    const aiResults = await Promise.allSettled(aiTasks);
-    const enhancedMatches = aiResults.map((result, i) => {
-      if (result.status === "fulfilled") return result.value;
-      console.error("AI call failed for match index", i, matchResults[i]);
-      return { ...matchResults[i], aiResult: null };
-    });
+    const enhancedMatches = await limitConcurrency(aiTaskFns, MAX_CONCURRENT_AI);
 
     // Persist in a single DB transaction
     let autoMatched = 0;
@@ -180,8 +218,20 @@ export async function runReconciliation(
         else if (match.matchType === "none") exceptions++;
         else needsReview++;
 
-        const reasonText = match.aiResult?.explanation ?? fallbackReason(match.matchType);
-        const evidence = match.aiResult ?? null;
+        const reasoning = (match as any).aiResult ?? null;
+        const renderedExplanation = (match as any).renderedExplanation;
+        const reasonText = renderedExplanation ?? fallbackReason(match.matchType);
+
+        // Backward-compatible evidence shape for legacy services
+        // (exceptions.service.ts and reports.service.ts read .likelyReason, .requiresHumanReview, .flags)
+        const evidence = reasoning
+          ? {
+              likelyReason: reasoning.likelyReason ?? "no_match",
+              requiresHumanReview: reasoning.requiresHumanReview,
+              flags: reasoning.flags ?? [],
+              explanation: reasonText,
+            }
+          : null;
 
         for (const bId of match.bankTransactionIds) {
           await tx.insert(matches).values({

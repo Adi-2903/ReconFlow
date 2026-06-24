@@ -22,10 +22,54 @@ export interface ScoreBreakdown {
     subsetCalculated: boolean;
 }
 
+// ── Phase 9: AI Reasoning Layer ─────────────────────────────────────────────
+
+/**
+ * Single source of truth for the prompt version.
+ * Increment this string whenever the LLM prompt template changes.
+ * All cache lookups filter on PROMPT_VERSION — a bump automatically
+ * invalidates stale cache entries without deleting them.
+ */
+export const PROMPT_VERSION = "p9-v1" as const;
+
+export type RecommendedAction =
+  | "AUTO_APPROVE"
+  | "MANUAL_REVIEW"
+  | "REQUEST_DOCUMENTATION"
+  | "CHECK_LEDGER"
+  | "CHECK_BANK_STATEMENT"
+  | "INVESTIGATE_DUPLICATE"
+  | "FOLLOW_UP_VENDOR";
+
 export interface AIReasoning {
-    logicSteps: string[];
-    suggestedAction: string;
-    flaggedAnomalies?: string[];
+    version: "v1";
+    source: "STATIC" | "PARAMETERIZED" | "CACHE_HIT" | "LLM";
+    /** Maps to DiscrepancyType from Phase 7 classifier. */
+    rootCause: string;
+    /** Confidence from the matching engine / classifier — NEVER from the LLM. */
+    confidence: number;
+    /**
+     * Advisory only — does NOT control queue routing.
+     * Actual workflow disposition is determined by Phase 8 riskScore and
+     * Phase 7/8 confidenceBand. If the LLM hallucinates false here on a
+     * flagged match, the authoritative riskScore still routes it correctly.
+     */
+    requiresHumanReview: boolean;
+    /** Advisory only — see requiresHumanReview note above. */
+    suggestedAction: RecommendedAction;
+    /**
+     * Stored with placeholders such as '{bankCounterparty}' and '{difference}'.
+     * Rendered at display time via renderExplanation() — never stored as a
+     * final string so wording changes don't require re-running inference.
+     */
+    explanationTemplate: string;
+    evidenceCodes: string[];
+    flags: string[];
+    modelUsed?: string | null;
+    tokenCount?: number | null;
+    latencyMs?: number | null;
+    /** Backward compat: legacy services (exceptions.service, reports.service) read this. */
+    likelyReason?: string;
 }
 
 export interface ConnectorSettings {
