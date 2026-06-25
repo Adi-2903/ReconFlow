@@ -675,6 +675,7 @@ async function main() {
       });
       passedScenariosCount++; // Superset is a WARN but counts as passed scenario under partial credit
       TP++;
+      FP += actualLedgerIds.length - expectedLedgerIds.length;
     }
   }
 

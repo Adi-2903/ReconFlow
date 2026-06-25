@@ -528,7 +528,7 @@ async function runTests() {
     const book11A: CanonicalTransaction = {
         id: "INV11A",
         source: "quickbooks",
-        transactionDate: new Date("2026-01-15"),
+        transactionDate: new Date("2026-01-16"),
         amount: 50000,
         amountMinor: 5000000n,
         direction: "credit",
@@ -540,7 +540,7 @@ async function runTests() {
     const book11B: CanonicalTransaction = {
         id: "INV11B",
         source: "quickbooks",
-        transactionDate: new Date("2026-01-15"),
+        transactionDate: new Date("2026-01-16"),
         amount: 30000,
         amountMinor: 3000000n,
         direction: "credit",

@@ -140,7 +140,13 @@ export function matchesProcessorFeeForCombo(bankAmtMinor: bigint | number, combo
     }
   }
 
-  // 4. Indian TDS deduction rates applied to the combined book sum
+  // 4. Flat Indian banking fees: NEFT/RTGS/wire processing charges (in paise)
+  const commonFlatFees = [100, 118, 177, 236, 354, 500, 590, 1000, 1180, 2360, 5000];
+  for (const flatFee of commonFlatFees) {
+    if (Math.abs(diff - flatFee) <= 50) return true; // ±50 paise rounding tolerance for flat fees
+  }
+
+  // 5. Indian TDS deduction rates applied to the combined book sum
   for (const rule of TDS_DEDUCTION_RULES) {
     const expectedDeduction = Math.round(sumBookAmt * rule.rate);
     if (Math.abs(diff - expectedDeduction) <= allowedTolerance) return true;

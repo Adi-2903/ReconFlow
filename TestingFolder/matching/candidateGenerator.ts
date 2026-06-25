@@ -9,7 +9,7 @@ const DEFAULT_DATE_TOLERANCE_DAYS = 7;
 const MAX_CANDIDATES = 50;
 
 
-function getDateTolerance(txn: CanonicalTransaction): number {
+export function getDateTolerance(txn: CanonicalTransaction): number {
     const channel = txn.matchingSignals?.channel || "";
     if (channel === "STRIPE") return 7;
     if (channel === "NEFT" || channel === "RTGS") return 4;
@@ -23,6 +23,11 @@ function getDateTolerance(txn: CanonicalTransaction): number {
     if (desc.includes("wire")) return 15;
 
     return DEFAULT_DATE_TOLERANCE_DAYS;
+}
+
+export function getAmountTolerance(comparisonAmount: bigint): bigint {
+    const calculatedTolerance = (comparisonAmount * TOLERANCE_BPS) / 10000n;
+    return calculatedTolerance > MIN_AMOUNT_TOLERANCE ? calculatedTolerance : MIN_AMOUNT_TOLERANCE;
 }
 
 export interface GenerateCandidatesOptions {
@@ -79,8 +84,7 @@ export function generateCandidates(
         const diff = bankAmtMinor > bookAmtMinor ? bankAmtMinor - bookAmtMinor : bookAmtMinor - bankAmtMinor;
         const comparisonAmount = bankAmtMinor > bookAmtMinor ? bankAmtMinor : bookAmtMinor;
         
-        const calculatedTolerance = (comparisonAmount * TOLERANCE_BPS) / 10000n;
-        const allowedTolerance = calculatedTolerance > MIN_AMOUNT_TOLERANCE ? calculatedTolerance : MIN_AMOUNT_TOLERANCE;
+        const allowedTolerance = getAmountTolerance(comparisonAmount);
 
         if (!options?.skipAmountGate && diff > allowedTolerance) {
             continue;
