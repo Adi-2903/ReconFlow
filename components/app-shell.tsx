@@ -21,8 +21,7 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [newRunModalOpen, setNewRunModalOpen] = useState(false);
-  const { matches, exceptionCount } = useData();
+  const { matches, exceptionCount, isNewRunModalOpen, setIsNewRunModalOpen } = useData();
 
   const reconciledPercent = matches.length > 0 
     ? Math.round((matches.filter(m => m.matchType === "exact" || m.status === "approved").length / matches.length) * 100)
@@ -73,7 +72,7 @@ export function AppShell({ children }: AppShellProps) {
           <Button 
             size="sm" 
             className="bg-slate-900 text-white px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium hover:bg-slate-800 h-9 hidden sm:flex items-center gap-1.5"
-            onClick={() => setNewRunModalOpen(true)}
+            onClick={() => setIsNewRunModalOpen(true)}
           >
             <Play className="w-3.5 h-3.5 fill-current" />
             New run
@@ -81,7 +80,7 @@ export function AppShell({ children }: AppShellProps) {
           <Button 
             size="icon" 
             className="bg-slate-900 text-white w-8 h-8 rounded-md sm:hidden"
-            onClick={() => setNewRunModalOpen(true)}
+            onClick={() => setIsNewRunModalOpen(true)}
           >
             <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
           </Button>
@@ -150,7 +149,7 @@ export function AppShell({ children }: AppShellProps) {
         </main>
       </div>
 
-      <NewRunModal open={newRunModalOpen} onOpenChange={setNewRunModalOpen} />
+      <NewRunModal open={isNewRunModalOpen} onOpenChange={setIsNewRunModalOpen} />
     </div>
   );
 }

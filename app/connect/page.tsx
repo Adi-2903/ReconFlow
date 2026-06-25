@@ -21,6 +21,7 @@ import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useData } from "@/lib/data-context";
 
 function timeAgo(dateParam: string | null) {
   if (!dateParam) return "";
@@ -38,6 +39,7 @@ function timeAgo(dateParam: string | null) {
 
 export default function ConnectPage() {
   const router = useRouter();
+  const { setIsNewRunModalOpen, setAutoStartNewRun } = useData();
 
   // --- Connector States ---
   const [stripeConnected, setStripeConnected] = useState(false);
@@ -1140,7 +1142,10 @@ export default function ConnectPage() {
               : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
               }`}
             onClick={() => {
-              if (isReady) router.push("/dashboard");
+              if (isReady) {
+                setAutoStartNewRun(true);
+                setIsNewRunModalOpen(true);
+              }
             }}
           >
             Start reconciliation &rarr;

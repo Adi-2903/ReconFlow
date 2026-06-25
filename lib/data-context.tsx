@@ -17,6 +17,10 @@ interface DataContextType {
   isLoading: boolean;
   exceptionCount: number;
   isDemoMode: boolean;
+  isNewRunModalOpen: boolean;
+  setIsNewRunModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  autoStartNewRun: boolean;
+  setAutoStartNewRun: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -26,6 +30,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [exceptionCount, setExceptionCount] = useState(0);
   const [matches, setMatches] = useState<MatchData[]>([]);
+  const [isNewRunModalOpen, setIsNewRunModalOpen] = useState(false);
+  const [autoStartNewRun, setAutoStartNewRun] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -206,6 +212,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       exceptionCount,
       isDemoMode,
+      isNewRunModalOpen,
+      setIsNewRunModalOpen,
+      autoStartNewRun,
+      setAutoStartNewRun,
     }}>
       {children}
     </DataContext.Provider>

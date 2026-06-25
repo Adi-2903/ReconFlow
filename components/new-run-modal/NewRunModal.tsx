@@ -18,7 +18,7 @@ interface NewRunModalProps {
 
 export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
   const router = useRouter();
-  const { refreshMatches } = useData();
+  const { refreshMatches, autoStartNewRun, setAutoStartNewRun } = useData();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()));
@@ -133,6 +133,14 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
     // Finish animation then move to step 3
     setTimeout(() => setStep(3), steps.length * 800 + 600);
   };
+
+  // Auto-start reconciliation if requested
+  useEffect(() => {
+    if (open && autoStartNewRun && !countsLoading && step === 1) {
+      setAutoStartNewRun(false);
+      handleStart();
+    }
+  }, [open, autoStartNewRun, countsLoading, step, setAutoStartNewRun]);
 
   const handleReview = () => {
     onOpenChange(false);
