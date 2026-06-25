@@ -17,6 +17,7 @@ import {
   X,
   FileSpreadsheet
 } from "lucide-react";
+import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -95,17 +96,14 @@ export default function ConnectPage() {
   // Fetch counts, connection states, and upload history on mount
   const fetchStateData = useCallback(async () => {
     try {
-      const countsRes = await fetch("/api/recon/counts");
-      if (countsRes.ok) {
-        const data = await countsRes.json();
-        if (data.stripeConnected) setStripeConnected(true);
-        if (data.stripeTransactions) setStripeTxnCount(data.stripeTransactions);
-        if (data.stripeLastSync) setStripeLastSync(data.stripeLastSync);
-        
-        if (data.qboConnected) setQboConnected(true);
-        if (data.ledgerEntries) setQboTxnCount(data.ledgerEntries);
-        if (data.qboLastSync) setQboLastSync(data.qboLastSync);
-      }
+      const data = await api.recon.counts();
+      if (data.stripeConnected) setStripeConnected(true);
+      if (data.stripeTransactions) setStripeTxnCount(data.stripeTransactions);
+      if (data.stripeLastSync) setStripeLastSync(data.stripeLastSync);
+      
+      if (data.qboConnected) setQboConnected(true);
+      if (data.ledgerEntries) setQboTxnCount(data.ledgerEntries);
+      if (data.qboLastSync) setQboLastSync(data.qboLastSync);
     } catch (e) {
       console.error(e);
     }
@@ -114,16 +112,10 @@ export default function ConnectPage() {
   const fetchHistory = useCallback(async () => {
     setIsLoadingHistory(true);
     try {
-      const historyRes = await fetch("/api/upload/history");
-      if (historyRes.ok) {
-        const data = await historyRes.json();
-        setHistoryList(data || []);
-      } else {
-        console.warn("History API not yet implemented or returned error:", historyRes.status);
-        setHistoryList([]);
-      }
-    } catch (e) {
-      console.error("Failed to load upload history", e);
+      const data = await api.upload.history();
+      setHistoryList(data || []);
+    } catch (e: any) {
+      console.warn("History API not yet implemented or returned error:", e.message);
       setHistoryList([]);
     } finally {
       setIsLoadingHistory(false);
@@ -134,9 +126,7 @@ export default function ConnectPage() {
   const onSyncStripe = useCallback(async () => {
     setIsStripeSyncing(true);
     try {
-      const res = await fetch("/api/stripe/sync", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to sync Stripe");
-      const data = await res.json();
+      const data = await api.stripe.sync();
       setStripeTxnCount(data.count || 0);
       setStripeConnected(true);
       setStripeLastSync(new Date().toISOString());
@@ -154,9 +144,7 @@ export default function ConnectPage() {
   const onSyncQbo = useCallback(async () => {
     setIsQboSyncing(true);
     try {
-      const res = await fetch("/api/qbo/sync", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to sync QBO");
-      const data = await res.json();
+      const data = await api.qbo.sync();
       setQboTxnCount(data.count || 0);
       setQboLastSync(new Date().toISOString());
       toast.success("QuickBooks data synced successfully");
@@ -215,7 +203,7 @@ export default function ConnectPage() {
 
   const onDisconnectStripe = async () => {
     try {
-      await fetch("/api/stripe/disconnect", { method: "POST" });
+      await api.stripe.disconnect();
       setStripeConnected(false);
       setStripeTxnCount(0);
       toast.success("Stripe disconnected");
@@ -230,7 +218,7 @@ export default function ConnectPage() {
 
   const onDisconnectQbo = async () => {
     try {
-      await fetch("/api/qbo/disconnect", { method: "POST" });
+      await api.qbo.disconnect();
       setQboConnected(false);
       setQboTxnCount(0);
       toast.success("QuickBooks disconnected");
@@ -289,17 +277,8 @@ export default function ConnectPage() {
       formData.append("action", "preview");
       formData.append("fileType", selectedFileType);
 
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+      const data = await api.upload.process(formData);
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Failed to parse preview.");
-      }
-
-      const data = await res.json();
       setPreviewData(data);
 
       // Auto-apply matched layout/template OR fallback to column heuristics
@@ -368,17 +347,8 @@ export default function ConnectPage() {
         formData.append("saveTemplateName", templateName.trim());
       }
 
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+      const data = await api.upload.process(formData);
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Import processing failed.");
-      }
-
-      const data = await res.json();
       setImportMetrics(data.metrics);
       
       clearInterval(progressInterval);

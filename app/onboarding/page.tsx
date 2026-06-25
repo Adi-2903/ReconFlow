@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ChevronRight, Building, Landmark, Server, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api-client";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -13,7 +14,7 @@ export default function OnboardingPage() {
   const handleSeedDemo = async () => {
     setIsSeeding(true);
     try {
-      await fetch("/api/seed", { method: "POST" });
+      await api.seed();
       setStep(4); // Skip to end
     } catch (error) {
       console.error(error);

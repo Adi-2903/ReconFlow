@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Download, CalendarDays, Clock, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -78,28 +79,26 @@ export default function ReportsPage() {
         const { start, end } = getPeriodBounds();
         
         if (activeTab === "summary") {
-          const res = await fetch(`/api/reports?type=summary&periodStart=${start}&periodEnd=${end}`);
-          if (res.ok && active) {
-            const data = await res.json();
-            setStats(data);
+          const data = await api.reports.summary(start, end);
+          if (active) {
+            setStats(data as any);
           }
         } else {
-          const res = await fetch(`/api/reports?type=${activeTab}&periodStart=${start}&periodEnd=${end}&page=${page}&limit=50`);
-          if (res.ok && active) {
-            const result = await res.json();
+          const result = await api.reports.details(activeTab, start, end, page, 50);
+          if (active) {
             if (result.error) {
               toast.error(result.error);
             } else {
               setListData(result.data || []);
               setTotalListCount(result.totalCount || 0);
             }
-          } else {
-            const err = await res.json().catch(()=>({}));
-            toast.error(err.error || "Failed to fetch report data");
           }
         }
-      } catch (error) {
-        console.error("Failed to fetch reports", error);
+      } catch (error: any) {
+        if (active) {
+          toast.error(error.message || "Failed to fetch report data");
+          console.error("Failed to fetch reports", error);
+        }
       } finally {
         if (active) setIsLoading(false);
       }

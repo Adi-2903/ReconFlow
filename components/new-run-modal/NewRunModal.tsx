@@ -9,25 +9,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useData } from "@/lib/data-context";
+import { api, ReconCounts, ReconStats } from "@/lib/api-client";
 
 interface NewRunModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}
-
-interface RealCounts {
-  bankTransactions: number;    // all sources combined
-  stripeTransactions: number;  // only rows with source="Stripe" (real sync)
-  ledgerEntries: number;
-  qboConnected: boolean;
-  stripeConnected: boolean;
-}
-
-interface RunResult {
-  total: number;
-  autoMatched: number;
-  needsReview: number;
-  exceptions: number;
 }
 
 export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
@@ -40,17 +26,19 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
   const [processingTextIndex, setProcessingTextIndex] = useState(0);
 
   // Real counts from DB
-  const [counts, setCounts] = useState<RealCounts>({
+  const [counts, setCounts] = useState<ReconCounts>({
     bankTransactions: 0,
     stripeTransactions: 0,
     ledgerEntries: 0,
     qboConnected: false,
     stripeConnected: false,
+    qboLastSync: null,
+    stripeLastSync: null,
   });
   const [countsLoading, setCountsLoading] = useState(false);
 
   // Real results from API
-  const [runResult, setRunResult] = useState<RunResult | null>(null);
+  const [runResult, setRunResult] = useState<ReconStats | null>(null);
 
   const [sources, setSources] = useState({
     stripe: true,
@@ -70,16 +58,9 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
       if (!active) return;
       setCountsLoading(true);
       try {
-        const r = await fetch("/api/recon/counts");
-        const data = await r.json();
+        const data = await api.recon.counts();
         if (!active) return;
-        setCounts({
-          bankTransactions: data.bankTransactions ?? 0,
-          stripeTransactions: data.stripeTransactions ?? 0,
-          ledgerEntries: data.ledgerEntries ?? 0,
-          qboConnected: data.qboConnected ?? false,
-          stripeConnected: data.stripeConnected ?? false,
-        });
+        setCounts(data);
         setSources((s) => ({ ...s, quickbooks: data.qboConnected ?? false, stripe: data.stripeConnected ?? false }));
       } catch (e) {
         /* silently fail — counts stay at 0 */
@@ -138,22 +119,12 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
     setRunResult(null);
 
     try {
-      const res = await fetch("/api/recon/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          periodStart: dateFrom.toISOString(),
-          periodEnd: dateTo.toISOString(),
-        }),
+      const data = await api.recon.run({
+        periodStart: dateFrom.toISOString(),
+        periodEnd: dateTo.toISOString(),
       });
-      const data = await res.json();
       if (data.stats) {
-        setRunResult({
-          total: data.stats.total ?? 0,
-          autoMatched: data.stats.autoMatched ?? 0,
-          needsReview: data.stats.needsReview ?? 0,
-          exceptions: data.stats.exceptions ?? 0,
-        });
+        setRunResult(data.stats);
       }
     } catch (error) {
       console.error("Recon API call failed", error);

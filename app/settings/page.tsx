@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { signOut, useSession } from "next-auth/react";
+import { api } from "@/lib/api-client";
 
 type Section = "General" | "Reconciliation Rules" | "Notifications" | "Team" | "Danger Zone";
 
@@ -64,8 +65,7 @@ export default function SettingsPage() {
 
   const handleResetData = async () => {
     try {
-      const res = await fetch("/api/settings/reset", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to reset data");
+      await api.settings.reset();
       toast.success("Data reset successfully");
     } catch (error) {
       console.error(error);
@@ -78,8 +78,7 @@ export default function SettingsPage() {
 
   const handleDeleteAccount = async () => {
     try {
-      const res = await fetch("/api/settings/delete-account", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to delete account");
+      await api.settings.deleteAccount();
       toast.success("Account deleted successfully");
       signOut({ callbackUrl: "/login" });
     } catch (error) {

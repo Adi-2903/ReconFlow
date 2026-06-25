@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { MatchData } from "@/types/match";
 import { sharedMatches as initialMatches } from "@/lib/data";
 import { toast } from "sonner";
+import { api } from "@/lib/api-client";
 
 interface DataContextType {
   matches: MatchData[];
@@ -52,12 +53,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
     setIsLoading(true);
     try {
-      const res = await fetch("/api/matches");
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setMatches(data);
-        }
+      const data = await api.matches.list();
+      if (Array.isArray(data)) {
+        setMatches(data as unknown as MatchData[]);
       }
     } catch (e) {
       console.error("Failed to fetch matches", e);
@@ -72,11 +70,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const res = await fetch("/api/exceptions");
-      if (res.ok) {
-        const data = await res.json();
-        setExceptionCount(data.count || 0);
-      }
+      const data = await api.exceptions.list();
+      setExceptionCount(data.count || 0);
     } catch (e) {
       console.error("Failed to fetch exception count", e);
     }
@@ -107,38 +102,27 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       return true;
     }
     try {
-      const res = await fetch(`/api/matches/${id}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
-      if (res.ok) {
-        setMatches((prev) =>
-          prev.map((m) => (m.id === id ? { ...m, status: "approved" as const } : m))
-        );
-        toast.success("Match approved");
-        refreshExceptions();
-        return true;
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        if (res.status === 409) {
-          if (errData.code === "ALREADY_FINALIZED") {
-            toast.error("Match already finalized by another user.");
-          } else if (errData.code === "CONCURRENT_CLAIM") {
-            toast.error("One or more selected entries were claimed. Suggestions refreshed.");
-          } else {
-            toast.error(errData.error || "Match already reviewed by another user. Please refresh.");
-          }
-          refreshMatches();
-          refreshExceptions();
+      await api.matches.approve(id, reason);
+      setMatches((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, status: "approved" as const } : m))
+      );
+      toast.success("Match approved");
+      refreshExceptions();
+      return true;
+    } catch (e: any) {
+      if (e.status === 409) {
+        if (e.code === "ALREADY_FINALIZED") {
+          toast.error("Match already finalized by another user.");
+        } else if (e.code === "CONCURRENT_CLAIM") {
+          toast.error("One or more selected entries were claimed. Suggestions refreshed.");
         } else {
-          toast.error(errData.error || "Failed to approve match");
+          toast.error(e.message || "Match already reviewed by another user. Please refresh.");
         }
-        return false;
+        refreshMatches();
+        refreshExceptions();
+      } else {
+        toast.error(e.message || "Failed to approve match");
       }
-    } catch (e) {
-      console.error("Failed to approve match on server", e);
-      toast.error("Failed to approve match");
       return false;
     }
   };
@@ -152,38 +136,27 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       return true;
     }
     try {
-      const res = await fetch(`/api/matches/${id}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
-      if (res.ok) {
-        setMatches((prev) =>
-          prev.map((m) => (m.id === id ? { ...m, status: "rejected" as const } : m))
-        );
-        toast.success("Match rejected");
-        refreshExceptions();
-        return true;
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        if (res.status === 409) {
-          if (errData.code === "ALREADY_FINALIZED") {
-            toast.error("Match already finalized by another user.");
-          } else if (errData.code === "CONCURRENT_CLAIM") {
-            toast.error("One or more selected entries were claimed. Suggestions refreshed.");
-          } else {
-            toast.error(errData.error || "Match already reviewed by another user. Please refresh.");
-          }
-          refreshMatches();
-          refreshExceptions();
+      await api.matches.reject(id, reason);
+      setMatches((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, status: "rejected" as const } : m))
+      );
+      toast.success("Match rejected");
+      refreshExceptions();
+      return true;
+    } catch (e: any) {
+      if (e.status === 409) {
+        if (e.code === "ALREADY_FINALIZED") {
+          toast.error("Match already finalized by another user.");
+        } else if (e.code === "CONCURRENT_CLAIM") {
+          toast.error("One or more selected entries were claimed. Suggestions refreshed.");
         } else {
-          toast.error(errData.error || "Failed to reject match");
+          toast.error(e.message || "Match already reviewed by another user. Please refresh.");
         }
-        return false;
+        refreshMatches();
+        refreshExceptions();
+      } else {
+        toast.error(e.message || "Failed to reject match");
       }
-    } catch (e) {
-      console.error("Failed to reject match on server", e);
-      toast.error("Failed to reject match");
       return false;
     }
   };
@@ -198,36 +171,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       return true;
     }
     try {
-      const res = await fetch(`/api/matches/${bankTransactionId}/manual-match`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ledgerEntryIds, reason }),
-      });
-      if (res.ok) {
-        toast.success("Manual match created");
-        await refreshMatches();
-        await refreshExceptions();
-        return true;
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        if (res.status === 409) {
-          if (errData.code === "ALREADY_FINALIZED") {
-            toast.error("Match already finalized by another user.");
-          } else if (errData.code === "CONCURRENT_CLAIM") {
-            toast.error("One or more selected entries were claimed. Suggestions refreshed.");
-          } else {
-            toast.error(errData.error || "Match already reviewed by another user. Please refresh.");
-          }
-          refreshMatches();
-          refreshExceptions();
+      await api.matches.manualMatch(bankTransactionId, ledgerEntryIds, reason);
+      toast.success("Manual match created");
+      await refreshMatches();
+      await refreshExceptions();
+      return true;
+    } catch (e: any) {
+      if (e.status === 409) {
+        if (e.code === "ALREADY_FINALIZED") {
+          toast.error("Match already finalized by another user.");
+        } else if (e.code === "CONCURRENT_CLAIM") {
+          toast.error("One or more selected entries were claimed. Suggestions refreshed.");
         } else {
-          toast.error(errData.error || "Failed to create manual match");
+          toast.error(e.message || "Match already reviewed by another user. Please refresh.");
         }
-        return false;
+        refreshMatches();
+        refreshExceptions();
+      } else {
+        toast.error(e.message || "Failed to create manual match");
       }
-    } catch (e) {
-      console.error("Failed to create manual match on server", e);
-      toast.error("Failed to create manual match");
       return false;
     }
   };

@@ -20,45 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-
-interface ExceptionItem {
-  id: string;
-  bankTransactionId: string;
-  ledgerEntryIds: string[];
-  amount: number;
-  date: string;
-  source: string;
-  reference: string;
-  reasonTag: string;
-  reasonText: string;
-  flags: string[];
-}
-
-interface AvailableLedgerEntry {
-  id: string;
-  amount: number;
-  currency: string;
-  date: string;
-  description: string;
-  referenceNumber: string;
-  counterpartyName: string;
-  side: string;
-  direction: string;
-  sourceSystem: string;
-  score?: number;
-  confidenceBand?: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW";
-  reasons?: Array<{ reason: string; points: number }>;
-}
-
-interface AuditLogEntry {
-  id: string;
-  matchId: string | null;
-  action: string;
-  actorEmail: string | null;
-  reason: string | null;
-  timestamp: string;
-  metadata: any;
-}
+import { api, ExceptionItem, AvailableLedgerEntry, AuditLogEntry } from "@/lib/api-client";
 
 export default function ExceptionsPage() {
   const { handleApprove, handleReject, handleManualMatch, isDemoMode } = useData();
@@ -114,29 +76,24 @@ export default function ExceptionsPage() {
           setSelectedItem(demoData[0]);
         }
       } else {
-        const res = await fetch("/api/exceptions");
-        if (res.ok) {
-          const data = await res.json();
-          const list = data.exceptions || [];
-          setExceptions(list);
-          if (list.length > 0) {
-            // Retain active selection if still in list, or select first
-            const found = list.find((x: ExceptionItem) => x.id === selectedItem?.id);
-            if (!found) {
-              setSelectedItem(list[0]);
-            } else {
-              setSelectedItem(found);
-            }
+        const data = await api.exceptions.list();
+        const list = data.exceptions || [];
+        setExceptions(list);
+        if (list.length > 0) {
+          // Retain active selection if still in list, or select first
+          const found = list.find((x: ExceptionItem) => x.id === selectedItem?.id);
+          if (!found) {
+            setSelectedItem(list[0]);
           } else {
-            setSelectedItem(null);
+            setSelectedItem(found);
           }
         } else {
-          setError("Failed to fetch exceptions");
+          setSelectedItem(null);
         }
       }
     } catch (err) {
       console.error(err);
-      setError("Failed to connect to database");
+      setError("Failed to fetch exceptions");
     } finally {
       setIsLoading(false);
     }
@@ -191,11 +148,8 @@ export default function ExceptionsPage() {
           const params = new URLSearchParams();
           params.set("bankId", selectedItem.bankTransactionId);
           if (query) params.set("query", query);
-          const res = await fetch(`/api/transactions/available?${params.toString()}`);
-          if (res.ok) {
-            const result = await res.json();
-            setAvailableLedgers(result.data || []);
-          }
+          const result = await api.transactions.available(params);
+          setAvailableLedgers(result.data || []);
         }
       } catch (err) {
         console.error(err);
@@ -235,11 +189,8 @@ export default function ExceptionsPage() {
           },
         ]);
       } else {
-        const res = await fetch(`/api/audit-logs?matchId=${selectedItem.id}`);
-        if (res.ok) {
-          const result = await res.json();
-          setAuditLogs(result.data || []);
-        }
+        const result = await api.auditLogs.list(selectedItem.id);
+        setAuditLogs(result.data || []);
       }
     } catch (err) {
       console.error(err);
