@@ -149,11 +149,26 @@ export function generateCandidates(
                 score += 30;
                 reasons.push({ reason: "reference_match", points: 30 });
             } else {
-                const bankSignals = bankTxn.matchingSignals || {};
-                const bookSignals = bookTxn.matchingSignals || {};
-                const bankInv = bankSignals.invoiceNumber || "";
-                const bookInv = bookSignals.invoiceNumber || "";
-                if (isDigitTransposition(bankRef, bookRef) || (bankInv && bookInv && isDigitTransposition(bankInv, bookInv))) {
+                const getInvoiceRefs = (text?: string): string[] => {
+                    if (!text) return [];
+                    const matches = text.match(/(?:INV|BILL|JE)-\d+/gi);
+                    return matches ? matches.map(m => m.toLowerCase()) : [];
+                };
+                const bankRefs = getInvoiceRefs((bankTxn.description || "") + " " + (bankTxn.referenceNumber || ""));
+                const bookRefs = getInvoiceRefs((bookTxn.description || "") + " " + (bookTxn.referenceNumber || ""));
+                
+                let isTransposition = false;
+                for (const bkRef of bankRefs) {
+                    for (const boRef of bookRefs) {
+                        if (isDigitTransposition(bkRef, boRef)) {
+                            isTransposition = true;
+                            break;
+                        }
+                    }
+                    if (isTransposition) break;
+                }
+                
+                if (isTransposition) {
                     score += 15;
                     reasons.push({ reason: "reference_typo_transposition" as CandidateReasonType, points: 15 });
                 } else {
@@ -186,7 +201,7 @@ export function generateCandidates(
 
         // Reference conflict penalty — must be applied here (before results.push / sort)
         // so the penalised score participates in candidate ranking.
-        const refAlreadyMatched = reasons.some(r => r.reason === "reference_match" || r.reason === "reference_typo_transposition");
+        const refAlreadyMatched = reasons.some(r => r.reason === "reference_match");
         const refConflict = hasReferenceConflict(
             bankTxn.referenceNumber,
             bookTxn.referenceNumber,

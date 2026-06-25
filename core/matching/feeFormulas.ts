@@ -118,14 +118,14 @@ export function matchesProcessorFeeForCombo(bankAmtMinor: bigint | number, combo
   const expectedStripeINR = combo.reduce((sum, bs) => {
     const amt = typeof bs.remainingAmountMinor === 'bigint' ? Number(bs.remainingAmountMinor) : bs.remainingAmountMinor;
     return sum + Math.round(amt * 0.029);
-  }, 0) + 2500;
+  }, 0) + (2500 * combo.length);
   if (Math.abs(diff - expectedStripeINR) <= allowedTolerance) return true;
 
   // 2. Stripe USD
   const expectedStripeUSD = combo.reduce((sum, bs) => {
     const amt = typeof bs.remainingAmountMinor === 'bigint' ? Number(bs.remainingAmountMinor) : bs.remainingAmountMinor;
     return sum + Math.round(amt * 0.029);
-  }, 0) + 3000;
+  }, 0) + (3000 * combo.length);
   if (Math.abs(diff - expectedStripeUSD) <= allowedTolerance) return true;
 
   // 3. Simple rates

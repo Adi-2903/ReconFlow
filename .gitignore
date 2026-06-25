@@ -20,3 +20,6 @@ Thumbs.db
 TestingFolder/data/ground_truth.json
 TestingFolder/data/TEST_PLAN.md
 query_script.ts
+ 
+# Audit Framework outputs
+TestingFolder/results/

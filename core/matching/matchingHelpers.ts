@@ -23,17 +23,23 @@ export function isStripePayoutTransaction(txn: {
   description?: string;
   matchingSignals?: { channel?: string; source?: string };
 }): boolean {
-  // 1. Most reliable — set by ingestion pipeline
-  const source = (txn.matchingSignals?.source || "").toLowerCase();
-  if (source === "stripe") return true;
-
-  // 2. Channel tag
-  const channel = (txn.matchingSignals?.channel || "").toUpperCase();
-  if (channel === "STRIPE") return true;
-
-  // 3. Description — must include "stripe" qualifier to avoid false positives
   const desc = (txn.description || "").toLowerCase();
-  return desc.includes("stripe payout") || desc.includes("stripe transfer");
+  const hasSettlementKeyword = /\b(payout|transfer|settlement|trnsfr)\b/i.test(desc);
+
+  if (hasSettlementKeyword) {
+    // 1. Most reliable — set by ingestion pipeline
+    const source = (txn.matchingSignals?.source || "").toLowerCase();
+    if (source === "stripe") return true;
+
+    // 2. Channel tag
+    const channel = (txn.matchingSignals?.channel || "").toUpperCase();
+    if (channel === "STRIPE") return true;
+
+    // 3. Description — must include "stripe" qualifier to avoid false positives
+    return desc.includes("stripe");
+  }
+
+  return false;
 }
 
 /**
@@ -65,8 +71,7 @@ export function getConfidenceBand(score: number): "VERY_HIGH" | "HIGH" | "MEDIUM
   if (score >= 150) return "VERY_HIGH";
   if (score >= 100) return "HIGH";
   if (score >= 60) return "MEDIUM";
-  if (score > 0) return "LOW";
-  return "NONE";
+  return "LOW";
 }
 
 /**

@@ -654,6 +654,133 @@ async function runTests() {
     );
     console.log(`  PASSED: Ref-conflict candidate survived with score=${c13.score} and penalty reason recorded.`);
 
+    // ----------------------------------------------------
+    // TEST 14: REFERENCE TYPO & SUBSTITUTION CALIBRATION
+    // ----------------------------------------------------
+    console.log("\nTest 14: Reference Typo & Substitution Calibration");
+
+    const baseBankTx: CanonicalTransaction = {
+        id: "BANK14",
+        source: "bank",
+        transactionDate: new Date("2026-01-01"),
+        amount: 10000,
+        amountMinor: 1000000n,
+        direction: "credit",
+        referenceNumber: "INV-12345",
+        counterparty: "Spelling Corp",
+        sourceId: "BANK14"
+    };
+
+    // 1. Exact Match Candidate
+    const bookExact: CanonicalTransaction = {
+        id: "BOOK14_EXACT",
+        source: "quickbooks",
+        transactionDate: new Date("2026-01-01"),
+        amount: 10000,
+        amountMinor: 1000000n,
+        direction: "credit",
+        referenceNumber: "INV-12345",
+        counterparty: "Spelling Corp",
+        sourceId: "BOOK14_EXACT"
+    };
+
+    // 2. Transposition Candidate (INV-12345 vs INV-12354)
+    const bookTransposition: CanonicalTransaction = {
+        id: "BOOK14_TRANSPOSITION",
+        source: "quickbooks",
+        transactionDate: new Date("2026-01-01"),
+        amount: 10000,
+        amountMinor: 1000000n,
+        direction: "credit",
+        referenceNumber: "INV-12354",
+        counterparty: "Spelling Corp",
+        sourceId: "BOOK14_TRANSPOSITION"
+    };
+
+    // 3. Substitution Candidate (INV-12345 vs INV-12346)
+    const bookSubstitution: CanonicalTransaction = {
+        id: "BOOK14_SUBSTITUTION",
+        source: "quickbooks",
+        transactionDate: new Date("2026-01-01"),
+        amount: 10000,
+        amountMinor: 1000000n,
+        direction: "credit",
+        referenceNumber: "INV-12346",
+        counterparty: "Spelling Corp",
+        sourceId: "BOOK14_SUBSTITUTION"
+    };
+
+    const exactCands = genCandidates(baseBankTx, [bookExact], { skipAmountGate: false });
+    const transpositionCands = genCandidates(baseBankTx, [bookTransposition], { skipAmountGate: false });
+    const substitutionCands = genCandidates(baseBankTx, [bookSubstitution], { skipAmountGate: false });
+
+    assert(exactCands.length === 1, "Exact candidate should be generated");
+    assert(transpositionCands.length === 1, "Transposition candidate should be generated");
+    assert(substitutionCands.length === 1, "Substitution candidate should be generated");
+
+    const candExact = exactCands[0];
+    const candTransposition = transpositionCands[0];
+    const candSubstitution = substitutionCands[0];
+
+    console.log(`  Exact Score: ${candExact.score} (Band: ${candExact.confidenceBand})`);
+    console.log(`  Transposition Score: ${candTransposition.score} (Band: ${candTransposition.confidenceBand})`);
+    console.log(`  Substitution Score: ${candSubstitution.score} (Band: ${candSubstitution.confidenceBand})`);
+
+    // Assert relative score ordering
+    assert(candExact.score > candTransposition.score, "Exact score must be greater than transposition score");
+    assert(candTransposition.score > candSubstitution.score, "Transposition score must be greater than substitution score");
+
+    // Assert correct confidence bands
+    assert(candExact.confidenceBand === "HIGH" || candExact.confidenceBand === "VERY_HIGH", "Exact match must be HIGH/VERY_HIGH");
+    assert(candTransposition.confidenceBand === "MEDIUM", "Transposition match must be MEDIUM");
+    assert(candSubstitution.confidenceBand === "LOW", "Substitution match must be LOW");
+
+    console.log("  PASSED: Score relative ordering and confidence bands successfully calibrated.");
+
+    // ----------------------------------------------------
+    // TEST 15: STRIPE PAYOUT GATE BYPASS LOGIC
+    // ----------------------------------------------------
+    console.log("\nTest 15: Stripe Payout Gate Bypass Logic");
+
+    const { isStripePayoutTransaction } = await import("../../core/matching/matchingHelpers");
+
+    // 1. Stripe Checkout Charge -> expected false
+    const checkoutCharge = {
+        description: "Payment for INV-2022 via Stripe Checkout",
+        matchingSignals: { channel: "STRIPE", merchantName: "Stripe" }
+    };
+    assert(isStripePayoutTransaction(checkoutCharge) === false, "Stripe Checkout Charge should NOT bypass the gate");
+
+    // 2. Stripe charge-level Refund -> expected false
+    const checkoutRefund = {
+        description: "STRIPE REFUND re_123",
+        matchingSignals: { channel: "STRIPE" }
+    };
+    assert(isStripePayoutTransaction(checkoutRefund) === false, "Charge-level Stripe Refund should NOT bypass the gate");
+
+    // 3. Stripe Payout -> expected true
+    const payout1 = {
+        description: "STRIPE PAYOUT po_1Pjk29",
+        matchingSignals: { channel: "STRIPE" }
+    };
+    assert(isStripePayoutTransaction(payout1) === true, "Stripe Payout should bypass the gate");
+
+    // 4. Stripe Transfer -> expected true
+    const transfer1 = {
+        description: "STRIPE TRANSFER ch_3Pjk88",
+        matchingSignals: { channel: "STRIPE" }
+    };
+    assert(isStripePayoutTransaction(transfer1) === true, "Stripe Transfer should bypass the gate");
+
+    // 5. Stripe Abbreviated Transfer -> expected true
+    const transferAbbr = {
+        description: "STRPE TRNSFR ch_3Pjk88",
+        matchingSignals: { channel: "STRIPE" }
+    };
+    assert(isStripePayoutTransaction(transferAbbr) === true, "Stripe Abbreviated Transfer should bypass the gate");
+
+    console.log("  PASSED: Stripe payout bypass rules correctly validated.");
+
     console.log("\n==================================================");
     console.log("ALL TESTS PASSED SUCCESSFULLY!");
     console.log("==================================================");

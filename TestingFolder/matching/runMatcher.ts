@@ -6,7 +6,7 @@ import { generateCandidates } from "./candidateGenerator";
 import { CandidateReason, ConfidenceBand, CandidateReasonType, CandidateResult } from "../types/CandidateResult";
 import { daysBetween, referenceMatches, nameMatches, directionMatches, normalizeReference, normalizeName } from "./utils";
 import { classifyMatch } from "../../core/matching/classifier";
-import { isStripePayoutTransaction, getConfidenceBand, bandToConfidence } from "../../core/matching/matchingHelpers";
+import { isStripePayoutTransaction, getConfidenceBand, bandToConfidence, getEditDistance } from "../../core/matching/matchingHelpers";
 import { matchesProcessorFee, matchesProcessorFeeForCombo } from "../../core/matching/feeFormulas";
 import { computeRiskScore } from "../../core/matching/riskEngine";
 
@@ -375,13 +375,49 @@ export function runMatcher(
                 const isFeeSum = matchesProcessorFeeForCombo(bankAmt, combo);
 
                 if (isExactSum || isFeeSum) {
-                    // Score = max(candidate generator base scores) + 15 validation bonus
-                    const baseScores = combo.map((bs) => {
-                        const candidatesResult = generateCandidates(bankTxn, [bs.txn], { skipAmountGate: true });
-                        return candidatesResult.length > 0 ? candidatesResult[0].score : 50;
-                    });
-                    const finalScore = Math.max(...baseScores) + 15;
-                    validCombos.push({ combo, score: finalScore });
+                    let comboScore = isExactSum ? 100 : 80;
+
+                    let cpMatches = false;
+                    for (const bs of combo) {
+                        if (nameMatches(bankTxn.counterparty, bs.txn.counterparty)) {
+                            cpMatches = true;
+                            break;
+                        }
+                    }
+                    if (cpMatches || isStripePayoutTransaction(bankTxn)) {
+                        comboScore += 30;
+                    } else {
+                        let cpTypo = false;
+                        const cleanBank = (bankTxn.counterparty || "").toUpperCase().replace(/\b(CORPORATION|CORP|PVT|PRIVATE|LTD|LIMITED|SOLUTIONS|SOLUTION|INCORPORATED|INC)\b/g, "").replace(/[^A-Z0-9]/g, "").trim();
+                        for (const bs of combo) {
+                            const cleanBook = (bs.txn.counterparty || "").toUpperCase().replace(/\b(CORPORATION|CORP|PVT|PRIVATE|LTD|LIMITED|SOLUTIONS|SOLUTION|INCORPORATED|INC)\b/g, "").replace(/[^A-Z0-9]/g, "").trim();
+                            if (cleanBank && cleanBook && getEditDistance(cleanBank, cleanBook) <= 2) {
+                                cpTypo = true;
+                                break;
+                            }
+                        }
+                        if (cpTypo) {
+                            comboScore += 20;
+                        }
+                    }
+
+                    const maxDayDiff = Math.max(...combo.map(bs => daysBetween(bankTxn.transactionDate, bs.txn.transactionDate)));
+                    const datePoints = Math.max(0, Math.round(20 - maxDayDiff * 2));
+                    comboScore += datePoints;
+
+                    let hasRefOverlap = false;
+                    for (const bs of combo) {
+                        if (referenceMatches(bankTxn.referenceNumber, bs.txn.referenceNumber) ||
+                            (bankTxn.description && bs.txn.description && getCounterpartySimilarity(bankTxn.description, bs.txn.description) >= 0.4)) {
+                            hasRefOverlap = true;
+                            break;
+                        }
+                    }
+                    if (hasRefOverlap) {
+                        comboScore += 20;
+                    }
+
+                    validCombos.push({ combo, score: comboScore });
                 }
             }
 
@@ -461,12 +497,49 @@ export function runMatcher(
                 const sumAmt = combo.reduce((sum, bs) => sum + bs.remainingAmountMinor, 0n);
                 const diff = sumAmt > bookAmt ? sumAmt - bookAmt : bookAmt - sumAmt;
                 if (diff <= 100n) {
-                    const baseScores = combo.map((bs) => {
-                        const candidatesResult = generateCandidates(bs.txn, [bookTxn], { skipAmountGate: true });
-                        return candidatesResult.length > 0 ? candidatesResult[0].score : 50;
-                    });
-                    const finalScore = Math.max(...baseScores) + 15;
-                    validCombos.push({ combo, score: finalScore });
+                    let comboScore = 100; // exact sum
+
+                    let cpMatches = false;
+                    for (const bs of combo) {
+                        if (nameMatches(bookTxn.counterparty, bs.txn.counterparty)) {
+                            cpMatches = true;
+                            break;
+                        }
+                    }
+                    if (cpMatches) {
+                        comboScore += 30;
+                    } else {
+                        let cpTypo = false;
+                        const cleanBook = (bookTxn.counterparty || "").toUpperCase().replace(/\b(CORPORATION|CORP|PVT|PRIVATE|LTD|LIMITED|SOLUTIONS|SOLUTION|INCORPORATED|INC)\b/g, "").replace(/[^A-Z0-9]/g, "").trim();
+                        for (const bs of combo) {
+                            const cleanBank = (bs.txn.counterparty || "").toUpperCase().replace(/\b(CORPORATION|CORP|PVT|PRIVATE|LTD|LIMITED|SOLUTIONS|SOLUTION|INCORPORATED|INC)\b/g, "").replace(/[^A-Z0-9]/g, "").trim();
+                            if (cleanBank && cleanBook && getEditDistance(cleanBank, cleanBook) <= 2) {
+                                cpTypo = true;
+                                break;
+                            }
+                        }
+                        if (cpTypo) {
+                            comboScore += 20;
+                        }
+                    }
+
+                    const maxDayDiff = Math.max(...combo.map(bs => daysBetween(bookTxn.transactionDate, bs.txn.transactionDate)));
+                    const datePoints = Math.max(0, Math.round(20 - maxDayDiff * 2));
+                    comboScore += datePoints;
+
+                    let hasRefOverlap = false;
+                    for (const bs of combo) {
+                        if (referenceMatches(bookTxn.referenceNumber, bs.txn.referenceNumber) ||
+                            (bookTxn.description && bs.txn.description && getCounterpartySimilarity(bookTxn.description, bs.txn.description) >= 0.4)) {
+                            hasRefOverlap = true;
+                            break;
+                        }
+                    }
+                    if (hasRefOverlap) {
+                        comboScore += 20;
+                    }
+
+                    validCombos.push({ combo, score: comboScore });
                 }
             }
 
@@ -639,6 +712,7 @@ export function runMatcher(
 
             if (cand.candidate.referenceNumber === "INV-2051") {
                 console.log(`F4 Pass 5 check: dayDiff=${dayDiff}, refMatch=${refMatch}, nameMatch=${nameMatch}, hasTypo=${hasTypo}`);
+                console.log(`F4 debug: bank_cp='${bankTxn.counterparty}', book_cp='${cand.candidate.counterparty}'`);
             }
 
             // Standard Tolerance match (near match)
@@ -683,11 +757,12 @@ export function runMatcher(
             bookState.matchedAmountMinor = bookState.remainingAmountMinor;
             bookState.remainingAmountMinor = 0n;
 
+            const finalScore = best.score;
             matches.push({
                 bankTransactionIds: [bankTxn.id],
                 bookTransactionIds: [best.candidate.candidate.id],
-                score: best.score,
-                confidenceBand: getConfidenceBand(best.score) as ConfidenceBand,
+                score: finalScore,
+                confidenceBand: getConfidenceBand(finalScore) as ConfidenceBand,
                 matchType: best.matchType,
                 riskScore: 0,
                 reasons: best.reasons
@@ -780,7 +855,7 @@ export function runMatcher(
         continue;
       }
       const matchedBooks = bookTxns.filter(b => match.bookTransactionIds.includes(b.id));
-      const matchingConfidence = bandToConfidence(getConfidenceBand(match.score));
+      const matchingConfidence = bandToConfidence(match.confidenceBand);
       const breakdown = computeRiskScore({
         amountMinor: Number(getEffectiveAmountMinor(bankTxn)),
         matchingConfidence,
