@@ -66,7 +66,7 @@ export default function ExceptionsPage() {
             amount: m.bankRow.amount,
             date: m.bankRow.date,
             source: "Bank",
-            reference: m.bankRow.reference,
+            reference: m.bankRow.referenceId,
             reasonTag: m.reasonText,
             reasonText: m.reasonText,
             flags: m.evidenceList?.map((e) => e.code) || [],
