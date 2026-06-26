@@ -71,13 +71,21 @@ export async function getOrCreateFinancialAccount(
     return existingAccount.id;
   }
 
+  // Fetch organization base currency to default the financial account currency
+  const [org] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.id, orgId))
+    .limit(1);
+  const orgCurrency = org?.baseCurrency || "USD";
+
   const [newAccount] = await db
     .insert(financialAccounts)
     .values({
       organizationId: orgId,
       accountType: type,
       name: name,
-      baseCurrency: type === "bank" || type === "tally" ? "INR" : "USD",
+      baseCurrency: orgCurrency,
     })
     .returning();
 

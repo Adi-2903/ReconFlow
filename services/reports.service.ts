@@ -302,7 +302,7 @@ export async function rebuildDailyMetricsRange(
       let currentChunkEnd = new Date(currentChunkStart.getFullYear(), currentChunkStart.getMonth() + 1, 0, 23, 59, 59, 999);
       if (currentChunkEnd > endDate) currentChunkEnd = endDate;
 
-      // 3. Read Historical Data
+      // 3. Read Historical Data (Reconciliation is driven from the bank side only)
       const records = await tx
         .select({
           txn: canonicalTransactions,
@@ -313,6 +313,7 @@ export async function rebuildDailyMetricsRange(
         .where(
           and(
             eq(canonicalTransactions.organizationId, organizationId),
+            eq(canonicalTransactions.side, "money"),
             sql`${canonicalTransactions.transactionDate} >= ${currentChunkStart.toISOString()}`,
             sql`${canonicalTransactions.transactionDate} <= ${currentChunkEnd.toISOString()}`
           )
@@ -348,7 +349,11 @@ export async function rebuildDailyMetricsRange(
           if (row.match.status === "approved") {
             agg.matchedCount += 1;
           } else if (row.match.status === "pending") {
-            agg.pendingCount += 1;
+            if (row.match.matchType === "none") {
+              agg.unmatchedCount += 1;
+            } else {
+              agg.pendingCount += 1;
+            }
           } else {
             agg.unmatchedCount += 1; // rejected/superseded fall back to unmatched in context of resolution
           }

@@ -81,7 +81,7 @@ export default function DashboardPage() {
 
   const autoMatchedCount = summary?.matchedCount ?? 0;
   const needReviewCount = summary?.pendingCount ?? 0;
-  const exceptionsCount = (summary?.unmatchedCount ?? 0) + (summary?.pendingCount ?? 0);
+  const exceptionsCount = summary?.unmatchedCount ?? 0;
   const totalReconciledValue = (summary?.totalVolumeMinor ?? 0) / 100;
   
   const formatter = new Intl.NumberFormat("en-IN", {

@@ -45,9 +45,17 @@ async function getTransactionMetricContribution(tx: any, transactionId: string) 
     agg.totalVolumeMinor += amountMinor;
 
     if (row.match) {
-      if (row.match.status === "approved") agg.matchedCount += 1;
-      else if (row.match.status === "pending") agg.pendingCount += 1;
-      else agg.unmatchedCount += 1;
+      if (row.match.status === "approved") {
+        agg.matchedCount += 1;
+      } else if (row.match.status === "pending") {
+        if (row.match.matchType === "none") {
+          agg.unmatchedCount += 1;
+        } else {
+          agg.pendingCount += 1;
+        }
+      } else {
+        agg.unmatchedCount += 1;
+      }
 
       if (row.match.riskScore && row.match.riskScore > 0) agg.highRiskCount += 1;
 

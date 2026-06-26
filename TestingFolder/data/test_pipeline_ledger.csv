@@ -1,0 +1,11 @@
+DocNumber,TxnDate,TxnType,CustomerVendorRef,Memo,TotalAmt,CurrencyRef,OpenBalance
+INV-9001,02/05/2026,Invoice,Blue Star Corp,Invoice INV-9001 for services,25000.00,INR,0.00
+INV-9002,02/10/2026,Invoice,Orange Solutions,UPI payment Orange Solutions,12499.00,INR,0.00
+BILL-7001,02/15/2026,Bill,Cloud Hosting Services,Cloud hosting servers payment,18300.00,INR,0.00
+EXP-8001,02/18/2026,Expense,Zoom Video Communications,Monthly video conferencing subscription,1499.00,INR,0.00
+INV-9005,02/20/2026,Invoice,Acme Retail,Invoice INV-9005 for goods,45000.00,INR,0.00
+INV-9006,02/05/2026,Invoice,Greenway Labs,Greenway Labs consultancy services,88000.00,INR,0.00
+INV-9007,02/12/2026,Invoice,Pyramid Tech,Consulting invoice for Pyramid Tech,50000.00,INR,2000.00
+INV-9008,02/14/2026,Invoice,Velvet Apparel,Invoice for Velvet Apparel Winter Collection,32000.00,INR,0.00
+INV-9009,02/25/2026,Invoice,Stripe Payout,Stripe payout gross amount 10000,10000.00,INR,0.00
+INV-9010,02/28/2026,Invoice,Unpaid Corp,Unpaid invoice to test unmatched ledger side,7500.00,INR,7500.00
