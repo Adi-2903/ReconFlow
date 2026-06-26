@@ -337,7 +337,7 @@ export default function ConnectPage() {
     const progressInterval = setInterval(() => {
       setImportProgress(prev => {
         if (prev >= 90) return prev;
-        return prev + Math.floor(Math.random() * 15) + 5;
+        return Math.min(prev + Math.floor(Math.random() * 15) + 5, 90);
       });
     }, 400);
 

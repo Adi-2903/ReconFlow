@@ -7,7 +7,7 @@ export type MatchData = {
   id: string;
   bankTransactionId?: string | null;
   ledgerEntryIds?: string[] | null;
-  bankRow: { amount: number; date: string; description: string; reference: string };
+  bankRow: { amount: number; date: string; description: string; referenceId: string; source: string; };
   ledgerRow: { amount: number; memo: string; invoiceRef: string } | null;
   ledgerRows?: Array<{ amount: number; memo: string; invoiceRef: string }>;
   confidenceScore: number;

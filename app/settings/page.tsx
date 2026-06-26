@@ -67,6 +67,7 @@ export default function SettingsPage() {
     try {
       await api.settings.reset();
       toast.success("Data reset successfully");
+      window.location.href = "/dashboard";
     } catch (error) {
       console.error(error);
       toast.error("Error resetting data");
@@ -336,8 +337,8 @@ export default function SettingsPage() {
             <div className="space-y-6 animate-in fade-in">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold tracking-tight">Team</h2>
+                <Button size="sm" onClick={() => setInviteOpen(true)} className="bg-slate-900 text-white hover:bg-slate-800">Invite team member</Button>
                 <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-                  <DialogTrigger render={<Button size="sm" className="bg-slate-900 text-white hover:bg-slate-800">Invite team member</Button>} />
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Invite external team member</DialogTitle>
@@ -434,8 +435,8 @@ export default function SettingsPage() {
                       Delete all matches and run history. Bank transactions and ledger entries will remain intact.
                     </p>
                   </div>
+                  <Button variant="outline" onClick={() => setResetOpen(true)} className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 shrink-0">Reset data</Button>
                   <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-                    <DialogTrigger render={<Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 shrink-0">Reset data</Button>} />
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Reset reconciliation data?</DialogTitle>
@@ -467,8 +468,8 @@ export default function SettingsPage() {
                       Permanently delete your account and all associated data. This action cannot be undone.
                     </p>
                   </div>
+                  <Button variant="outline" onClick={() => setDeleteOpen(true)} className="border-red-600 text-red-600 hover:bg-red-50 hover:text-red-700 shrink-0">Delete account</Button>
                   <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-                    <DialogTrigger render={<Button variant="outline" className="border-red-600 text-red-600 hover:bg-red-50 hover:text-red-700 shrink-0">Delete account</Button>} />
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Deactivate and delete account?</DialogTitle>

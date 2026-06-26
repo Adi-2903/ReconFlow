@@ -14,6 +14,7 @@ import { generateMatchReasoning, RunTracker } from "@/lib/ai-reason";
 import { renderExplanation } from "@/lib/render-explanation";
 import { getOrCreateUserOrganization } from "@/core/db/org-helper";
 import { PROMPT_VERSION } from "@/types";
+import { rebuildDailyMetricsRange } from "@/services/reports.service";
 
 // ── Inline concurrency limiter (no p-limit dependency) ────────────────────────
 // Caps concurrent LLM calls at MAX_CONCURRENT to prevent flooding Gemini
@@ -211,7 +212,7 @@ export async function runReconciliation(
           continue;
         }
 
-        const isAutoApprove = match.matchType === "exact" && match.confidenceScore >= 0.95;
+        const isAutoApprove = match.confidenceScore >= 0.95;
         const status = isAutoApprove ? "approved" : "pending";
 
         if (isAutoApprove) autoMatched++;
@@ -272,6 +273,9 @@ export async function runReconciliation(
         .set({ status: "complete", autoMatched, needsReview, exceptions })
         .where(eq(reconRuns.id, run.id));
     });
+
+    // Rebuild metrics so the dashboard updates immediately
+    await rebuildDailyMetricsRange(orgId, new Date(periodStart), new Date(periodEnd));
 
     return { runId: run.id, stats: { total: bankRows.length, autoMatched, needsReview, exceptions } };
   } catch (engineError) {

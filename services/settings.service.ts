@@ -14,7 +14,8 @@ import {
   imports,
 } from "@/core/db/schema";
 import { getOrCreateUserOrganization } from "@/core/db/org-helper";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+import { rebuildDailyMetricsRange } from "@/services/reports.service";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,45 @@ export interface DeleteAccountResult {
 }
 
 // ─── Service functions ────────────────────────────────────────────────────────
+
+/**
+ * Clears only the reconciliation history (matches, runs) and sets all transactions back to 'AVAILABLE'.
+ */
+export async function resetMatches(userId: string): Promise<ResetResult> {
+  const orgId = await getOrCreateUserOrganization(userId);
+
+  // Clear matches and runs
+  await db.delete(auditEvents).where(eq(auditEvents.userId, userId));
+  await db.delete(matches).where(eq(matches.userId, userId));
+  await db.delete(reconRuns).where(eq(reconRuns.userId, userId));
+  
+  await db.delete(transactionCandidates).where(eq(transactionCandidates.organizationId, orgId));
+  await db.delete(reconciliationRuns).where(eq(reconciliationRuns.organizationId, orgId));
+
+  // Reset transactions to AVAILABLE
+  await db.update(canonicalTransactions)
+    .set({ status: 'AVAILABLE' })
+    .where(eq(canonicalTransactions.organizationId, orgId));
+
+  // Find the date range of existing transactions for this org
+  const dateRange = await db.select({
+    minDate: sql<Date>`MIN(${canonicalTransactions.transactionDate})`,
+    maxDate: sql<Date>`MAX(${canonicalTransactions.transactionDate})`
+  }).from(canonicalTransactions)
+  .where(eq(canonicalTransactions.organizationId, orgId));
+
+  const minDate = dateRange[0]?.minDate;
+  const maxDate = dateRange[0]?.maxDate;
+
+  if (minDate && maxDate) {
+    await rebuildDailyMetricsRange(orgId, new Date(minDate), new Date(maxDate));
+  } else {
+    // If no transactions exist, just wipe metrics
+    await db.delete(dailyMetrics).where(eq(dailyMetrics.organizationId, orgId));
+  }
+
+  return { message: "Matches reset successfully" };
+}
 
 /**
  * Clears all reconciliation data for a user but keeps the user account intact.

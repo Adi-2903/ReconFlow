@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { LayoutDashboard, AlertCircle, Settings, Plus, Link2, BarChart2, Menu, X, Play } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Settings, Plus, Link2, BarChart2, Menu, X, Play, RotateCcw, Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,24 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isResettingMatches, setIsResettingMatches] = useState(false);
   const { matches, exceptionCount, isNewRunModalOpen, setIsNewRunModalOpen } = useData();
+
+  const handleResetMatches = async () => {
+    setIsResettingMatches(true);
+    try {
+      const response = await fetch('/api/recon/reset-matches', { method: 'POST' });
+      if (!response.ok) {
+        throw new Error("Failed to reset matches");
+      }
+      toast.success("Matches have been reset!");
+      // Force a full reload to clear all cached client state
+      window.location.href = pathname === "/dashboard" ? "/dashboard" : pathname;
+    } catch (e: any) {
+      toast.error(e.message || "An error occurred");
+      setIsResettingMatches(false);
+    }
+  };
 
   const reconciledPercent = matches.length > 0 
     ? Math.round((matches.filter(m => m.matchType === "exact" || m.status === "approved").length / matches.length) * 100)
@@ -69,6 +86,17 @@ export function AppShell({ children }: AppShellProps) {
         </div>
         
         <div className="flex items-center gap-3 sm:gap-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleResetMatches}
+            disabled={isResettingMatches}
+            className="h-9 hidden sm:flex items-center gap-1.5 border-slate-300 text-slate-700 hover:bg-slate-100"
+            title="Reset existing matches and start fresh"
+          >
+            {isResettingMatches ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+            Reset Matches
+          </Button>
           <Button 
             size="sm" 
             className="bg-slate-900 text-white px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium hover:bg-slate-800 h-9 hidden sm:flex items-center gap-1.5"
@@ -76,6 +104,16 @@ export function AppShell({ children }: AppShellProps) {
           >
             <Play className="w-3.5 h-3.5 fill-current" />
             New run
+          </Button>
+          
+          <Button 
+            variant="outline"
+            size="icon" 
+            className="w-8 h-8 rounded-md sm:hidden text-slate-700"
+            onClick={handleResetMatches}
+            disabled={isResettingMatches}
+          >
+            {isResettingMatches ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
           </Button>
           <Button 
             size="icon" 

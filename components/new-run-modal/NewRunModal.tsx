@@ -21,7 +21,11 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
   const { refreshMatches, autoStartNewRun, setAutoStartNewRun } = useData();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()));
+  const [dateFrom, setDateFrom] = useState<Date>(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 2);
+    return startOfMonth(d);
+  });
   const [dateTo, setDateTo] = useState<Date>(endOfMonth(new Date()));
   const [processingTextIndex, setProcessingTextIndex] = useState(0);
 
@@ -104,8 +108,8 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
     if (step === 2) {
       const interval = setInterval(() => {
         setProcessingTextIndex((prev) => {
-          if (prev < steps.length - 1) return prev + 1;
-          clearInterval(interval);
+          // Stay on the second to last step until the API actually finishes
+          if (prev < steps.length - 2) return prev + 1;
           return prev;
         });
       }, 800);
@@ -117,6 +121,8 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
     setStep(2);
     setProcessingTextIndex(0);
     setRunResult(null);
+
+    const startTime = Date.now();
 
     try {
       const data = await api.recon.run({
@@ -130,8 +136,14 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
       console.error("Recon API call failed", error);
     }
 
-    // Finish animation then move to step 3
-    setTimeout(() => setStep(3), steps.length * 800 + 600);
+    // Force the UI to immediately show "Run complete!"
+    setProcessingTextIndex(steps.length - 1);
+
+    // Give them a brief moment to see "Run complete!" and ensure minimum loading time to avoid UI flash
+    const elapsed = Date.now() - startTime;
+    const remaining = Math.max(800, 1500 - elapsed);
+    
+    setTimeout(() => setStep(3), remaining);
   };
 
   // Auto-start reconciliation if requested
@@ -258,6 +270,35 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
                     </label>
                   </div>
 
+                  {/* Internal Bank DB (CSV Uploads) */}
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="internal-bank"
+                      checked={true}
+                      disabled
+                      className="mt-1 opacity-70"
+                    />
+                    <label htmlFor="internal-bank" className="grid gap-1 leading-none cursor-not-allowed flex-1 opacity-80">
+                      <span className="text-sm font-medium text-slate-900">Internal Bank DB (CSV Uploads)</span>
+                      <span className="text-xs text-slate-500">
+                        {countsLoading
+                          ? "Loading..."
+                          : counts.bankTransactions > 0
+                          ? `${counts.bankTransactions} transactions available`
+                          : "No bank transactions uploaded yet"}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ledger Sources */}
+              <div className="space-y-3">
+                <h4 className="text-[13px] font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <CalendarIcon className="w-4 h-4 text-slate-400" />
+                  Ledger Source
+                </h4>
+                <div className="space-y-3 border border-slate-100 rounded-md p-3 bg-slate-50/50">
                   {/* QuickBooks — shows real connection status */}
                   <div className={cn("flex items-start space-x-3", !counts.qboConnected && "opacity-70")}>
                     <Checkbox
@@ -284,16 +325,7 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
                       )}
                     </label>
                   </div>
-                </div>
-              </div>
 
-              {/* Ledger Sources */}
-              <div className="space-y-3">
-                <h4 className="text-[13px] font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4 text-slate-400" />
-                  Ledger Source
-                </h4>
-                <div className="space-y-3 border border-slate-100 rounded-md p-3 bg-slate-50/50">
                   <div className="flex items-start space-x-3">
                     <Checkbox
                       id="internal"

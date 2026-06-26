@@ -88,7 +88,7 @@ const MatchRowView = React.memo(({
         <div className="flex items-center gap-2 text-xs text-slate-400 truncate whitespace-nowrap leading-tight mt-0.5">
           <span>{formatDate(match.bankRow.date)}</span>
           <span>•</span>
-          <span>{match.bankRow.reference}</span>
+          <span>{match.bankRow.referenceId || "—"}</span>
         </div>
       </div>
 
@@ -143,11 +143,13 @@ const MatchRowView = React.memo(({
       {/* Ledger Side */}
       <div className="flex-1 flex flex-col justify-center items-end px-4 overflow-hidden h-full py-1 text-right">
         {match.matchType === "none" ? (
-          <span className="text-slate-400 italic text-sm">— No match</span>
-        ) : match.matchType === "bulk" && match.ledgerRows ? (
+          <span className="text-slate-400 italic text-sm">
+            {match.status === "approved" ? "— Exception (Approved)" : "— No match"}
+          </span>
+        ) : match.ledgerRows && match.ledgerRows.length > 1 ? (
           <>
             <div className="flex items-center gap-2 truncate whitespace-nowrap justify-end">
-              <span className="text-slate-700 font-medium">Bulk ({match.ledgerRows.length} items)</span>
+              <span className="text-slate-700 font-medium">Multiple ({match.ledgerRows.length} items)</span>
               <span className="font-bold text-slate-900">
                 {formatINR(match.ledgerRows.reduce((s, r) => s + r.amount, 0))}
               </span>

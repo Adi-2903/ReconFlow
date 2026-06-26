@@ -59,9 +59,9 @@ export default function DashboardPage() {
   useEffect(() => {
     let active = true;
     const fetchSummary = async () => {
-      // Default to current month for dashboard
+      // Default to last 2 years for dashboard to ensure test data is included
       const now = new Date();
-      const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const start = new Date(now.getFullYear() - 2, now.getMonth(), 1).toISOString();
       const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
       try {
         const data = await api.reports.summary(start, end);
@@ -76,10 +76,10 @@ export default function DashboardPage() {
     return () => { active = false; };
   }, []);
 
-  const autoMatchedCount = summary.matchedCount;
-  const needReviewCount = summary.pendingCount;
-  const exceptionsCount = summary.unmatchedCount + summary.pendingCount;
-  const totalReconciledValue = summary.totalVolumeMinor / 100;
+  const autoMatchedCount = summary?.matchedCount ?? 0;
+  const needReviewCount = summary?.pendingCount ?? 0;
+  const exceptionsCount = (summary?.unmatchedCount ?? 0) + (summary?.pendingCount ?? 0);
+  const totalReconciledValue = (summary?.totalVolumeMinor ?? 0) / 100;
   
   const formatter = new Intl.NumberFormat("en-IN", {
     style: "currency",
