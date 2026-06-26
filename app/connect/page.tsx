@@ -806,7 +806,7 @@ export default function ConnectPage() {
                         </select>
                       </div>
 
-                      {columnMapping.debit || columnMapping.credit ? (
+                      {!columnMapping.direction && (columnMapping.debit || columnMapping.credit) ? (
                         <>
                           <div>
                             <label className="text-xs font-bold text-slate-600 mb-1.5 block">Debit (Outflow) Column</label>

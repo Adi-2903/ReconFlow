@@ -4,7 +4,7 @@ import { MatchData } from "@/types/match";
 export const sharedMatches: MatchData[] = [
   {
     id: "m_1",
-    bankRow: { amount: 15000, date: "10 Oct 2023", description: "STRIPE PAYMENTS", reference: "STR-001" },
+    bankRow: { amount: 15000, date: "10 Oct 2023", description: "STRIPE PAYMENTS", referenceId: "STR-001", source: "bank" },
     ledgerRow: { amount: 15000, memo: "Invoice #001", invoiceRef: "INV-001" },
     confidenceScore: 1.0,
     matchType: "exact",
@@ -17,7 +17,7 @@ export const sharedMatches: MatchData[] = [
   },
   {
     id: "m_2",
-    bankRow: { amount: 8000, date: "15 Dec 2023", description: "LATE PAYMENT DELAYED", reference: "STR-002" },
+    bankRow: { amount: 8000, date: "15 Dec 2023", description: "LATE PAYMENT DELAYED", referenceId: "STR-002", source: "bank" },
     ledgerRow: { amount: 8000, memo: "Invoice #002", invoiceRef: "INV-002" },
     confidenceScore: 0.92,
     matchType: "exact",
@@ -30,7 +30,7 @@ export const sharedMatches: MatchData[] = [
   },
   {
     id: "m_3",
-    bankRow: { amount: 9768, date: "12 Oct 2023", description: "STRIPE PAYOUT", reference: "STR-003" },
+    bankRow: { amount: 9768, date: "12 Oct 2023", description: "STRIPE PAYOUT", referenceId: "STR-003", source: "bank" },
     ledgerRow: { amount: 10000, memo: "Invoice #003", invoiceRef: "INV-003" },
     confidenceScore: 0.96,
     matchType: "fuzzy",
@@ -43,7 +43,7 @@ export const sharedMatches: MatchData[] = [
   },
   {
     id: "m_4",
-    bankRow: { amount: 35000, date: "13 Oct 2023", description: "AMAZON SETTLEMENT", reference: "AMZ-004" },
+    bankRow: { amount: 35000, date: "13 Oct 2023", description: "AMAZON SETTLEMENT", referenceId: "AMZ-004", source: "bank" },
     ledgerRow: null,
     ledgerRows: [
       { amount: 10000, memo: "Order A", invoiceRef: "ORD-A" },
@@ -61,7 +61,7 @@ export const sharedMatches: MatchData[] = [
   },
   {
     id: "m_5",
-    bankRow: { amount: 4500, date: "14 Oct 2023", description: "VENDOR REFUND", reference: "REF-005" },
+    bankRow: { amount: 4500, date: "14 Oct 2023", description: "VENDOR REFUND", referenceId: "REF-005", source: "bank" },
     ledgerRow: { amount: 4500, memo: "Supplier Payment", invoiceRef: "BILL-005" },
     confidenceScore: 0.25,
     matchType: "none",
