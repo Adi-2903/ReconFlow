@@ -330,12 +330,20 @@ export class IngestionService {
       const amountIndex = headers.indexOf(columnMap.amount);
       const refIndex = headers.indexOf(columnMap.reference);
       const counterpartyIndex = headers.indexOf(columnMap.counterparty);
+      
+      const dueDateIndex = columnMap.dueDate ? headers.indexOf(columnMap.dueDate) : -1;
+      const docTypeIndex = columnMap.documentType ? headers.indexOf(columnMap.documentType) : -1;
+      
+      const isMoney = ["bank_csv", "bank_excel", "stripe_export"].includes(fileType);
+      const side = isMoney ? "money" : "books";
+
       // Optional explicit currency column (e.g. QBO CurrencyRef, Stripe currency)
       const currencyColIndex = columnMap.currency ? headers.indexOf(columnMap.currency) : -1;
 
       // Support separate debit/credit column mappings
       const debitIndex = headers.indexOf(columnMap.debit);
       const creditIndex = headers.indexOf(columnMap.credit);
+      const directionIndex = columnMap.direction ? headers.indexOf(columnMap.direction) : -1;
       const typeIndex = headers.findIndex(h => /type|txntype|transaction\s*type/i.test(h));
 
       if (dateIndex === -1 || descIndex === -1 || (amountIndex === -1 && (debitIndex === -1 || creditIndex === -1))) {
@@ -417,7 +425,14 @@ export class IngestionService {
           const refStr = refIndex !== -1 ? row[refIndex] : "";
 
           // Normalize Date
-          const formattedDate = cleaningService.normalizeDate(rawDateStr);
+          let formattedDate: string;
+          if (side === "books") {
+            const documentType = docTypeIndex !== -1 ? row[docTypeIndex] : null;
+            const dueDateStr = dueDateIndex !== -1 ? row[dueDateIndex] : null;
+            formattedDate = cleaningService.getCanonicalLedgerDate(documentType, rawDateStr, dueDateStr);
+          } else {
+            formattedDate = cleaningService.normalizeDate(rawDateStr);
+          }
 
           // Normalize Amount
           let amountMinor: bigint;
@@ -433,7 +448,8 @@ export class IngestionService {
             const amountVal = amountIndex !== -1 ? row[amountIndex] : undefined;
             const debitVal = debitIndex !== -1 ? row[debitIndex] : undefined;
             const creditVal = creditIndex !== -1 ? row[creditIndex] : undefined;
-            const normalized = cleaningService.normalizeAmount(amountVal, debitVal, creditVal);
+            const directionVal = directionIndex !== -1 ? row[directionIndex] : undefined;
+            const normalized = cleaningService.normalizeTransactionAmount(amountVal, debitVal, creditVal, directionVal);
             amountMinor = normalized.amountMinor;
             direction = normalized.direction;
 
@@ -481,7 +497,6 @@ export class IngestionService {
           // Determine canonical side:
           // Bank CSV, Bank Excel, Stripe Export -> side: money
           // QuickBooks Export, Tally Export -> side: books
-          const isMoney = ["bank_csv", "bank_excel", "stripe_export"].includes(fileType);
           const txnType = cleaningService.normalizeTransactionType(fileType, direction);
 
           // Gather any extra unmapped column values to store in metadata for custom matching rules

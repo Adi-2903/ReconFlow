@@ -75,6 +75,7 @@ export default function ConnectPage() {
     amount: "",
     debit: "",
     credit: "",
+    direction: "",
     reference: "",
     counterparty: "",
   });
@@ -294,6 +295,7 @@ export default function ConnectPage() {
           amount: layoutMatch.mapping.amount || "",
           debit: layoutMatch.mapping.debit || "",
           credit: layoutMatch.mapping.credit || "",
+          direction: layoutMatch.mapping.direction || "",
           reference: layoutMatch.mapping.reference || "",
           counterparty: layoutMatch.mapping.counterparty || "",
         });
@@ -310,6 +312,7 @@ export default function ConnectPage() {
           amount: heuristics.amount || "",
           debit: heuristics.debit || "",
           credit: heuristics.credit || "",
+          direction: heuristics.direction || "",
           reference: heuristics.reference || "",
           counterparty: heuristics.counterparty || "",
         });
@@ -809,7 +812,7 @@ export default function ConnectPage() {
                             <label className="text-xs font-bold text-slate-600 mb-1.5 block">Debit (Outflow) Column</label>
                             <select
                               value={columnMapping.debit}
-                              onChange={(e) => setColumnMapping({ ...columnMapping, debit: e.target.value, amount: "" })}
+                              onChange={(e) => setColumnMapping({ ...columnMapping, debit: e.target.value, amount: "", direction: "" })}
                               className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                             >
                               <option value="">-- Select Debit --</option>
@@ -822,7 +825,7 @@ export default function ConnectPage() {
                             <label className="text-xs font-bold text-slate-600 mb-1.5 block">Credit (Inflow) Column</label>
                             <select
                               value={columnMapping.credit}
-                              onChange={(e) => setColumnMapping({ ...columnMapping, credit: e.target.value, amount: "" })}
+                              onChange={(e) => setColumnMapping({ ...columnMapping, credit: e.target.value, amount: "", direction: "" })}
                               className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                             >
                               <option value="">-- Select Credit --</option>
@@ -833,28 +836,43 @@ export default function ConnectPage() {
                           </div>
                         </>
                       ) : (
-                        <div>
-                          <label className="text-xs font-bold text-slate-600 mb-1.5 block">Amount Column <span className="text-rose-500">*</span></label>
-                          <div className="flex gap-2">
+                        <>
+                          <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1.5 block">Amount Column <span className="text-rose-500">*</span></label>
+                            <div className="flex gap-2">
+                              <select
+                                value={columnMapping.amount}
+                                onChange={(e) => setColumnMapping({ ...columnMapping, amount: e.target.value })}
+                                className="flex-1 text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                              >
+                                <option value="">-- Select Amount --</option>
+                                {previewData.headers.map((h) => (
+                                  <option key={h} value={h}>{h}</option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => setColumnMapping({ ...columnMapping, amount: "", direction: "", debit: previewData.headers[0], credit: previewData.headers[0] })}
+                                className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 shrink-0"
+                              >
+                                Use Debit/Credit cols
+                              </button>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1.5 block">Direction Column (Optional)</label>
                             <select
-                              value={columnMapping.amount}
-                              onChange={(e) => setColumnMapping({ ...columnMapping, amount: e.target.value })}
-                              className="flex-1 text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                              value={columnMapping.direction || ""}
+                              onChange={(e) => setColumnMapping({ ...columnMapping, direction: e.target.value })}
+                              className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                             >
-                              <option value="">-- Select Amount --</option>
+                              <option value="">-- Select Direction --</option>
                               {previewData.headers.map((h) => (
                                 <option key={h} value={h}>{h}</option>
                               ))}
                             </select>
-                            <button
-                              type="button"
-                              onClick={() => setColumnMapping({ ...columnMapping, amount: "", debit: previewData.headers[0], credit: previewData.headers[0] })}
-                              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 shrink-0"
-                            >
-                              Use Debit/Credit cols
-                            </button>
                           </div>
-                        </div>
+                        </>
                       )}
 
                       <div>

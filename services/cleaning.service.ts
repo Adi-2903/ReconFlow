@@ -33,6 +33,47 @@ export class CleaningService {
    */
 
   /**
+   * Selects the canonical reconciliation date based on accounting document semantics.
+   * 
+   * Invoice-based documents (SALES_INVOICE, PURCHASE_INVOICE, VENDOR_BILL) represent accruals 
+   * and should be reconciled against their payment due date to match bank cash flows.
+   * 
+   * Payment-based documents (PAYROLL, TAX_PAYMENT, PAYMENT, RECEIPT) and immediate 
+   * accounting adjustments (BANK_CHARGE, CREDIT_NOTE, REVERSAL_ENTRY) represent actual 
+   * cash flows or immediate actions and must be reconciled against their posting date.
+   * 
+   * @param documentType The type of the ledger document (e.g. SALES_INVOICE, PAYROLL)
+   * @param postingDateStr The date the document was posted/recorded
+   * @param dueDateStr The date the document is due for payment (if applicable)
+   * @returns The normalized canonical date string (YYYY-MM-DD)
+   */
+  getCanonicalLedgerDate(
+    documentType: string | undefined | null,
+    postingDateStr: string,
+    dueDateStr: string | undefined | null
+  ): string {
+    const defaultDate = this.normalizeDate(postingDateStr);
+    
+    if (!documentType) return defaultDate;
+
+    const docType = documentType.trim().toUpperCase();
+    const typesUsingDueDate = ["SALES_INVOICE", "PURCHASE_INVOICE", "VENDOR_BILL"];
+
+    if (typesUsingDueDate.includes(docType)) {
+      if (dueDateStr && dueDateStr.trim() !== "") {
+        try {
+          return this.normalizeDate(dueDateStr);
+        } catch {
+          // If due date parsing fails, gracefully fall back to posting date
+          return defaultDate;
+        }
+      }
+    }
+
+    return defaultDate;
+  }
+
+  /**
    * Parses date string using inferred format and returns YYYY-MM-DD
    */
   normalizeDate(dateStr: string): string {
@@ -128,7 +169,7 @@ export class CleaningService {
   /**
    * Standardizes debit/credit and amount strings, returning absolute value in minor units (paise/cents) and direction.
    */
-  normalizeAmount(amountVal?: string, debitVal?: string, creditVal?: string): { amountMinor: bigint; direction: "inflow" | "outflow" } {
+  normalizeTransactionAmount(amountVal?: string, debitVal?: string, creditVal?: string, directionVal?: string): { amountMinor: bigint; direction: "inflow" | "outflow" } {
     const parseSingleVal = (valStr?: string): number => {
       if (!valStr) return 0;
       let clean = valStr.trim();
@@ -137,31 +178,17 @@ export class CleaningService {
       let isNegative = false;
 
       // Step 1: Detect negativity from the raw string before any extraction.
-      // Handles all of: "(9,450)", "-(9,450)", "-9,450", "Rs.(9,450)", "-Rs. 9,450"
-      // Parentheses check: the accounting-negative form can appear anywhere after an optional prefix.
       if (/\([\d,. ]+\)/.test(clean)) {
         isNegative = true;
       } else if (clean.startsWith("-") || (clean.indexOf("-") !== -1 && clean.indexOf("-") < clean.search(/\d/))) {
-        // Leading minus, or minus appearing before the first digit (e.g. "-Rs. 9,450")
         isNegative = true;
       }
 
       // Step 2: Extract the numeric token directly using a digit-anchored regex.
-      // This is intentionally broad — it grabs everything from the first digit through
-      // any combination of digits, commas, and dots, stopping before whitespace or letters.
-      // Examples:
-      //   "Rs. 9,450.00"   -> "9,450.00"
-      //   "Rs.9,450.00"    -> "9,450.00"
-      //   "Rs.(9,450.00)"  -> "9,450.00"  (isNegative=true from Step 1)
-      //   "CHF 1.234,56"   -> "1.234,56"
-      //   "USD9450"        -> "9450"
-      //   "ABCXYZ"         -> no match -> throw AmountParseError below
       const numMatch = clean.match(/\d[\d,.]*/);
       clean = numMatch ? numMatch[0] : "";
 
-      // Strip any trailing comma or dot left by the extraction (e.g. "9,450," -> "9,450")
       clean = clean.replace(/[,.]$/, "");
-
 
       if (!clean) {
         throw new Error(`AmountParseError: Invalid amount value '${valStr}'`);
@@ -173,15 +200,12 @@ export class CleaningService {
 
       let parsedNum = 0;
       if (isUSorIN) {
-        // US/IN: commas are thousands separators, dot is decimal
         const normalized = clean.replace(/,/g, "");
         parsedNum = parseFloat(normalized);
       } else if (isEuropean) {
-        // European: dots are thousands separators, comma is decimal
         const normalized = clean.replace(/\./g, "").replace(",", ".");
         parsedNum = parseFloat(normalized);
       } else {
-        // Heuristic: compare position of last dot vs last comma
         const lastPunc = clean.lastIndexOf(".");
         const lastComma = clean.lastIndexOf(",");
 
@@ -215,7 +239,6 @@ export class CleaningService {
       return isNegative ? -parsedNum : parsedNum;
     }
 
-
     if (debitVal || creditVal) {
       const debitValParsed = parseSingleVal(debitVal);
       const creditValParsed = parseSingleVal(creditVal);
@@ -240,9 +263,21 @@ export class CleaningService {
     const singleAmt = parseSingleVal(amountVal);
     const absVal = Math.abs(singleAmt);
     const amtMinor = BigInt(Math.round(absVal * 100));
+    
+    let computedDirection: "inflow" | "outflow" = singleAmt >= 0 ? "inflow" : "outflow";
+    
+    if (directionVal) {
+      const d = directionVal.trim().toUpperCase();
+      if (/^(CR|CREDIT|CRDT|INFLOW|DEPOSIT|RECEIVED|IN)$/i.test(d)) {
+        computedDirection = "inflow";
+      } else if (/^(DR|DEBIT|DB|OUTFLOW|WITHDRAWAL|PAYMENT|OUT)$/i.test(d)) {
+        computedDirection = "outflow";
+      }
+    }
+
     return {
       amountMinor: amtMinor,
-      direction: singleAmt >= 0 ? "inflow" : "outflow"
+      direction: computedDirection
     };
   }
 

@@ -167,6 +167,12 @@ export async function POST(req: NextRequest) {
       }
 
       const columnMapping = JSON.parse(columnMappingStr);
+      
+      // Inject fallback columns for dueDate and documentType if not explicitly mapped by user
+      if (file.name.includes("ledger")) {
+        if (!columnMapping.dueDate) columnMapping.dueDate = "due_date";
+        if (!columnMapping.documentType) columnMapping.documentType = "document_type";
+      }
 
       // Resolve matching account ID
       const accountName = `${fileType.replace("_", " ").toUpperCase()} Account`;

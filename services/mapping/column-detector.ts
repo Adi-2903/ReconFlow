@@ -68,17 +68,21 @@ export function detectColumns(headers: string[]): Record<string, string> {
     amount: "",
     debit: "",
     credit: "",
+    direction: "",
     reference: "",
+    counterparty: "",
   };
 
   const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, " ");
 
   const dateRegex = /date|time|txn|value|created/i;
-  const descRegex = /desc|narrat|particular|memo|details|remark/i;
+  const descRegex = /desc|narrat|particular|memo|details|remark|customer|vendor|party/i;
   const amountRegex = /^amount|amount$|total|net/i;
+  const directionRegex = /direction|type|transaction type|txn type|dr cr|cr dr|credit debit|debit credit/i;
   const debitRegex = /debit|withdrawal|outflow|payment|paid/i;
   const creditRegex = /credit|deposit|inflow|receipt|received/i;
   const refRegex = /ref|reference|id|doc|num|vch|cheque|chq/i;
+  const counterpartyRegex = /counterparty|customer|vendor|party|name/i;
 
   let dateHeader = "";
   headers.forEach((header) => {
@@ -95,16 +99,37 @@ export function detectColumns(headers: string[]): Record<string, string> {
     const h = clean(header);
     if (header === dateHeader) {
       // already matched
-    } else if (!result.description && descRegex.test(h)) {
+      return;
+    }
+
+    // A single header can match multiple fields (e.g. customer_or_vendor -> description & counterparty)
+    
+    if (!result.description && descRegex.test(h)) {
       result.description = header;
-    } else if (debitRegex.test(h)) {
-      result.debit = header;
-    } else if (creditRegex.test(h)) {
-      result.credit = header;
-    } else if (!result.amount && amountRegex.test(h)) {
+    }
+
+    if (!result.direction && directionRegex.test(h)) {
+      result.direction = header;
+    } else if (!directionRegex.test(h)) {
+      // Only check for explicit debit/credit amounts if it's NOT a direction column
+      if (!result.debit && debitRegex.test(h)) {
+        result.debit = header;
+      }
+      if (!result.credit && creditRegex.test(h)) {
+        result.credit = header;
+      }
+    }
+
+    if (!result.amount && amountRegex.test(h)) {
       result.amount = header;
-    } else if (!result.reference && refRegex.test(h)) {
+    }
+
+    if (!result.reference && refRegex.test(h)) {
       result.reference = header;
+    }
+
+    if (!result.counterparty && counterpartyRegex.test(h)) {
+      result.counterparty = header;
     }
   });
 
@@ -131,6 +156,7 @@ export function findHeaderRowIndex(rows: string[][]): { index: number; score: nu
     let amountMatched = false;
     let debitMatched = false;
     let creditMatched = false;
+    let directionMatched = false;
     let refMatched = false;
 
     for (const cell of row) {
@@ -156,6 +182,10 @@ export function findHeaderRowIndex(rows: string[][]): { index: number; score: nu
       if (!creditMatched && /credit|deposit|inflow|receipt|received|cr\b/i.test(c)) {
         score += 0.25;
         creditMatched = true;
+      }
+      if (!directionMatched && /direction|type|transaction[ _]type|txn[ _]type|dr[ _]cr|dr\/cr|cr[ _]dr|credit[ _]debit|debit[ _]credit/i.test(c)) {
+        score += 0.20;
+        directionMatched = true;
       }
       if (!refMatched && /ref|reference|id|doc|num|vch/i.test(c)) {
         score += 0.15;

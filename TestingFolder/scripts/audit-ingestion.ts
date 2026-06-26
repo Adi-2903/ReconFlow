@@ -30,7 +30,7 @@ async function main() {
   });
 
   const checkNormalized = (amountVal: string, expectedMinor: bigint, expectedDirection: "inflow" | "outflow") => {
-    const res = cleaningService.normalizeAmount(amountVal);
+    const res = cleaningService.normalizeTransactionAmount(amountVal, undefined, undefined);
     if (res.amountMinor !== expectedMinor || res.direction !== expectedDirection) {
       throw new Error(`Assertion failed: normalizeAmount('${amountVal}') expected amountMinor=${expectedMinor} and direction=${expectedDirection}, got amountMinor=${res.amountMinor} and direction=${res.direction}`);
     }
@@ -45,7 +45,7 @@ async function main() {
 
   // Test loud failure for invalid amount "ABCXYZ"
   try {
-    cleaningService.normalizeAmount("ABCXYZ");
+    cleaningService.normalizeTransactionAmount("ABCXYZ");
     throw new Error("Assertion failed: normalizeAmount('ABCXYZ') should have thrown but didn't");
   } catch (err: any) {
     if (err.message.includes("AmountParseError")) {
