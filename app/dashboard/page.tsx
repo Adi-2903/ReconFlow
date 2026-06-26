@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { VirtualMatchTable } from "@/components/virtual-match-table";
 import { EvidencePanel } from "@/components/evidence-panel/EvidencePanel";
 import { MatchTableSkeleton } from "@/components/skeletons";
@@ -10,13 +10,16 @@ import { useData } from "@/lib/data-context";
 import { EmptyDashboardState } from "@/components/empty-dashboard-state";
 import { toast } from "sonner";
 import { api } from "@/lib/api-client";
+import { NewRunModal } from "@/components/new-run-modal/NewRunModal";
+import { Play } from "lucide-react";
 
 export default function DashboardPage() {
   const { matches, setMatches, handleApprove, handleReject, isLoading, isDemoMode, refreshMatches, refreshExceptions } = useData();
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [isBulkApproving, setIsBulkApproving] = useState(false);
+  const [isRunModalOpen, setIsRunModalOpen] = useState(false);
 
-  const handleBulkApprove = async (threshold: number) => {
+  const handleBulkApprove = useCallback(async (threshold: number) => {
     if (isDemoMode) {
       setMatches((prev) =>
         prev.map((m) =>
@@ -42,11 +45,11 @@ export default function DashboardPage() {
     } finally {
       setIsBulkApproving(false);
     }
-  };
+  }, [isDemoMode, setMatches, refreshMatches, refreshExceptions]);
 
-  const handleRowClick = (id: string) => {
+  const handleRowClick = useCallback((id: string) => {
     setSelectedMatchId(id);
-  };
+  }, []);
 
   const [summary, setSummary] = useState({
     totalCount: 0,
@@ -106,7 +109,15 @@ export default function DashboardPage() {
             Overview of your reconciliation status for this period.
           </p>
         </div>
-        <div className="flex items-center">
+        <div className="flex items-center gap-3">
+          <Button 
+            onClick={() => setIsRunModalOpen(true)} 
+            variant="outline"
+            className="w-full sm:w-auto bg-white hover:bg-slate-50"
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Re-Reconcile
+          </Button>
           <Button 
             onClick={() => handleBulkApprove(0.95)} 
             disabled={isBulkApproving}
@@ -150,6 +161,8 @@ export default function DashboardPage() {
           onClose={() => setSelectedMatchId(null)} 
         />
       )}
+
+      <NewRunModal open={isRunModalOpen} onOpenChange={setIsRunModalOpen} />
     </div>
   );
 }

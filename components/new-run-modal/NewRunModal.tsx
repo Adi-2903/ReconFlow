@@ -80,13 +80,8 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
 
   // Build dynamic processing steps based on real counts
   const steps = [
-    `Fetching ${counts.bankTransactions} bank transactions...`,
-    `Loading ${counts.ledgerEntries} ledger entries...`,
-    "Running exact match pass...",
-    "Running fuzzy match pass...",
-    "Detecting bulk payments...",
-    "Generating AI explanations...",
-    "Run complete!",
+    "Running Reconciliation Engine...",
+    "Reconciliation complete!",
   ];
 
   const handleOpenChange = (val: boolean) => {
@@ -105,17 +100,8 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
 
   // Step 2 processing animation
   useEffect(() => {
-    if (step === 2) {
-      const interval = setInterval(() => {
-        setProcessingTextIndex((prev) => {
-          // Stay on the second to last step until the API actually finishes
-          if (prev < steps.length - 2) return prev + 1;
-          return prev;
-        });
-      }, 800);
-      return () => clearInterval(interval);
-    }
-  }, [step, steps.length]);
+    // We just wait here, no fake steps looping.
+  }, [step]);
 
   const handleStart = async () => {
     setStep(2);
@@ -139,11 +125,8 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
     // Force the UI to immediately show "Run complete!"
     setProcessingTextIndex(steps.length - 1);
 
-    // Give them a brief moment to see "Run complete!" and ensure minimum loading time to avoid UI flash
-    const elapsed = Date.now() - startTime;
-    const remaining = Math.max(800, 1500 - elapsed);
-    
-    setTimeout(() => setStep(3), remaining);
+    // Short delay before showing results
+    setTimeout(() => setStep(3), 600);
   };
 
   // Auto-start reconciliation if requested

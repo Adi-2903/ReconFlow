@@ -41,8 +41,8 @@ export async function getReconciliationSummaryReport(
     .where(
       and(
         eq(dailyMetrics.organizationId, orgId),
-        gte(dailyMetrics.metricDate, start),
-        lte(dailyMetrics.metricDate, end)
+        gte(dailyMetrics.metricDate, toMetricDate(new Date(start))),
+        lte(dailyMetrics.metricDate, toMetricDate(new Date(end)))
       )
     );
 
@@ -66,7 +66,7 @@ export async function getExceptionReport(userId: string, start: string, end: str
   const totalRes = await db
     .select({ exceptionsCount: sql<number>`SUM(${dailyMetrics.unmatchedCount} + ${dailyMetrics.pendingCount})` })
     .from(dailyMetrics)
-    .where(and(eq(dailyMetrics.organizationId, orgId), gte(dailyMetrics.metricDate, start), lte(dailyMetrics.metricDate, end)));
+    .where(and(eq(dailyMetrics.organizationId, orgId), gte(dailyMetrics.metricDate, toMetricDate(new Date(start))), lte(dailyMetrics.metricDate, toMetricDate(new Date(end)))));
   
   const totalCount = Number(totalRes[0]?.exceptionsCount || 0);
 
@@ -242,7 +242,7 @@ export async function getRiskReport(userId: string, start: string, end: string, 
   const totalRes = await db
     .select({ count: sql<number>`SUM(${dailyMetrics.highRiskCount})` })
     .from(dailyMetrics)
-    .where(and(eq(dailyMetrics.organizationId, orgId), gte(dailyMetrics.metricDate, start), lte(dailyMetrics.metricDate, end)));
+    .where(and(eq(dailyMetrics.organizationId, orgId), gte(dailyMetrics.metricDate, toMetricDate(new Date(start))), lte(dailyMetrics.metricDate, toMetricDate(new Date(end)))));
   
   const totalCount = Number(totalRes[0]?.count || 0);
 
