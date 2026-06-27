@@ -48,7 +48,6 @@ export type MatchType =
   | "exact"
   | "utr_exact"
   | "tolerance"
-  | "fuzzy"
   | "fee_adjustment"
   | "one_to_many"
   | "many_to_one"
@@ -275,8 +274,8 @@ export function matchTransactions(
       const diffAmt = Math.abs(bankAmt - bookAmt);
       const currenciesDiffer = bankTxn.currency && cand.candidate.currency && bankTxn.currency !== cand.candidate.currency;
 
-      if (!currenciesDiffer && diffAmt <= 100 && (refMatch || nameMatch)) {
-        const finalScore = cand.score + 50;
+      if (!currenciesDiffer && diffAmt <= 100) {
+        const finalScore = cand.score + 50 + (refMatch ? 20 : 0) + (nameMatch ? 10 : 0);
         exactMatches.push({ candidate: cand, score: finalScore });
       }
     }
@@ -464,6 +463,8 @@ export function matchTransactions(
         if (bs.status === "MATCHED") return false;
         const dayDiff = Math.abs(differenceInDays(bookTxn.date, bs.txn.date));
         if (dayDiff > 5.0) return false;
+        // Note: arguments are reversed compared to Pass 2A, but directionMatches handles both
+        // normalizations (bank and book), so the order doesn't functionally matter here.
         if (!directionMatches(bookTxn, bs.txn)) return false;
 
         const sim = getCounterpartySimilarity(bookTxn.counterparty, bs.txn.counterparty);
@@ -762,8 +763,8 @@ export function matchTransactions(
           const comparisonAmount = Math.max(convertedBank, convertedBook);
           const allowedTolerance = Math.max(500, Math.round(comparisonAmount * 0.20));
 
-          if (diffConverted <= allowedTolerance && dayDiff <= 7.0 && (refMatch || nameMatch)) {
-            const finalScore = cand.score + 15;
+          if (diffConverted <= allowedTolerance && dayDiff <= 7.0) {
+            const finalScore = cand.score + 15 + (refMatch ? 10 : 0) + (nameMatch ? 5 : 0);
             const reasons = cand.reasons.map((r) => ({ ...r }));
             reasons.push({ reason: "fx_difference_validated", points: 15 });
             toleranceMatches.push({
@@ -777,13 +778,13 @@ export function matchTransactions(
         }
       }
 
-      if (dayDiff <= 7.0 && (refMatch || nameMatch)) {
+      if (dayDiff <= 7.0) {
         const diffAmt = Math.abs(bankAmt - bookAmt);
         const comparisonAmount = Math.max(bankAmt, bookAmt);
         const allowedTolerance = Math.max(500, Math.round(comparisonAmount * 0.20));
 
         if (diffAmt <= allowedTolerance) {
-          const finalScore = cand.score + 10;
+          const finalScore = cand.score + 10 + (refMatch ? 10 : 0) + (nameMatch ? 5 : 0);
           const reasons = cand.reasons.map((r) => ({ ...r }));
           reasons.push({ reason: "tolerance_match_validated", points: 10 });
           toleranceMatches.push({

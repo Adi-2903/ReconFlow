@@ -71,47 +71,87 @@ export function detectColumns(headers: string[]): Record<string, string> {
     direction: "",
     reference: "",
     counterparty: "",
+    // Extra Columns
+    utr: "",
+    invoiceNumber: "",
+    voucherNumber: "",
+    customerName: "",
+    vendorName: "",
+    merchantName: "",
+    relatedTransactionId: "",
+    channel: "",
+    dueDate: "",
+    documentType: "",
   };
 
   const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, " ");
 
-  const dateRegex = /date|time|txn|value|created/i;
-  const descRegex = /desc|narrat|particular|memo|details|remark|customer|vendor|party/i;
+  const dateRegex = /date|time|created|\bdt\b/i;
+  const dateIgnoreRegex = /type|id|num|no\b|number|ref|reference|amt|amount|balance/i;
+  const primaryDescRegex = /memo|description|particulars?|narration|remarks?|message|information/i;
+  const secondaryDescRegex = /desc|details|info\b/i;
   const amountRegex = /^amount|amount$|total|net/i;
-  const directionRegex = /direction|type|transaction type|txn type|dr cr|cr dr|credit debit|debit credit/i;
+  const directionRegex = /direction|dr\s+cr|cr\s+dr|credit\s+debit|debit\s+credit|\bd\s+c\b|\bc\s+d\b/i;
   const debitRegex = /debit|withdrawal|outflow|payment|paid/i;
   const creditRegex = /credit|deposit|inflow|receipt|received/i;
   const refRegex = /ref|reference|id|doc|num|vch|cheque|chq/i;
   const counterpartyRegex = /counterparty|customer|vendor|party|name/i;
 
+  // Advanced signal patterns
+  const utrRegex = /\butr\b|unique\s*transaction\s*ref|bank\s*ref/i;
+  const invoiceNumRegex = /invoice|inv\s*no|bill\s*no|invoice\s*id/i;
+  const voucherNumRegex = /voucher|vch\s*num|vch\s*no/i;
+  const customerNameRegex = /customer|client|buyer/i;
+  const vendorNameRegex = /vendor|supplier|payee/i;
+  const merchantNameRegex = /merchant|gateway|processor/i;
+  const relatedTxnRegex = /related\s*txn|gateway\s*id|stripe\s*id|charge\s*id/i;
+  const channelRegex = /channel|payment\s*mode|pmt\s*method/i;
+  const dueDateRegex = /due\s*date|payment\s*due/i;
+  const docTypeRegex = /document\s*type|doc\s*type|voucher\s*type/i;
+
   let dateHeader = "";
   headers.forEach((header) => {
     const h = clean(header);
-    if (dateRegex.test(h)) {
-      if (!dateHeader || /transaction|txn|booking/i.test(h)) {
+    if (dateRegex.test(h) && !dateIgnoreRegex.test(h)) {
+      if (!dateHeader || /(?:transaction|txn|booking|value|tran)\s*date/i.test(h)) {
         dateHeader = header;
       }
     }
   });
   result.date = dateHeader;
 
+  let descHeader = "";
+  // 1. Primary Check
+  for (const header of headers) {
+    if (header === dateHeader) continue;
+    const h = clean(header);
+    if (primaryDescRegex.test(h)) {
+      descHeader = header;
+      break;
+    }
+  }
+  // 2. Secondary Check
+  if (!descHeader) {
+    for (const header of headers) {
+      if (header === dateHeader) continue;
+      const h = clean(header);
+      if (secondaryDescRegex.test(h) && !counterpartyRegex.test(h)) {
+        descHeader = header;
+        break;
+      }
+    }
+  }
+  result.description = descHeader;
+
   headers.forEach((header) => {
     const h = clean(header);
-    if (header === dateHeader) {
-      // already matched
+    if (header === dateHeader || header === descHeader) {
       return;
-    }
-
-    // A single header can match multiple fields (e.g. customer_or_vendor -> description & counterparty)
-    
-    if (!result.description && descRegex.test(h)) {
-      result.description = header;
     }
 
     if (!result.direction && directionRegex.test(h)) {
       result.direction = header;
     } else if (!directionRegex.test(h)) {
-      // Only check for explicit debit/credit amounts if it's NOT a direction column
       if (!result.debit && debitRegex.test(h)) {
         result.debit = header;
       }
@@ -131,9 +171,20 @@ export function detectColumns(headers: string[]): Record<string, string> {
     if (!result.counterparty && counterpartyRegex.test(h)) {
       result.counterparty = header;
     }
+
+    // Heuristically map advanced columns
+    if (!result.utr && utrRegex.test(h)) result.utr = header;
+    if (!result.invoiceNumber && invoiceNumRegex.test(h)) result.invoiceNumber = header;
+    if (!result.voucherNumber && voucherNumRegex.test(h)) result.voucherNumber = header;
+    if (!result.customerName && customerNameRegex.test(h)) result.customerName = header;
+    if (!result.vendorName && vendorNameRegex.test(h)) result.vendorName = header;
+    if (!result.merchantName && merchantNameRegex.test(h)) result.merchantName = header;
+    if (!result.relatedTransactionId && relatedTxnRegex.test(h)) result.relatedTransactionId = header;
+    if (!result.channel && channelRegex.test(h)) result.channel = header;
+    if (!result.dueDate && dueDateRegex.test(h)) result.dueDate = header;
+    if (!result.documentType && docTypeRegex.test(h)) result.documentType = header;
   });
 
-  // If we found debit/credit, we don't necessarily need a single amount column
   if (result.debit && result.credit && !result.amount) {
     result.amount = `${result.debit}/${result.credit}`;
   }

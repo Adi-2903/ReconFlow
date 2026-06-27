@@ -36,82 +36,94 @@ export class IntelligenceService {
     enriched.metadata.intelligenceVersion = "v1";
 
     // 1. Field & Relationship Extraction Framework
-    const matchingSignals: MatchingSignals = {};
+    const matchingSignals: MatchingSignals = {
+      ...(enriched.metadata?.matchingSignals || {}),
+    };
     const textToScan = `${enriched.description || ""} ${enriched.referenceNumber || ""} ${enriched.counterpartyName || ""}`;
 
     // Extract Channel
-    if (/upi/i.test(textToScan)) matchingSignals.channel = "UPI";
-    else if (/neft/i.test(textToScan)) matchingSignals.channel = "NEFT";
-    else if (/rtgs/i.test(textToScan)) matchingSignals.channel = "RTGS";
-    else if (/imps/i.test(textToScan)) matchingSignals.channel = "IMPS";
-    else if (/cash|deposit\s+branch|branch\s+counter/i.test(textToScan)) matchingSignals.channel = "CASH";
-    else if (/ach|direct\s+debit|insurance\s+premium/i.test(textToScan)) matchingSignals.channel = "ACH";
-    else if (/cheque|chk\b|cheque\s+number/i.test(textToScan)) matchingSignals.channel = "CHECK";
-    else if (/card|visa|mastercard|amex/i.test(textToScan)) matchingSignals.channel = "CARD";
-    else if (/stripe|checkout/i.test(textToScan)) matchingSignals.channel = "STRIPE";
-    else if (/wire/i.test(textToScan)) matchingSignals.channel = "WIRE";
+    if (!matchingSignals.channel) {
+      if (/upi/i.test(textToScan)) matchingSignals.channel = "UPI";
+      else if (/neft/i.test(textToScan)) matchingSignals.channel = "NEFT";
+      else if (/rtgs/i.test(textToScan)) matchingSignals.channel = "RTGS";
+      else if (/imps/i.test(textToScan)) matchingSignals.channel = "IMPS";
+      else if (/cash|deposit\s+branch|branch\s+counter/i.test(textToScan)) matchingSignals.channel = "CASH";
+      else if (/ach|direct\s+debit|insurance\s+premium/i.test(textToScan)) matchingSignals.channel = "ACH";
+      else if (/cheque|chk\b|cheque\s+number/i.test(textToScan)) matchingSignals.channel = "CHECK";
+      else if (/card|visa|mastercard|amex/i.test(textToScan)) matchingSignals.channel = "CARD";
+      else if (/stripe|checkout/i.test(textToScan)) matchingSignals.channel = "STRIPE";
+      else if (/wire/i.test(textToScan)) matchingSignals.channel = "WIRE";
+    }
 
     // Extract UTR
-    const utrMatch = textToScan.match(/(?:utr|ref|ref\s+no|txn|imps|upi|neft|rtgs|trf)[/:\-\s#]*([a-z0-9]{10,25})/i);
-    if (utrMatch) {
-      matchingSignals.utr = utrMatch[1];
-    } else {
-      // Direct upi 12 digit number extraction
-      const upiNumberMatch = textToScan.match(/\b\d{12}\b/);
-      if (upiNumberMatch) {
-        matchingSignals.utr = upiNumberMatch[0];
+    if (!matchingSignals.utr) {
+      const utrMatch = textToScan.match(/(?:utr|ref|ref\s+no|txn|imps|upi|neft|rtgs|trf)[/:\-\s#]*([a-z0-9]{10,25})/i);
+      if (utrMatch) {
+        matchingSignals.utr = utrMatch[1];
+      } else {
+        // Direct upi 12 digit number extraction
+        const upiNumberMatch = textToScan.match(/\b\d{12}\b/);
+        if (upiNumberMatch) {
+          matchingSignals.utr = upiNumberMatch[0];
+        }
       }
     }
 
     // Extract Invoice No
-    const invoiceMatch = textToScan.match(/\b(inv(?:oice)?[-_#]?\d+(?:[-_]\d+)*)\b/i);
-    if (invoiceMatch) {
-      matchingSignals.invoiceNumber = invoiceMatch[1];
+    if (!matchingSignals.invoiceNumber) {
+      const invoiceMatch = textToScan.match(/\b(inv(?:oice)?[-_#]?\d+(?:[-_]\d+)*)\b/i);
+      if (invoiceMatch) {
+        matchingSignals.invoiceNumber = invoiceMatch[1];
+      }
     }
 
     // Extract Voucher No
-    const voucherMatch = textToScan.match(/\b(vch(?:oucher)?[-_#]?\d+)\b/i);
-    if (voucherMatch) {
-      matchingSignals.voucherNumber = voucherMatch[1];
-    } else {
-      // Support common Tally voucher pattern like S-1001, INV2001
-      const tallyVchMatch = textToScan.match(/\b([a-zA-Z]+-\d+)\b/);
-      if (tallyVchMatch) {
-        matchingSignals.voucherNumber = tallyVchMatch[1];
+    if (!matchingSignals.voucherNumber) {
+      const voucherMatch = textToScan.match(/\b(vch(?:oucher)?[-_#]?\d+)\b/i);
+      if (voucherMatch) {
+        matchingSignals.voucherNumber = voucherMatch[1];
+      } else {
+        // Support common Tally voucher pattern like S-1001, INV2001
+        const tallyVchMatch = textToScan.match(/\b([a-zA-Z]+-\d+)\b/);
+        if (tallyVchMatch) {
+          matchingSignals.voucherNumber = tallyVchMatch[1];
+        }
       }
     }
 
     // Extract Reference Number
-    if (enriched.referenceNumber) {
+    if (!matchingSignals.referenceNumber && enriched.referenceNumber) {
       matchingSignals.referenceNumber = enriched.referenceNumber;
     }
 
     // Extract Roles (Customer/Vendor/Merchant)
-    if (/transfer from|payment received from|received from/i.test(textToScan)) {
+    if (!matchingSignals.customerName && /transfer from|payment received from|received from/i.test(textToScan)) {
       const parts = textToScan.split(/transfer from|payment received from|received from/i);
       if (parts[1]) {
         matchingSignals.customerName = parts[1].split(/[,;\-]/)[0].trim();
       }
     }
-    if (/transfer to|payment to|paid to/i.test(textToScan)) {
+    if (!matchingSignals.vendorName && /transfer to|payment to|paid to/i.test(textToScan)) {
       const parts = textToScan.split(/transfer to|payment to|paid to/i);
       if (parts[1]) {
         matchingSignals.vendorName = parts[1].split(/[,;\-]/)[0].trim();
       }
     }
-    if (/stripe checkout|checkout/i.test(textToScan)) {
+    if (!matchingSignals.merchantName && /stripe checkout|checkout/i.test(textToScan)) {
       matchingSignals.merchantName = "Stripe";
     }
 
     // Generic Relationship Extraction
-    const relationshipMatch = textToScan.match(/\b(?:fee|re|refund|payout|po|ch)_(ch_[a-z0-9]+|po_[a-z0-9]+)\b/i);
-    if (relationshipMatch) {
-      matchingSignals.relatedTransactionId = relationshipMatch[1];
-    } else {
-      // Backup relationship check
-      const genericRelMatch = textToScan.match(/\b(ch_[a-z0-9]{10,25}|re_[a-z0-9]{10,25}|po_[a-z0-9]{10,25})\b/i);
-      if (genericRelMatch) {
-        matchingSignals.relatedTransactionId = genericRelMatch[1];
+    if (!matchingSignals.relatedTransactionId) {
+      const relationshipMatch = textToScan.match(/\b(?:fee|re|refund|payout|po|ch)_(ch_[a-z0-9]+|po_[a-z0-9]+)\b/i);
+      if (relationshipMatch) {
+        matchingSignals.relatedTransactionId = relationshipMatch[1];
+      } else {
+        // Backup relationship check
+        const genericRelMatch = textToScan.match(/\b(ch_[a-z0-9]{10,25}|re_[a-z0-9]{10,25}|po_[a-z0-9]{10,25})\b/i);
+        if (genericRelMatch) {
+          matchingSignals.relatedTransactionId = genericRelMatch[1];
+        }
       }
     }
 

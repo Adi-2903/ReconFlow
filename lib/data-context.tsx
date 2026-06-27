@@ -21,6 +21,8 @@ interface DataContextType {
   setIsNewRunModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   autoStartNewRun: boolean;
   setAutoStartNewRun: React.Dispatch<React.SetStateAction<boolean>>;
+  uploadedImportIds: string[];
+  setUploadedImportIds: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -32,6 +34,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [matches, setMatches] = useState<MatchData[]>([]);
   const [isNewRunModalOpen, setIsNewRunModalOpen] = useState(false);
   const [autoStartNewRun, setAutoStartNewRun] = useState(false);
+  const [uploadedImportIds, setUploadedImportIds] = useState<string[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -216,6 +219,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setIsNewRunModalOpen,
       autoStartNewRun,
       setAutoStartNewRun,
+      uploadedImportIds,
+      setUploadedImportIds,
     }}>
       {children}
     </DataContext.Provider>

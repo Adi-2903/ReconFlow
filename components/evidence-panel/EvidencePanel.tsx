@@ -71,10 +71,31 @@ export function EvidencePanel({ match, onApprove, onReject, onClose }: EvidenceP
 function EvidenceContent({ match, onApprove, onReject, onClose }: { match: NonNullable<EvidencePanelProps['match']>, onApprove: (id: string) => void, onReject: (id: string) => void, onClose: () => void }) {
   const scorePct = Math.round(match.confidenceScore * 100);
   
-  const getPillColor = (val: number) => {
-    if (val >= 0.95) return "bg-green-100 text-green-700 border-green-200";
-    if (val >= 0.6) return "bg-amber-100 text-amber-700 border-amber-200";
+  const getPillColor = (band?: string | null, val?: number) => {
+    const b = band?.toUpperCase();
+    if (b === "VERY_HIGH" || b === "HIGH" || (val !== undefined && val >= 0.95)) return "bg-green-100 text-green-700 border-green-200";
+    if (b === "MEDIUM" || (val !== undefined && val >= 0.6)) return "bg-amber-100 text-amber-700 border-amber-200";
     return "bg-red-100 text-red-700 border-red-200";
+  };
+
+  const getConfidenceLabel = (band?: string | null, score?: number) => {
+    if (band) {
+      switch (band.toUpperCase()) {
+        case "VERY_HIGH":
+        case "HIGH":
+          return "High Confidence";
+        case "MEDIUM":
+          return "Medium Confidence";
+        case "LOW":
+        case "NONE":
+        default:
+          return "Needs Review";
+      }
+    }
+    const s = score ?? 0;
+    if (s >= 0.95) return "High Confidence";
+    if (s >= 0.6) return "Medium Confidence";
+    return "Needs Review";
   };
   
   const getOverallColor = (val: number) => {
@@ -109,8 +130,8 @@ function EvidenceContent({ match, onApprove, onReject, onClose }: { match: NonNu
           </button>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border ${getPillColor(match.confidenceScore)}`}>
-            <span className="font-bold text-sm tracking-tight">{scorePct}% Match</span>
+          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border ${getPillColor((match as any).confidenceBand, match.confidenceScore)}`}>
+            <span className="font-bold text-sm tracking-tight">{getConfidenceLabel((match as any).confidenceBand, match.confidenceScore)}</span>
           </div>
           {match.matchOutcome && (
             <div className="px-2.5 py-0.5 rounded-full border bg-slate-100 border-slate-200 text-slate-700 text-[10px] font-bold uppercase tracking-wider">
@@ -150,22 +171,22 @@ function EvidenceContent({ match, onApprove, onReject, onClose }: { match: NonNu
           
           <div className="flex flex-wrap items-center gap-2 mt-3">
             <div 
-              className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-tight border ${getPillColor(match.scoringBreakdown.amountScore)}`}
+              className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-tight border ${getPillColor(undefined, match.scoringBreakdown.amountScore)}`}
               title={`Amount score: based on ₹${amountDelta} difference vs threshold`}
             >
-              Amount {Math.round(match.scoringBreakdown.amountScore * 100)}%
+              Amount {match.scoringBreakdown.amountScore >= 0.95 ? "Matched" : match.scoringBreakdown.amountScore >= 0.6 ? "Near Match" : "Mismatch"}
             </div>
             <div 
-              className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-tight border ${getPillColor(match.scoringBreakdown.dateScore)}`}
+              className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-tight border ${getPillColor(undefined, match.scoringBreakdown.dateScore)}`}
               title={`Date score: based on date proximity`}
             >
-              Date {Math.round(match.scoringBreakdown.dateScore * 100)}%
+              Date {match.scoringBreakdown.dateScore >= 0.95 ? "Same Day" : match.scoringBreakdown.dateScore >= 0.6 ? "Close Date" : "Timing Discrepancy"}
             </div>
             <div 
-              className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-tight border ${getPillColor(match.scoringBreakdown.textScore)}`}
+              className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-tight border ${getPillColor(undefined, match.scoringBreakdown.textScore)}`}
               title={`Text score: based on reference and description similarity`}
             >
-              Text {Math.round(match.scoringBreakdown.textScore * 100)}%
+              Text {match.scoringBreakdown.textScore >= 0.85 ? "Ref Match" : match.scoringBreakdown.textScore >= 0.4 ? "Partial Similarity" : "No Match"}
             </div>
           </div>
         </section>

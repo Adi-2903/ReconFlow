@@ -11,6 +11,7 @@ export type MatchData = {
   ledgerRow: { amount: number; memo: string; invoiceRef: string } | null;
   ledgerRows?: Array<{ amount: number; memo: string; invoiceRef: string }>;
   confidenceScore: number;
+  confidenceBand?: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW" | "NONE" | string;
   matchType: "exact" | "fuzzy" | "bulk" | "none" | string;
   matchOutcome?: "MATCHED" | "PARTIALLY_MATCHED" | "UNMATCHED" | string;
   discrepancyType?: "NONE" | "TIMING_DIFFERENCE" | "PROCESSING_FEE" | "FOREIGN_EXCHANGE" | "TYPO" | "DUPLICATE" | "MISSING_ENTRY" | string;

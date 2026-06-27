@@ -23,6 +23,7 @@ export interface ReconCounts {
 export interface ReconRunBody {
   periodStart: string;
   periodEnd: string;
+  importIds?: string[];
 }
 
 export interface ReconStats {

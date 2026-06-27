@@ -39,7 +39,7 @@ function timeAgo(dateParam: string | null) {
 
 export default function ConnectPage() {
   const router = useRouter();
-  const { setIsNewRunModalOpen, setAutoStartNewRun } = useData();
+  const { setIsNewRunModalOpen, setAutoStartNewRun, setUploadedImportIds } = useData();
 
   // --- Connector States ---
   const [stripeConnected, setStripeConnected] = useState(false);
@@ -78,7 +78,18 @@ export default function ConnectPage() {
     direction: "",
     reference: "",
     counterparty: "",
+    utr: "",
+    invoiceNumber: "",
+    voucherNumber: "",
+    customerName: "",
+    vendorName: "",
+    merchantName: "",
+    relatedTransactionId: "",
+    channel: "",
+    dueDate: "",
+    documentType: "",
   });
+  const [showAdvanced, setShowAdvanced] = useState(false);
   
   const [saveTemplate, setSaveTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
@@ -298,6 +309,16 @@ export default function ConnectPage() {
           direction: layoutMatch.mapping.direction || "",
           reference: layoutMatch.mapping.reference || "",
           counterparty: layoutMatch.mapping.counterparty || "",
+          utr: layoutMatch.mapping.utr || "",
+          invoiceNumber: layoutMatch.mapping.invoiceNumber || "",
+          voucherNumber: layoutMatch.mapping.voucherNumber || "",
+          customerName: layoutMatch.mapping.customerName || "",
+          vendorName: layoutMatch.mapping.vendorName || "",
+          merchantName: layoutMatch.mapping.merchantName || "",
+          relatedTransactionId: layoutMatch.mapping.relatedTransactionId || "",
+          channel: layoutMatch.mapping.channel || "",
+          dueDate: layoutMatch.mapping.dueDate || "",
+          documentType: layoutMatch.mapping.documentType || "",
         });
         setSaveTemplate(false);
         if (layoutMatch.type === "known_layout") {
@@ -315,6 +336,16 @@ export default function ConnectPage() {
           direction: heuristics.direction || "",
           reference: heuristics.reference || "",
           counterparty: heuristics.counterparty || "",
+          utr: heuristics.utr || "",
+          invoiceNumber: heuristics.invoiceNumber || "",
+          voucherNumber: heuristics.voucherNumber || "",
+          customerName: heuristics.customerName || "",
+          vendorName: heuristics.vendorName || "",
+          merchantName: heuristics.merchantName || "",
+          relatedTransactionId: heuristics.relatedTransactionId || "",
+          channel: heuristics.channel || "",
+          dueDate: heuristics.dueDate || "",
+          documentType: heuristics.documentType || "",
         });
       }
     } catch (err: any) {
@@ -355,6 +386,9 @@ export default function ConnectPage() {
       const data = await api.upload.process(formData);
 
       setImportMetrics(data.metrics);
+      if (data.metrics?.importId) {
+        setUploadedImportIds((prev) => [...prev, data.metrics.importId]);
+      }
       
       clearInterval(progressInterval);
       setImportProgress(100);
@@ -692,8 +726,7 @@ export default function ConnectPage() {
               {/* Step 3: Column Mapping & Grid Preview */}
               {wizardStep === "preview" && previewData && (
                 <div className="flex flex-col gap-6">
-                  
-                  {/* Confidence-Aware Layout Match Alert */}
+                                  {/* Confidence-Aware Layout Match Alert */}
                   {(() => {
                     const match = (previewData as any).layoutMatch;
                     if (!match) return null;
@@ -707,7 +740,7 @@ export default function ConnectPage() {
                             <div className="flex items-center justify-between">
                               <span className="font-bold text-sm">Known Source Layout Recognized: {match.name}</span>
                               <span className="text-[10px] font-bold bg-emerald-150 text-emerald-800 px-2 py-0.5 rounded-full">
-                                {percent}% Match
+                                Layout Matched
                               </span>
                             </div>
                             <div className="text-xs text-emerald-700 mt-1">
@@ -726,7 +759,7 @@ export default function ConnectPage() {
                             <div className="flex items-center justify-between">
                               <span className="font-bold text-sm">Learned Template Matched: {match.name}</span>
                               <span className="text-[10px] font-bold bg-teal-150 text-teal-800 px-2 py-0.5 rounded-full">
-                                {percent}% Match
+                                Template Matched
                               </span>
                             </div>
                             <div className="text-xs text-teal-700 mt-1">
@@ -745,7 +778,7 @@ export default function ConnectPage() {
                             <div className="flex items-center justify-between">
                               <span className="font-bold text-sm">Heuristic Auto-Match</span>
                               <span className="text-[10px] font-bold bg-blue-150 text-blue-805 px-2 py-0.5 rounded-full">
-                                {percent}% Confidence
+                                Auto-Detected
                               </span>
                             </div>
                             <div className="text-xs text-blue-700 mt-1">
@@ -763,7 +796,7 @@ export default function ConnectPage() {
                           <div className="flex items-center justify-between">
                             <span className="font-bold text-sm">Low Confidence Match</span>
                             <span className="text-[10px] font-bold bg-amber-150 text-amber-850 px-2 py-0.5 rounded-full">
-                              {percent}% Confidence
+                              Manual Mapping Required
                             </span>
                           </div>
                           <div className="text-xs text-amber-700 mt-1">
@@ -902,6 +935,153 @@ export default function ConnectPage() {
                           ))}
                         </select>
                       </div>
+                    </div>
+
+                    {/* Toggle Advanced Mappings */}
+                    <div className="mt-5 pt-4 border-t border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setShowAdvanced(!showAdvanced)}
+                        className="inline-flex items-center gap-2 text-xs font-bold text-indigo-600 hover:text-indigo-850"
+                      >
+                        <span>{showAdvanced ? "Hide" : "Show"} Optional Advanced Matching Signals</span>
+                        <span className="text-[10px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-1.5 py-0.2 rounded-full font-medium">10 options</span>
+                      </button>
+
+                      {showAdvanced && (
+                        <div className="grid grid-cols-2 gap-4 mt-4 bg-slate-100/50 p-4 border border-slate-200 rounded-lg">
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 mb-1 block">UTR Number</label>
+                            <select
+                              value={columnMapping.utr || ""}
+                              onChange={(e) => setColumnMapping({ ...columnMapping, utr: e.target.value })}
+                              className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                            >
+                              <option value="">-- Select UTR --</option>
+                              {previewData.headers.map((h) => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 mb-1 block">Invoice Number</label>
+                            <select
+                              value={columnMapping.invoiceNumber || ""}
+                              onChange={(e) => setColumnMapping({ ...columnMapping, invoiceNumber: e.target.value })}
+                              className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                            >
+                              <option value="">-- Select Invoice --</option>
+                              {previewData.headers.map((h) => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 mb-1 block">Voucher Number</label>
+                            <select
+                              value={columnMapping.voucherNumber || ""}
+                              onChange={(e) => setColumnMapping({ ...columnMapping, voucherNumber: e.target.value })}
+                              className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                            >
+                              <option value="">-- Select Voucher --</option>
+                              {previewData.headers.map((h) => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 mb-1 block">Customer Name</label>
+                            <select
+                              value={columnMapping.customerName || ""}
+                              onChange={(e) => setColumnMapping({ ...columnMapping, customerName: e.target.value })}
+                              className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                            >
+                              <option value="">-- Select Customer Name --</option>
+                              {previewData.headers.map((h) => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 mb-1 block">Vendor Name</label>
+                            <select
+                              value={columnMapping.vendorName || ""}
+                              onChange={(e) => setColumnMapping({ ...columnMapping, vendorName: e.target.value })}
+                              className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                            >
+                              <option value="">-- Select Vendor Name --</option>
+                              {previewData.headers.map((h) => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 mb-1 block">Merchant Name</label>
+                            <select
+                              value={columnMapping.merchantName || ""}
+                              onChange={(e) => setColumnMapping({ ...columnMapping, merchantName: e.target.value })}
+                              className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                            >
+                              <option value="">-- Select Merchant Name --</option>
+                              {previewData.headers.map((h) => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 mb-1 block">Related Transaction ID</label>
+                            <select
+                              value={columnMapping.relatedTransactionId || ""}
+                              onChange={(e) => setColumnMapping({ ...columnMapping, relatedTransactionId: e.target.value })}
+                              className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                            >
+                              <option value="">-- Select Related ID --</option>
+                              {previewData.headers.map((h) => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 mb-1 block">Payment Channel</label>
+                            <select
+                              value={columnMapping.channel || ""}
+                              onChange={(e) => setColumnMapping({ ...columnMapping, channel: e.target.value })}
+                              className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                            >
+                              <option value="">-- Select Channel --</option>
+                              {previewData.headers.map((h) => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 mb-1 block">Due Date</label>
+                            <select
+                              value={columnMapping.dueDate || ""}
+                              onChange={(e) => setColumnMapping({ ...columnMapping, dueDate: e.target.value })}
+                              className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                            >
+                              <option value="">-- Select Due Date --</option>
+                              {previewData.headers.map((h) => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 mb-1 block">Document / Voucher Type</label>
+                            <select
+                              value={columnMapping.documentType || ""}
+                              onChange={(e) => setColumnMapping({ ...columnMapping, documentType: e.target.value })}
+                              className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                            >
+                              <option value="">-- Select Doc Type --</option>
+                              {previewData.headers.map((h) => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Save Template Config */}

@@ -40,6 +40,66 @@ const truncate = (str: string, len: number) => {
   return str.slice(0, len) + "\u2026";
 };
 
+const getConfidenceLabel = (band?: string | null, score?: number) => {
+  if (band) {
+    switch (band.toUpperCase()) {
+      case "VERY_HIGH":
+      case "HIGH":
+        return "High Confidence";
+      case "MEDIUM":
+        return "Medium Confidence";
+      case "LOW":
+      case "NONE":
+      default:
+        return "Needs Review";
+    }
+  }
+  const s = score ?? 0;
+  if (s >= 0.95) return "High Confidence";
+  if (s >= 0.6) return "Medium Confidence";
+  return "Needs Review";
+};
+
+const getConfidenceBadgeColor = (band?: string | null, score?: number) => {
+  if (band) {
+    switch (band.toUpperCase()) {
+      case "VERY_HIGH":
+      case "HIGH":
+        return "bg-green-50 text-green-700 border-green-200/50";
+      case "MEDIUM":
+        return "bg-amber-50 text-amber-700 border-amber-200/50";
+      case "LOW":
+      case "NONE":
+      default:
+        return "bg-rose-50 text-rose-700 border-rose-200/50";
+    }
+  }
+  const s = score ?? 0;
+  if (s >= 0.95) return "bg-green-50 text-green-700 border-green-200/50";
+  if (s >= 0.6) return "bg-amber-50 text-amber-700 border-amber-200/50";
+  return "bg-rose-50 text-rose-700 border-rose-200/50";
+};
+
+const getOutcomeBadgeColor = (band?: string | null, score?: number) => {
+  if (band) {
+    switch (band.toUpperCase()) {
+      case "VERY_HIGH":
+      case "HIGH":
+        return "bg-green-100 text-green-700";
+      case "MEDIUM":
+        return "bg-amber-100 text-amber-700";
+      case "LOW":
+      case "NONE":
+      default:
+        return "bg-red-100 text-red-700";
+    }
+  }
+  const s = score ?? 0;
+  if (s >= 0.95) return "bg-green-100 text-green-700";
+  if (s >= 0.6) return "bg-amber-100 text-amber-700";
+  return "bg-red-100 text-red-700";
+};
+
 const MatchRowView = React.memo(({ 
   match, 
   index, 
@@ -58,22 +118,6 @@ const MatchRowView = React.memo(({
   const handleItemClick = useCallback(() => {
     onClick(match.id);
   }, [match.id, onClick]);
-
-  const scorePct =
-    match.status === "approved" && match.matchType !== "none"
-      ? 100
-      : match.confidenceScore != null
-      ? Math.round(match.confidenceScore * 100)
-      : 0;
-  let colorClass = "bg-red-500";
-  let badgeColor = "bg-red-100 text-red-700";
-  if (match.confidenceScore >= 0.95) {
-    colorClass = "bg-green-500";
-    badgeColor = "bg-green-100 text-green-700";
-  } else if (match.confidenceScore >= 0.6) {
-    colorClass = "bg-amber-500";
-    badgeColor = "bg-amber-100 text-amber-700";
-  }
 
   let leftBorderClass = "border-l-transparent";
   if (match.status === "approved") {
@@ -108,17 +152,11 @@ const MatchRowView = React.memo(({
       <div className="w-[120px] flex flex-col items-center justify-center px-2 shrink-0">
         {match.matchType !== "none" ? (
           <>
-            <div className="w-full bg-slate-200 h-[6px] rounded-full overflow-hidden flex">
-              <div
-                className={`h-full ${colorClass}`}
-                style={{ width: `${scorePct}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-center gap-1.5 mt-1 relative w-full">
-               <span className="font-bold text-[11px] text-slate-700 min-w-[30px]">
-                {scorePct}%
-              </span>
-              <span className={`px-1.5 py-[1px] rounded text-[9px] font-bold uppercase tracking-wider ${badgeColor}`}>
+            <span className={`px-2 py-[1.5px] rounded-full text-[9px] font-bold border ${getConfidenceBadgeColor((match as any).confidenceBand, match.confidenceScore)} mb-1 leading-none text-center shrink-0`}>
+              {getConfidenceLabel((match as any).confidenceBand, match.confidenceScore)}
+            </span>
+            <div className="flex items-center justify-center gap-1.5 mt-0.5 relative w-full">
+              <span className={`px-1.5 py-[1px] rounded text-[9px] font-bold uppercase tracking-wider ${getOutcomeBadgeColor((match as any).confidenceBand, match.confidenceScore)}`}>
                 {match.discrepancyType && match.discrepancyType !== "NONE"
                   ? match.discrepancyType.replace(/_/g, " ")
                   : match.matchOutcome

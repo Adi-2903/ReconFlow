@@ -8,12 +8,12 @@ export async function POST(req: NextRequest) {
     const userId = session?.user?.id;
     if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { periodStart, periodEnd } = await req.json();
+    const { periodStart, periodEnd, importIds } = await req.json();
     if (!periodStart || !periodEnd) {
       return Response.json({ error: "Missing periodStart or periodEnd" }, { status: 400 });
     }
 
-    const result = await runReconciliation(userId, periodStart, periodEnd);
+    const result = await runReconciliation(userId, periodStart, periodEnd, importIds);
     return Response.json(result);
   } catch (error: any) {
     console.error("Recon run error:", error);

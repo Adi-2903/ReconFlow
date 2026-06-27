@@ -7,6 +7,7 @@ import {
   matches,
   connectors,
   aiExplanations,
+  rawRecords,
 } from "@/core/db/schema";
 import { eq, and, gte, lte, count, inArray } from "drizzle-orm";
 import { matchTransactions } from "@/core/matching/engine";
@@ -71,10 +72,27 @@ export interface ReconCounts {
 export async function runReconciliation(
   userId: string,
   periodStart: string,
-  periodEnd: string
+  periodEnd: string,
+  importIds?: string[]
 ): Promise<ReconRunResult> {
-  const startDate = new Date(periodStart);
-  const endDate = new Date(periodEnd);
+  let startDate: Date;
+  let endDate: Date;
+
+  const parsedStart = new Date(periodStart);
+  if (!isNaN(parsedStart.getTime()) && periodStart.includes("T")) {
+    startDate = parsedStart;
+  } else {
+    const dateStr = periodStart.split("T")[0];
+    startDate = new Date(dateStr + "T00:00:00.000+05:30");
+  }
+
+  const parsedEnd = new Date(periodEnd);
+  if (!isNaN(parsedEnd.getTime()) && periodEnd.includes("T")) {
+    endDate = parsedEnd;
+  } else {
+    const dateStr = periodEnd.split("T")[0];
+    endDate = new Date(dateStr + "T23:59:59.999+05:30");
+  }
 
   if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
     throw Object.assign(new Error("Invalid date format for periodStart or periodEnd"), {
@@ -89,32 +107,101 @@ export async function runReconciliation(
 
   const orgId = await getOrCreateUserOrganization(userId);
 
-  // Fetch unmatched transactions in period
-  const bankRows = await db
-    .select()
-    .from(canonicalTransactions)
-    .where(
-      and(
-        eq(canonicalTransactions.organizationId, orgId),
-        eq(canonicalTransactions.side, "money"),
-        eq(canonicalTransactions.status, "AVAILABLE"),
-        gte(canonicalTransactions.transactionDate, new Date(periodStart)),
-        lte(canonicalTransactions.transactionDate, new Date(periodEnd))
-      )
-    );
+  const columns = {
+    id: canonicalTransactions.id,
+    organizationId: canonicalTransactions.organizationId,
+    accountId: canonicalTransactions.accountId,
+    rawRecordId: canonicalTransactions.rawRecordId,
+    sourceSystem: canonicalTransactions.sourceSystem,
+    externalId: canonicalTransactions.externalId,
+    side: canonicalTransactions.side,
+    direction: canonicalTransactions.direction,
+    status: canonicalTransactions.status,
+    transactionDate: canonicalTransactions.transactionDate,
+    amountMinor: canonicalTransactions.amountMinor,
+    currency: canonicalTransactions.currency,
+    referenceNumber: canonicalTransactions.referenceNumber,
+    counterpartyName: canonicalTransactions.counterpartyName,
+    counterpartyNormalized: canonicalTransactions.counterpartyNormalized,
+    description: canonicalTransactions.description,
+    transactionType: canonicalTransactions.transactionType,
+    sourceTransactionId: canonicalTransactions.sourceTransactionId,
+    lockedAt: canonicalTransactions.lockedAt,
+    lockedByMatchGroupId: canonicalTransactions.lockedByMatchGroupId,
+    activeRunId: canonicalTransactions.activeRunId,
+    baseCurrency: canonicalTransactions.baseCurrency,
+    convertedAmountMinor: canonicalTransactions.convertedAmountMinor,
+    exchangeRate: canonicalTransactions.exchangeRate,
+    exchangeRateSource: canonicalTransactions.exchangeRateSource,
+    fxRateProvider: canonicalTransactions.fxRateProvider,
+    exchangeRateDate: canonicalTransactions.exchangeRateDate,
+    fxStatus: canonicalTransactions.fxStatus,
+    metadata: canonicalTransactions.metadata,
+    createdAt: canonicalTransactions.createdAt,
+    updatedAt: canonicalTransactions.updatedAt,
+  };
 
-  const ledgerRows = await db
-    .select()
-    .from(canonicalTransactions)
-    .where(
-      and(
-        eq(canonicalTransactions.organizationId, orgId),
-        eq(canonicalTransactions.side, "books"),
-        eq(canonicalTransactions.status, "AVAILABLE"),
-        gte(canonicalTransactions.transactionDate, new Date(periodStart)),
-        lte(canonicalTransactions.transactionDate, new Date(periodEnd))
-      )
-    );
+  // Fetch unmatched transactions in period
+  let bankRows;
+  let ledgerRows;
+
+  if (importIds && importIds.length > 0) {
+    bankRows = await db
+      .select(columns)
+      .from(canonicalTransactions)
+      .innerJoin(rawRecords, eq(canonicalTransactions.rawRecordId, rawRecords.id))
+      .where(
+        and(
+          eq(canonicalTransactions.organizationId, orgId),
+          eq(canonicalTransactions.side, "money"),
+          eq(canonicalTransactions.status, "AVAILABLE"),
+          gte(canonicalTransactions.transactionDate, startDate),
+          lte(canonicalTransactions.transactionDate, endDate),
+          inArray(rawRecords.importId, importIds)
+        )
+      );
+
+    ledgerRows = await db
+      .select(columns)
+      .from(canonicalTransactions)
+      .innerJoin(rawRecords, eq(canonicalTransactions.rawRecordId, rawRecords.id))
+      .where(
+        and(
+          eq(canonicalTransactions.organizationId, orgId),
+          eq(canonicalTransactions.side, "books"),
+          eq(canonicalTransactions.status, "AVAILABLE"),
+          gte(canonicalTransactions.transactionDate, startDate),
+          lte(canonicalTransactions.transactionDate, endDate),
+          inArray(rawRecords.importId, importIds)
+        )
+      );
+  } else {
+    bankRows = await db
+      .select()
+      .from(canonicalTransactions)
+      .where(
+        and(
+          eq(canonicalTransactions.organizationId, orgId),
+          eq(canonicalTransactions.side, "money"),
+          eq(canonicalTransactions.status, "AVAILABLE"),
+          gte(canonicalTransactions.transactionDate, startDate),
+          lte(canonicalTransactions.transactionDate, endDate)
+        )
+      );
+
+    ledgerRows = await db
+      .select()
+      .from(canonicalTransactions)
+      .where(
+        and(
+          eq(canonicalTransactions.organizationId, orgId),
+          eq(canonicalTransactions.side, "books"),
+          eq(canonicalTransactions.status, "AVAILABLE"),
+          gte(canonicalTransactions.transactionDate, startDate),
+          lte(canonicalTransactions.transactionDate, endDate)
+        )
+      );
+  }
 
   if (bankRows.length === 0) {
     return {
@@ -127,7 +214,7 @@ export async function runReconciliation(
   // Create run record
   const [run] = await db
     .insert(reconRuns)
-    .values({ userId, periodStart, periodEnd, totalTransactions: bankRows.length, status: "running" })
+    .values({ userId, organizationId: orgId, periodStart, periodEnd, totalTransactions: bankRows.length, status: "running" })
     .returning();
 
   try {
@@ -206,18 +293,43 @@ export async function runReconciliation(
     await db.transaction(async (tx) => {
       for (const match of enhancedMatches) {
         // unmatched_ledger: a ledger entry with no corresponding bank transaction.
-        // Counted as an exception for reporting; no match record or status update needed.
+        // Persisted as an exception and updates the canonical status.
         if (match.matchType === "unmatched_ledger") {
           exceptions++;
+          for (const lId of match.ledgerEntryIds) {
+            await tx.insert(matches).values({
+              userId,
+              ledgerEntryIds: [lId],
+              confidenceScore: "0",
+              matchType: "unmatched_ledger",
+              status: "pending",
+              reasonText: "Unmatched ledger entry.",
+              riskScore: match.riskScore || 0,
+            });
+            await tx
+              .update(canonicalTransactions)
+              .set({ status: "MATCHED_PENDING" })
+              .where(eq(canonicalTransactions.id, lId));
+          }
           continue;
         }
 
-        const isAutoApprove = match.confidenceScore >= 0.95;
+        const isAutoApprove =
+          match.matchType === "utr_exact" ||
+          (match.matchType === "exact" && match.confidenceBand === "VERY_HIGH");
         const status = isAutoApprove ? "approved" : "pending";
 
-        if (isAutoApprove) autoMatched++;
-        else if (match.matchType === "none") exceptions++;
-        else needsReview++;
+        if (isAutoApprove) {
+          autoMatched++;
+        } else if (match.matchType === "none" && match.classification.discrepancyType !== "NONE") {
+          // Classified exception (duplicate, missing entry) — genuinely unresolvable
+          exceptions++;
+        } else if (match.matchType === "none") {
+          // No match found but no specific exception type — needs human review
+          needsReview++;
+        } else {
+          needsReview++;
+        }
 
         const reasoning = (match as any).aiResult ?? null;
         const renderedExplanation = (match as any).renderedExplanation;
@@ -275,7 +387,7 @@ export async function runReconciliation(
     });
 
     // Rebuild metrics so the dashboard updates immediately
-    await rebuildDailyMetricsRange(orgId, new Date(periodStart), new Date(periodEnd));
+    await rebuildDailyMetricsRange(orgId, startDate, endDate);
 
     return { runId: run.id, stats: { total: bankRows.length, autoMatched, needsReview, exceptions } };
   } catch (engineError) {
@@ -371,7 +483,6 @@ function fallbackReason(matchType: string): string {
   switch (matchType) {
     case "exact": return "Exact match on amount and date.";
     case "bulk": return "Multiple ledger entries sum precisely to this bank transaction.";
-    case "fuzzy": return "Partial match based on similar amount, date, or text references.";
     default: return "No matching ledger entries found.";
   }
 }

@@ -18,7 +18,7 @@ interface NewRunModalProps {
 
 export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
   const router = useRouter();
-  const { refreshMatches, autoStartNewRun, setAutoStartNewRun } = useData();
+  const { refreshMatches, autoStartNewRun, setAutoStartNewRun, uploadedImportIds, setUploadedImportIds } = useData();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [dateFrom, setDateFrom] = useState<Date>(() => {
@@ -112,9 +112,11 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
 
     try {
       const data = await api.recon.run({
-        periodStart: dateFrom.toISOString(),
-        periodEnd: dateTo.toISOString(),
+        periodStart: format(dateFrom, "yyyy-MM-dd"),
+        periodEnd: format(dateTo, "yyyy-MM-dd"),
+        importIds: uploadedImportIds,
       });
+      setUploadedImportIds([]);
       if (data.stats) {
         setRunResult(data.stats);
       }

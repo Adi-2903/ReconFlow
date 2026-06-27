@@ -678,14 +678,11 @@ export default function ExceptionsPage() {
                                       <span className="uppercase">{l.sourceSystem}</span>
                                     </div>
                                   </div>
-                                  {l.score !== undefined && l.score > -Infinity && (
+                                  {l.confidenceBand && (
                                     <div className="flex flex-col items-end shrink-0 pl-1">
-                                      <span className="text-[10px] font-bold text-slate-800">
-                                        {Math.round(l.score)}%
-                                      </span>
                                       <span
                                         className={cn(
-                                          "px-1 py-[1px] rounded text-[8px] font-bold tracking-wider leading-none mt-0.5 border shrink-0",
+                                          "px-1.5 py-[1.5px] rounded text-[8.5px] font-extrabold tracking-wider leading-none border shrink-0",
                                           l.confidenceBand === "VERY_HIGH" || l.confidenceBand === "HIGH"
                                             ? "bg-green-50 text-green-700 border-green-200/50"
                                             : l.confidenceBand === "MEDIUM"
@@ -693,7 +690,7 @@ export default function ExceptionsPage() {
                                             : "bg-red-50 text-red-700 border-red-200/50"
                                         )}
                                       >
-                                        {l.confidenceBand}
+                                        {l.confidenceBand.replace("_", " ")}
                                       </span>
                                     </div>
                                   )}

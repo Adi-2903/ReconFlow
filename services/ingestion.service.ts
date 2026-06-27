@@ -44,7 +44,7 @@ export class IngestionService {
     accountId: string,
     sourceType: "stripe" | "quickbooks",
     records: NormalizedConnectorRecord[]
-  ): Promise<{ successCount: number; skippedCount: number; failureCount: number }> {
+  ): Promise<{ importId: string; successCount: number; skippedCount: number; failureCount: number }> {
     if (records.length === 0) {
       return { successCount: 0, skippedCount: 0, failureCount: 0 };
     }
@@ -196,7 +196,7 @@ export class IngestionService {
       throw err;
     }
 
-    return { successCount, skippedCount, failureCount };
+    return { importId: importRun.id, successCount, skippedCount, failureCount };
   }
 
   /**
@@ -211,7 +211,7 @@ export class IngestionService {
     columnMap: Record<string, string>,
     saveTemplate?: { templateName: string; originalHeaders: string[] },
     sheetName?: string
-  ): Promise<{ successCount: number; skippedCount: number; failureCount: number }> {
+  ): Promise<{ importId: string; successCount: number; skippedCount: number; failureCount: number }> {
     // 1. Generate sha256 checksum and check for duplicate files
     const sha256 = this.generateChecksum(fileBuffer);
     const [existingImport] = await db
@@ -333,6 +333,14 @@ export class IngestionService {
       
       const dueDateIndex = columnMap.dueDate ? headers.indexOf(columnMap.dueDate) : -1;
       const docTypeIndex = columnMap.documentType ? headers.indexOf(columnMap.documentType) : -1;
+      const utrIndex = columnMap.utr ? headers.indexOf(columnMap.utr) : -1;
+      const invoiceNumIndex = columnMap.invoiceNumber ? headers.indexOf(columnMap.invoiceNumber) : -1;
+      const voucherNumIndex = columnMap.voucherNumber ? headers.indexOf(columnMap.voucherNumber) : -1;
+      const customerNameIndex = columnMap.customerName ? headers.indexOf(columnMap.customerName) : -1;
+      const vendorNameIndex = columnMap.vendorName ? headers.indexOf(columnMap.vendorName) : -1;
+      const merchantNameIndex = columnMap.merchantName ? headers.indexOf(columnMap.merchantName) : -1;
+      const relatedTxnIndex = columnMap.relatedTransactionId ? headers.indexOf(columnMap.relatedTransactionId) : -1;
+      const channelIndex = columnMap.channel ? headers.indexOf(columnMap.channel) : -1;
       
       const isMoney = ["bank_csv", "bank_excel", "stripe_export"].includes(fileType);
       const side = isMoney ? "money" : "books";
@@ -425,14 +433,8 @@ export class IngestionService {
           const refStr = refIndex !== -1 ? row[refIndex] : "";
 
           // Normalize Date
-          let formattedDate: string;
-          if (side === "books") {
-            const documentType = docTypeIndex !== -1 ? row[docTypeIndex] : null;
-            const dueDateStr = dueDateIndex !== -1 ? row[dueDateIndex] : null;
-            formattedDate = cleaningService.getCanonicalLedgerDate(documentType, rawDateStr, dueDateStr);
-          } else {
-            formattedDate = cleaningService.normalizeDate(rawDateStr);
-          }
+          // Keep transactionDate and dueDate separate
+          const formattedDate = cleaningService.normalizeDate(rawDateStr);
 
           // Normalize Amount
           let amountMinor: bigint;
@@ -461,6 +463,10 @@ export class IngestionService {
                 direction = "outflow";
               }
             }
+          }
+
+          if (!direction) {
+            throw new Error(`Direction could not be determined for transaction. Please verify Debit/Credit or Amount values.`);
           }
 
           // Normalize Counterparty
@@ -508,6 +514,24 @@ export class IngestionService {
             }
           });
 
+          const matchingSignals: Record<string, any> = {};
+          if (utrIndex !== -1 && row[utrIndex]) matchingSignals.utr = row[utrIndex].trim();
+          if (invoiceNumIndex !== -1 && row[invoiceNumIndex]) matchingSignals.invoiceNumber = row[invoiceNumIndex].trim();
+          if (voucherNumIndex !== -1 && row[voucherNumIndex]) matchingSignals.voucherNumber = row[voucherNumIndex].trim();
+          if (customerNameIndex !== -1 && row[customerNameIndex]) matchingSignals.customerName = row[customerNameIndex].trim();
+          if (vendorNameIndex !== -1 && row[vendorNameIndex]) matchingSignals.vendorName = row[vendorNameIndex].trim();
+          if (merchantNameIndex !== -1 && row[merchantNameIndex]) matchingSignals.merchantName = row[merchantNameIndex].trim();
+          if (relatedTxnIndex !== -1 && row[relatedTxnIndex]) matchingSignals.relatedTransactionId = row[relatedTxnIndex].trim();
+          if (channelIndex !== -1 && row[channelIndex]) matchingSignals.channel = row[channelIndex].trim();
+          if (dueDateIndex !== -1 && row[dueDateIndex] && row[dueDateIndex].trim() !== "") {
+            try {
+              matchingSignals.dueDate = cleaningService.normalizeDate(row[dueDateIndex]);
+            } catch {
+              matchingSignals.dueDate = row[dueDateIndex].trim();
+            }
+          }
+          if (docTypeIndex !== -1 && row[docTypeIndex]) matchingSignals.documentType = row[docTypeIndex].trim();
+
           // Build DTO and validate through Zod schema
           const rawInput = {
             organizationId: orgId,
@@ -527,7 +551,9 @@ export class IngestionService {
             description: rawDescStr || null,
             transactionType: txnType,
             sourceTransactionId: deterministicTxnId,
-            metadata: {},
+            metadata: {
+              matchingSignals,
+            },
           };
 
           const enrichedInput = await IntelligenceService.enrichTransaction(orgId, rawInput, importRun.id);
@@ -622,7 +648,7 @@ export class IngestionService {
       throw err;
     }
 
-    return { successCount, skippedCount, failureCount };
+    return { importId: importRun.id, successCount, skippedCount, failureCount };
   }
 }
 

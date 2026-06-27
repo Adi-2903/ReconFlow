@@ -18,6 +18,7 @@ import {
   isStripePayoutTransaction,
   hasReferenceConflict,
   isDigitTransposition,
+  getConfidenceBand,
 } from "./matchingHelpers";
 import type { BankTransaction, LedgerEntry, CandidateReason } from "./engine";
 
@@ -185,38 +186,72 @@ export function generateCandidates(
 
     const bankSignals = bankTxn.matchingSignals || {};
     const bookSignals = bookTxn.matchingSignals || {};
-    let signalScore = 0;
-    let signalReason = "";
-
-    if (bankSignals.utr && bookSignals.utr && bankSignals.utr === bookSignals.utr) {
-      signalScore = 100;
-      signalReason = "utr_match";
-    } else if (
-      bankSignals.relatedTransactionId &&
-      bookSignals.relatedTransactionId &&
-      bankSignals.relatedTransactionId === bookSignals.relatedTransactionId
+    // UTR match (+100)
+    if (
+      bankSignals.utr &&
+      bookSignals.utr &&
+      normalizeReference(bankSignals.utr) === normalizeReference(bookSignals.utr)
     ) {
-      signalScore = 80;
-      signalReason = "related_id_match";
-    } else if (
-      bankSignals.invoiceNumber &&
-      bookSignals.invoiceNumber &&
-      bankSignals.invoiceNumber === bookSignals.invoiceNumber
-    ) {
-      signalScore = 80;
-      signalReason = "invoice_match";
-    } else if (
-      bankSignals.voucherNumber &&
-      bookSignals.voucherNumber &&
-      bankSignals.voucherNumber === bookSignals.voucherNumber
-    ) {
-      signalScore = 80;
-      signalReason = "voucher_match";
+      scoreVal += 100;
+      reasons.push({ reason: "utr_match", points: 100 });
     }
 
-    if (signalReason) {
-      scoreVal += signalScore;
-      reasons.push({ reason: signalReason, points: signalScore });
+    // Related ID match (+80)
+    if (
+      bankSignals.relatedTransactionId &&
+      bookSignals.relatedTransactionId &&
+      normalizeReference(bankSignals.relatedTransactionId) === normalizeReference(bookSignals.relatedTransactionId)
+    ) {
+      scoreVal += 80;
+      reasons.push({ reason: "related_id_match", points: 80 });
+    }
+
+    // Invoice match (+80)
+    if (
+      bankSignals.invoiceNumber &&
+      bookSignals.invoiceNumber &&
+      normalizeReference(bankSignals.invoiceNumber) === normalizeReference(bookSignals.invoiceNumber)
+    ) {
+      scoreVal += 80;
+      reasons.push({ reason: "invoice_match", points: 80 });
+    }
+
+    // Voucher match (+80)
+    if (
+      bankSignals.voucherNumber &&
+      bookSignals.voucherNumber &&
+      normalizeReference(bankSignals.voucherNumber) === normalizeReference(bookSignals.voucherNumber)
+    ) {
+      scoreVal += 80;
+      reasons.push({ reason: "voucher_match", points: 80 });
+    }
+
+    // Customer name match (+15)
+    if (bankSignals.customerName && bookSignals.customerName && nameMatches(bankSignals.customerName, bookSignals.customerName)) {
+      scoreVal += 15;
+      reasons.push({ reason: "customer_name_match", points: 15 });
+    }
+
+    // Vendor name match (+15)
+    if (bankSignals.vendorName && bookSignals.vendorName && nameMatches(bankSignals.vendorName, bookSignals.vendorName)) {
+      scoreVal += 15;
+      reasons.push({ reason: "vendor_name_match", points: 15 });
+    }
+
+    // Merchant name match (+15)
+    if (bankSignals.merchantName && bookSignals.merchantName && nameMatches(bankSignals.merchantName, bookSignals.merchantName)) {
+      scoreVal += 15;
+      reasons.push({ reason: "merchant_name_match", points: 15 });
+    }
+
+    // Payment channel match (+10)
+    if (
+      bankSignals.channel &&
+      bookSignals.channel &&
+      bankSignals.channel.trim().toUpperCase() === bookSignals.channel.trim().toUpperCase()
+    ) {
+      scoreVal += 10;
+      reasons.push({ reason: "channel_match", points: 10 });
     }
 
     const bankRef = (bankTxn.referenceId || "").trim().toLowerCase();
@@ -250,7 +285,7 @@ export function generateCandidates(
     const bankSource = bankTxn.description.toLowerCase().includes("stripe")
       ? "stripe"
       : bankSignals.merchantName;
-    const bookSource = bookTxn.memo.toLowerCase().includes("stripe") ? "stripe" : undefined;
+    const bookSource = (bookTxn.memo ?? "").toLowerCase().includes("stripe") ? "stripe" : undefined;
     if (bankSource && bookSource && bankSource.toLowerCase() === bookSource.toLowerCase()) {
       scoreVal += 15;
       reasons.push({ reason: "source_alignment", points: 15 });
@@ -267,10 +302,9 @@ export function generateCandidates(
       reasons.push({ reason: "reference_conflict_penalty", points: -50 });
     }
 
-    let confidenceBand: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW" = "LOW";
-    if (scoreVal >= 120) confidenceBand = "VERY_HIGH";
-    else if (scoreVal >= 80) confidenceBand = "HIGH";
-    else if (scoreVal >= 50) confidenceBand = "MEDIUM";
+    const rawBand = getConfidenceBand(scoreVal);
+    const confidenceBand: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW" =
+      rawBand === "NONE" ? "LOW" : rawBand;
 
     results.push({ candidate: bookTxn, score: scoreVal, confidenceBand, reasons });
   }
