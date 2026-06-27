@@ -1,0 +1,26 @@
+qb_transaction_id,date,time,type,customer_vendor,invoice_number,memo,amount,account,currency,payment_method,reference_number,notes
+QB-001,2026-06-02,10:22:00,Invoice Payment,Acme Corp LLC,INV-2026-1001,Payment for June consulting services,1250.00,Accounts Receivable,USD,ACH,ACH-REF-4421893,
+QB-002,2026-06-05,14:05:00,Invoice Payment,Bluestar Media Group,INV-2026-1002,Payment for May 2026 managed services,3400.00,Accounts Receivable,USD,Wire Transfer,WIRE-20260605-0082,
+QB-003,2026-06-10,16:30:00,Invoice Payment,Nexgen Solutions Inc,INV-2026-1003,Payment received via ACH - platform license,875.00,Accounts Receivable,USD,ACH,ACH-REF-4430217,
+QB-004,2026-06-15,11:15:00,Invoice Payment,Pinnacle Retail Partners,INV-2026-1004,Q2 SaaS subscription renewal,2100.00,Accounts Receivable,USD,Wire Transfer,WIRE-20260615-0114,
+QB-005,2026-06-20,09:48:00,Invoice Payment,Horizon Technology LLC,INV-2026-1005,Q2 platform access fee,650.00,Accounts Receivable,USD,ACH,ACH-REF-4451089,
+QB-006,2026-06-08,17:02:00,Invoice Payment,Redwood Partners Group,INV-2026-1006,Payment for API integration services - marked paid on receipt,1800.00,Accounts Receivable,USD,ACH,,Bank ACH pending settlement
+QB-007,2026-06-17,09:12:00,Invoice Payment,Cascade Logistics LLC,INV-2026-1007,Wire payment for logistics analytics module,4250.00,Accounts Receivable,USD,Wire Transfer,WIRE-20260619-0137,
+QB-008,2026-06-11,11:30:00,Invoice Payment,Vertex Analytics Corp,INV-2026-1008,Stripe payment - data pipeline subscription,2500.00,Accounts Receivable,USD,Stripe,STRIPE-CHG-VX-0093,
+QB-009,2026-06-11,11:31:00,Credit Card Fee,Stripe Inc,,Stripe processing fee INV-2026-1008 Vertex Analytics,-72.80,Payment Processing Fees,USD,,STRIPE-FEE-VX-0093,2.9% + $0.30 on $2500.00
+QB-010,2026-06-22,13:45:00,Invoice Payment,TechFlow Inc,INV-2026-1009,Stripe payment - developer tools subscription,850.00,Accounts Receivable,USD,Stripe,STRIPE-CHG-TF-0114,
+QB-011,2026-06-22,13:46:00,Credit Card Fee,Stripe Inc,,Stripe processing fee INV-2026-1009 TechFlow Inc,-24.95,Payment Processing Fees,USD,,STRIPE-FEE-TF-0114,2.9% + $0.30 on $850.00
+QB-012,2026-06-16,09:30:00,Invoice Payment,GlobalBridge GmbH,INV-2026-1010,EUR platform license payment - USD recorded value,3480.00,Accounts Receivable,USD,Wire Transfer,WIRE-20260617-0128-FX,EUR 3200.00 at rate 1.0875
+QB-013,2026-06-18,15:22:00,Invoice Payment,Summit Creative Studios,INV-2026-1011,Web design retainer June 2026,1750.00,Accounts Receivable,USD,ACH,ACH-REF-4453782,
+QB-014,2026-06-18,15:23:00,Invoice Payment,Summit Creative Studios,INV-2026-1012,Brand identity package,920.00,Accounts Receivable,USD,ACH,ACH-REF-4453782,
+QB-015,2026-06-25,17:48:00,Invoice Payment,BrightEdge Commerce Inc,INV-2026-1013,Batch settlement - two card payments combined,3120.00,Accounts Receivable,USD,Credit Card,REF-CARD-7721094-BATCH,Cards REF-CARD-7721094 and REF-CARD-7721095
+QB-016,2026-06-12,14:30:00,Invoice Payment,Orion Systems Corp,INV-2026-1014,Wire payment enterprise subscription Q2 2026,3750.00,Accounts Receivable,USD,Wire Transfer,WIRE-20260612-0098,
+QB-017,2026-06-14,10:05:00,Invoice Payment,Magnolia Events and Catering,INV-2026-1015,Payment for event management platform,2200.00,Accounts Receivable,USD,ACH,ACH-REF-4438819,
+QB-018,2026-06-14,10:07:00,Invoice Payment,Magnolia Events and Catering,INV-2026-1015,Payment for event management platform,2200.00,Accounts Receivable,USD,ACH,ACH-REF-4438819,DUPLICATE ENTRY - accidental re-entry 2 minutes after QB-017
+QB-019,2026-06-20,11:00:00,Invoice Payment,Coastal Properties Group,INV-2026-1016,Q2 subscription renewal - wire expected from client,5400.00,Accounts Receivable,USD,Wire Transfer,WIRE-EXP-20260620,Awaiting bank confirmation - no deposit received
+QB-020,2026-06-16,13:18:00,Credit Memo,Bluestar Media Group,CM-2026-0042,Partial refund - duplicate charge on INV-2026-0994,-340.00,Accounts Receivable,USD,ACH,ACH-REF-4441203,
+QB-021,2026-06-23,09:55:00,Credit Memo,[Unknown Customer],CB-2026-0623,Visa chargeback dispute ref CB-2026-0623-4821,-299.00,Accounts Receivable,USD,Credit Card,CB-2026-0623-4821,
+QB-022,2026-06-30,08:00:00,Bank Charge,Wells Fargo,,Monthly business checking service fee June 2026,-25.00,Bank Service Charges,USD,,FEE-20260630-BSC,
+QB-023,2026-06-19,16:45:00,Bank Charge,Wells Fargo,,Outgoing wire transfer fee Cascade Logistics,-30.00,Bank Service Charges,USD,,FEE-20260619-WTF,
+QB-024,2026-06-30,08:01:00,Other Income,Wells Fargo,,Interest earned on business checking June 2026,4.17,Interest Income,USD,,INT-20260630-001,
+QB-025,2026-06-30,17:30:00,Journal Entry,[Internal],,Monthly depreciation adjustment software and equipment Q2 2026,-1200.00,Accumulated Depreciation,USD,,JE-2026-0031,Non-cash adjustment - no bank transaction expected

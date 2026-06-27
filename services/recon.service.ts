@@ -205,19 +205,26 @@ export async function runReconciliation(
 
     await db.transaction(async (tx) => {
       for (const match of enhancedMatches) {
+        const numBankTxns = match.bankTransactionIds.length;
+
         // unmatched_ledger: a ledger entry with no corresponding bank transaction.
         // Counted as an exception for reporting; no match record or status update needed.
         if (match.matchType === "unmatched_ledger") {
-          exceptions++;
+          // Unmatched ledger entries do not correspond to bank transactions
+          // and are excluded from bank-reconciliation run stats.
           continue;
         }
 
         const isAutoApprove = match.confidenceScore >= 0.95;
         const status = isAutoApprove ? "approved" : "pending";
 
-        if (isAutoApprove) autoMatched++;
-        else if (match.matchType === "none") exceptions++;
-        else needsReview++;
+        if (isAutoApprove) {
+          autoMatched += numBankTxns;
+        } else if (match.matchType === "none") {
+          exceptions += numBankTxns;
+        } else {
+          needsReview += numBankTxns;
+        }
 
         const reasoning = (match as any).aiResult ?? null;
         const renderedExplanation = (match as any).renderedExplanation;

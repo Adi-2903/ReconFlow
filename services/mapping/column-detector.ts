@@ -73,67 +73,114 @@ export function detectColumns(headers: string[]): Record<string, string> {
     counterparty: "",
   };
 
-  const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, " ");
+  const clean = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]/g, " ");
 
-  const dateRegex = /date|time|txn|value|created/i;
-  const descRegex = /desc|narrat|particular|memo|details|remark|customer|vendor|party/i;
-  const amountRegex = /^amount|amount$|total|net/i;
-  const directionRegex = /direction|type|transaction type|txn type|dr cr|cr dr|credit debit|debit credit/i;
-  const debitRegex = /debit|withdrawal|outflow|payment|paid/i;
-  const creditRegex = /credit|deposit|inflow|receipt|received/i;
-  const refRegex = /ref|reference|id|doc|num|vch|cheque|chq/i;
-  const counterpartyRegex = /counterparty|customer|vendor|party|name/i;
-
-  let dateHeader = "";
-  headers.forEach((header) => {
+  const getScore = (header: string, type: keyof typeof result): number => {
     const h = clean(header);
-    if (dateRegex.test(h)) {
-      if (!dateHeader || /transaction|txn|booking/i.test(h)) {
-        dateHeader = header;
-      }
-    }
-  });
-  result.date = dateHeader;
-
-  headers.forEach((header) => {
-    const h = clean(header);
-    if (header === dateHeader) {
-      // already matched
-      return;
-    }
-
-    // A single header can match multiple fields (e.g. customer_or_vendor -> description & counterparty)
     
-    if (!result.description && descRegex.test(h)) {
-      result.description = header;
-    }
+    switch (type) {
+      case "date":
+        if (h === "date") return 100;
+        if (/^(transaction|txn|booking|value|posting|post)[_ ]date$/i.test(h)) return 95;
+        if (/date/i.test(h)) return 80;
+        if (/^(time|txn|created|dt)$/i.test(h)) return 60;
+        if (/time|txn|created/i.test(h)) return 40;
+        return 0;
 
-    if (!result.direction && directionRegex.test(h)) {
-      result.direction = header;
-    } else if (!directionRegex.test(h)) {
-      // Only check for explicit debit/credit amounts if it's NOT a direction column
-      if (!result.debit && debitRegex.test(h)) {
-        result.debit = header;
+      case "description":
+        if (/^(description|narration|particulars|memo|details)$/i.test(h)) return 100;
+        if (/description|narration|particular|memo|details|remark/i.test(h)) return 80;
+        if (/desc/i.test(h)) return 70;
+        if (/customer|vendor|party/i.test(h)) return 20;
+        return 0;
+
+      case "direction":
+        if (/^(direction|type|transaction[_ ]type|txn[_ ]type|dr[_ ]cr|dr\/cr|cr[_ ]dr|credit[_ ]debit|debit[_ ]credit)$/i.test(h)) return 100;
+        if (/direction|txn[_ ]type|transaction[_ ]type/i.test(h)) return 80;
+        if (/\b(type|dr|cr)\b/i.test(h)) return 40;
+        return 0;
+
+      case "debit":
+        if (/^(debit|withdrawal|outflow|payment|paid)$/i.test(h)) return 100;
+        if (/debit|withdrawal|outflow|payment|paid/i.test(h)) return 80;
+        if (/^dr$/i.test(h)) return 60;
+        if (/\bdr\b/i.test(h)) return 40;
+        return 0;
+
+      case "credit":
+        if (/^(credit|deposit|inflow|receipt|received)$/i.test(h)) return 100;
+        if (/credit|deposit|inflow|receipt|received/i.test(h)) return 80;
+        if (/^cr$/i.test(h)) return 60;
+        if (/\bcr\b/i.test(h)) return 40;
+        return 0;
+
+      case "amount":
+        if (/^(amount|net[_ ]amount|total[_ ]amount)$/i.test(h)) return 100;
+        if (/amount|total|net/i.test(h)) return 80;
+        return 0;
+
+      case "reference":
+        if (/^(reference|utr|ref|reference[_ ]number|ref[_ ]num|ref[_ ]no|cheque|chq|voucher|vch|cheque[_ ]no|chq[_ ]no)$/i.test(h)) return 100;
+        if (/reference|utr|ref[_ ]no|ref[_ ]number|cheque|chq|voucher|vch/i.test(h)) return 80;
+        if (/^ref/i.test(h)) return 70;
+        if (/id|num|doc|vch/i.test(h)) {
+          if (/transaction[_ ]id|bank[_ ]transaction[_ ]id|txn[_ ]id|row[_ ]id|^id$/i.test(h)) {
+            return 10;
+          }
+          return 50;
+        }
+        return 0;
+
+      case "counterparty":
+        if (/^(counterparty|customer|vendor|party|customer[_ ]name|vendor[_ ]name|party[_ ]name)$/i.test(h)) return 100;
+        if (/counterparty|customer|vendor|party/i.test(h)) return 80;
+        if (/name/i.test(h)) return 60;
+        return 0;
+
+      default:
+        return 0;
+    }
+  };
+
+  const keys = Object.keys(result) as (keyof typeof result)[];
+  
+  keys.forEach((key) => {
+    let bestHeader = "";
+    let maxScore = 0;
+    
+    headers.forEach((header) => {
+      const score = getScore(header, key);
+      if (score > maxScore) {
+        maxScore = score;
+        bestHeader = header;
       }
-      if (!result.credit && creditRegex.test(h)) {
-        result.credit = header;
-      }
-    }
+    });
 
-    if (!result.amount && amountRegex.test(h)) {
-      result.amount = header;
-    }
-
-    if (!result.reference && refRegex.test(h)) {
-      result.reference = header;
-    }
-
-    if (!result.counterparty && counterpartyRegex.test(h)) {
-      result.counterparty = header;
+    if (maxScore > 0) {
+      result[key] = bestHeader;
     }
   });
 
-  // If we found debit/credit, we don't necessarily need a single amount column
+  if (result.date) {
+    const dateHeader = result.date;
+    keys.forEach((key) => {
+      if (key === "date") return;
+      if (result[key] === dateHeader) {
+        let secondBestHeader = "";
+        let maxScore = 0;
+        headers.forEach((header) => {
+          if (header === dateHeader) return;
+          const score = getScore(header, key);
+          if (score > maxScore) {
+            maxScore = score;
+            secondBestHeader = header;
+          }
+        });
+        result[key] = maxScore > 0 ? secondBestHeader : "";
+      }
+    });
+  }
+
   if (result.debit && result.credit && !result.amount) {
     result.amount = `${result.debit}/${result.credit}`;
   }
