@@ -100,36 +100,66 @@ export function detectColumns(headers: string[]): Record<string, string> {
         if (/\b(type|dr|cr)\b/i.test(h)) return 40;
         return 0;
 
-      case "debit":
-        if (/^(debit|withdrawal|outflow|payment|paid)$/i.test(h)) return 100;
-        if (/debit|withdrawal|outflow|payment|paid/i.test(h)) return 80;
-        if (/^dr$/i.test(h)) return 60;
-        if (/\bdr\b/i.test(h)) return 40;
-        return 0;
+      case "debit": {
+        let score = 0;
+        if (/^(debit|withdrawal|outflow|payment|paid)$/i.test(h)) score = 100;
+        else if (/debit|withdrawal|outflow|payment|paid/i.test(h)) score = 80;
+        else if (/^dr$/i.test(h)) score = 60;
+        else if (/\bdr\b/i.test(h)) score = 40;
 
-      case "credit":
-        if (/^(credit|deposit|inflow|receipt|received)$/i.test(h)) return 100;
-        if (/credit|deposit|inflow|receipt|received/i.test(h)) return 80;
-        if (/^cr$/i.test(h)) return 60;
-        if (/\bcr\b/i.test(h)) return 40;
-        return 0;
-
-      case "amount":
-        if (/^(amount|net[_ ]amount|total[_ ]amount)$/i.test(h)) return 100;
-        if (/amount|total|net/i.test(h)) return 80;
-        return 0;
-
-      case "reference":
-        if (/^(reference|utr|ref|reference[_ ]number|ref[_ ]num|ref[_ ]no|cheque|chq|voucher|vch|cheque[_ ]no|chq[_ ]no)$/i.test(h)) return 100;
-        if (/reference|utr|ref[_ ]no|ref[_ ]number|cheque|chq|voucher|vch/i.test(h)) return 80;
-        if (/^ref/i.test(h)) return 70;
-        if (/id|num|doc|vch/i.test(h)) {
-          if (/transaction[_ ]id|bank[_ ]transaction[_ ]id|txn[_ ]id|row[_ ]id|^id$/i.test(h)) {
-            return 10;
-          }
-          return 50;
+        if (score > 0 && /method|mode|channel|\bref\b|\bid\b/i.test(h)) {
+          score = Math.max(0, score - 80);
         }
-        return 0;
+        return score;
+      }
+
+      case "credit": {
+        let score = 0;
+        if (/^(credit|deposit|inflow|receipt|received)$/i.test(h)) score = 100;
+        else if (/credit|deposit|inflow|receipt|received/i.test(h)) score = 80;
+        else if (/^cr$/i.test(h)) score = 60;
+        else if (/\bcr\b/i.test(h)) score = 40;
+
+        if (score > 0 && /method|mode|channel|\bref\b|\bid\b/i.test(h)) {
+          score = Math.max(0, score - 80);
+        }
+        return score;
+      }
+
+      case "amount": {
+        let score = 0;
+        if (/^(amount|net[_ ]amount|total[_ ]amount)$/i.test(h)) score = 100;
+        else if (/amount|total|net/i.test(h)) score = 80;
+
+        if (score > 0 && /debit|credit|withdrawal|deposit/i.test(h)) {
+          score = Math.max(0, score - 80);
+        }
+        return score;
+      }
+
+      case "reference": {
+        let score = 0;
+        if (/^(reference|utr|ref|reference[_ ]number|ref[_ ]num|ref[_ ]no|cheque|chq|voucher|vch|cheque[_ ]no|chq[_ ]no)$/i.test(h)) score = 100;
+        else if (/reference|utr|ref[_ ]no|ref[_ ]number|cheque|chq|voucher|vch/i.test(h)) score = 80;
+        else if (/^ref/i.test(h)) score = 70;
+        else if (/id|num|doc|vch/i.test(h)) {
+          if (/transaction[_ ]id|bank[_ ]transaction[_ ]id|txn[_ ]id|row[_ ]id|^id$/i.test(h)) {
+            score = 10;
+          } else {
+            score = 50;
+          }
+        }
+
+        if (score > 0) {
+          if (/type|category|status/i.test(h)) {
+            score = Math.max(0, score - 60);
+          }
+          if (/\b(no|num|number|#)\b/i.test(h)) {
+            score = Math.min(100, score + 15);
+          }
+        }
+        return score;
+      }
 
       case "counterparty":
         if (/^(counterparty|customer|vendor|party|customer[_ ]name|vendor[_ ]name|party[_ ]name)$/i.test(h)) return 100;
@@ -142,13 +172,25 @@ export function detectColumns(headers: string[]): Record<string, string> {
     }
   };
 
-  const keys = Object.keys(result) as (keyof typeof result)[];
-  
-  keys.forEach((key) => {
+  const priorityOrder: (keyof typeof result)[] = [
+    "date",
+    "description",
+    "debit",
+    "credit",
+    "amount",
+    "direction",
+    "reference",
+    "counterparty",
+  ];
+
+  const assignedHeaders = new Set<string>();
+
+  priorityOrder.forEach((key) => {
     let bestHeader = "";
     let maxScore = 0;
-    
+
     headers.forEach((header) => {
+      if (assignedHeaders.has(header)) return;
       const score = getScore(header, key);
       if (score > maxScore) {
         maxScore = score;
@@ -158,31 +200,15 @@ export function detectColumns(headers: string[]): Record<string, string> {
 
     if (maxScore > 0) {
       result[key] = bestHeader;
+      assignedHeaders.add(bestHeader);
     }
   });
 
-  if (result.date) {
-    const dateHeader = result.date;
-    keys.forEach((key) => {
-      if (key === "date") return;
-      if (result[key] === dateHeader) {
-        let secondBestHeader = "";
-        let maxScore = 0;
-        headers.forEach((header) => {
-          if (header === dateHeader) return;
-          const score = getScore(header, key);
-          if (score > maxScore) {
-            maxScore = score;
-            secondBestHeader = header;
-          }
-        });
-        result[key] = maxScore > 0 ? secondBestHeader : "";
-      }
-    });
-  }
-
-  if (result.debit && result.credit && !result.amount) {
-    result.amount = `${result.debit}/${result.credit}`;
+  if (result.debit && result.credit) {
+    if (!result.amount) {
+      result.amount = `${result.debit}/${result.credit}`;
+    }
+    result.direction = ""; // Clear direction for split debit/credit files so frontend shows split inputs
   }
 
   return result;
