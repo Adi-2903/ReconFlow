@@ -455,7 +455,10 @@ export class IngestionService {
 
             if (fileType === "qbo_export" && typeIndex !== -1 && row[typeIndex]) {
               const txnType = row[typeIndex].trim().toLowerCase();
-              if (["invoice", "payment", "sales receipt", "receive payment", "deposit", "credit"].includes(txnType)) {
+              const inflowKeywords = ["invoice", "payment", "sales receipt", "receive payment", "deposit", "credit", "income", "interest"];
+              const isOutflowKeyword = ["fee", "charge", "expense", "bill payment", "check", "memo", "refund"].some(k => txnType.includes(k));
+              
+              if (inflowKeywords.some(k => txnType.includes(k)) && !isOutflowKeyword) {
                 direction = "inflow";
               } else {
                 direction = "outflow";
