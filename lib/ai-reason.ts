@@ -47,6 +47,7 @@ interface AIObservabilityEvent {
   promptVersion: string;
   /** false when Zod validation failed — do not persist bad LLM data */
   valid: boolean;
+  apiSuccess?: boolean;
   orgId: string;
 }
 
@@ -197,6 +198,8 @@ export function buildReasonHash(ctx: PromptContext): string {
     ctx.discrepancyType,
     ctx.matchType,
     ctx.confidenceBand,
+    ctx.currency,
+    ctx.amountBucket,
     ctx.descriptionCategory,
     // Bucket into 5 % bands — trades precision for cache hit rate
     Math.round(ctx.differencePercentage / 5) * 5,
@@ -221,12 +224,13 @@ export function buildReasonHash(ctx: PromptContext): string {
 export class RunTracker {
   private failures = 0;
   private readonly threshold = 3;
-  private tripped = false;
+  private state: "OPEN" | "TRIPPED" = "OPEN";
 
   recordFailure(): void {
+    if (this.state === "TRIPPED") return;
     this.failures++;
-    if (this.failures >= this.threshold && !this.tripped) {
-      this.tripped = true;
+    if (this.failures >= this.threshold) {
+      this.state = "TRIPPED";
       console.warn(
         JSON.stringify({
           event: "circuit_breaker_tripped",
@@ -238,11 +242,12 @@ export class RunTracker {
   }
 
   recordSuccess(): void {
+    if (this.state === "TRIPPED") return;
     this.failures = 0;
   }
 
   isTripped(): boolean {
-    return this.tripped;
+    return this.state === "TRIPPED";
   }
 }
 
@@ -471,7 +476,7 @@ export async function generateMatchReasoning(
 
     return {
       reasoning,
-      renderedExplanation: renderExplanation(spec.explanationTemplate, bankTxn, candidates, bankTxn.amount - candidates.reduce((s, c) => s + c.amount, 0)),
+      renderedExplanation: renderExplanation(spec.explanationTemplate, bankTxn, candidates, bankTxn.amount - candidates.reduce((s, c) => s + c.amount, 0), bankTxn.currency),
     };
   }
 
@@ -519,7 +524,7 @@ export async function generateMatchReasoning(
 
     return {
       reasoning,
-      renderedExplanation: renderExplanation(cached.explanationTemplate, bankTxn, candidates, bankTxn.amount - candidates.reduce((s, c) => s + c.amount, 0)),
+      renderedExplanation: renderExplanation(cached.explanationTemplate, bankTxn, candidates, bankTxn.amount - candidates.reduce((s, c) => s + c.amount, 0), bankTxn.currency),
     };
   }
 
@@ -564,10 +569,12 @@ export async function generateMatchReasoning(
 
     return {
       reasoning,
-      renderedExplanation: renderExplanation(llmResult.explanationTemplate, bankTxn, candidates, bankTxn.amount - candidates.reduce((s, c) => s + c.amount, 0)),
+      renderedExplanation: renderExplanation(llmResult.explanationTemplate, bankTxn, candidates, bankTxn.amount - candidates.reduce((s, c) => s + c.amount, 0), bankTxn.currency),
     };
-  } catch (err) {
+  } catch (err: any) {
     tracker.recordFailure();
+
+    const isValidationError = err instanceof z.ZodError || err instanceof SyntaxError || err?.name === "ZodError";
 
     emitObservabilityEvent({
       event: "ai_explanation_generated",
@@ -579,7 +586,8 @@ export async function generateMatchReasoning(
       outputTokens: null,
       cacheHit: false,
       promptVersion: PROMPT_VERSION,
-      valid: false, // Zod failure or timeout
+      valid: isValidationError ? false : true,
+      apiSuccess: isValidationError ? true : false,
       orgId,
     });
 

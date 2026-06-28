@@ -11,7 +11,6 @@ import {
 import { eq, and, gte, lte, count, inArray } from "drizzle-orm";
 import { matchTransactions } from "@/core/matching/engine";
 import { generateMatchReasoning, RunTracker } from "@/lib/ai-reason";
-import { renderExplanation } from "@/lib/render-explanation";
 import { getOrCreateUserOrganization } from "@/core/db/org-helper";
 import { PROMPT_VERSION } from "@/types";
 import { rebuildDailyMetricsRange } from "@/services/reports.service";
@@ -171,9 +170,9 @@ export async function runReconciliation(
     const tracker = new RunTracker();
 
     const aiTaskFns = matchResults.map((match) => async () => {
-      // Skip trivially exact matches and fully unmatched ledger entries
+      // Skip exact matches (discrepancy type NONE) and fully unmatched ledger entries
       const skipAI =
-        (match.matchType === "exact" && match.confidenceScore >= 0.95) ||
+        match.classification.discrepancyType === "NONE" ||
         match.matchType === "unmatched_ledger";
 
       if (skipAI) return { ...match, aiResult: null as null };

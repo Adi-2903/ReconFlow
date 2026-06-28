@@ -20,6 +20,8 @@ export interface PromptContext {
   matchType: string;
   discrepancyType: string;
   confidenceBand: string;
+  currency: string;
+  amountBucket: string;
   bankAmountMinor: number;
   ledgerSumMinor: number;
   differenceMinor: number;
@@ -104,10 +106,24 @@ export function buildPromptContext(
   const refExact = bankRef !== "" && bankRef === ledgerRef;
   const refDigitSwap = bankRef && ledgerRef ? isDigitTransposition(bankRef, ledgerRef) : false;
 
+  const bankAmtAbs = Math.abs(bankAmt);
+  let amountBucket: string;
+  if (bankAmtAbs < 100_000) {
+    amountBucket = "0-1k";
+  } else if (bankAmtAbs < 1_000_000) {
+    amountBucket = "1k-10k";
+  } else if (bankAmtAbs < 10_000_000) {
+    amountBucket = "10k-100k";
+  } else {
+    amountBucket = "100k+";
+  }
+
   return {
     matchType,
     discrepancyType: classification.discrepancyType,
     confidenceBand: classification.confidenceBand,
+    currency: bankTxn.currency || "INR",
+    amountBucket,
     bankAmountMinor: bankAmt,
     ledgerSumMinor: ledgerSum,
     differenceMinor: diffMinor,

@@ -371,7 +371,7 @@ async function runTests() {
     const rendered = renderExplanation(template, bankTxn, [ledger], 5_000);
 
     assert(rendered.includes("Acme Corp"), "Should substitute {bankCounterparty}");
-    assert(rendered.includes("₹50.00"), "Should render 5_000 paise as ₹50.00");
+    assert(rendered.includes("INR 50.00"), "Should render 5_000 paise as INR 50.00");
     assert(!rendered.includes("{bankCounterparty}"), "Placeholder {bankCounterparty} must be gone");
     assert(!rendered.includes("{difference}"), "Placeholder {difference} must be gone");
   });
@@ -394,12 +394,12 @@ async function runTests() {
     assert(rendered.includes("Acme"), "Bank counterparty should still render");
   });
 
-  await test("renderExplanation with zero difference renders ₹0.00, not empty string", () => {
+  await test("renderExplanation with zero difference renders INR 0.00, not empty string", () => {
     // BUG-10: FOREIGN_EXCHANGE with 0 diff renders confusingly. This test locks
-    // the behaviour — ₹0.00 is technically correct even if confusing.
+    // the behaviour — INR 0.00 is technically correct even if confusing.
     const template = "FX difference of {difference}.";
     const rendered = renderExplanation(template, makeBankTxn(), [makeLedger()], 0);
-    assert(rendered.includes("₹0.00"), "Zero difference should render as ₹0.00");
+    assert(rendered.includes("INR 0.00"), "Zero difference should render as INR 0.00");
     assert(!rendered.includes("{difference}"), "Placeholder must be gone");
   });
 
@@ -436,10 +436,10 @@ async function runTests() {
   await test("renderExplanation with large difference converts paise → rupees correctly", () => {
     // BUG-01: Verify paise-to-rupee conversion precision
     const template = "Difference: {difference}";
-    // 1_23_456 paise = ₹1,234.56
+    // 1_23_456 paise = INR 1,234.56
     const rendered = renderExplanation(template, makeBankTxn(), [makeLedger()], 1_23_456);
-    assert(rendered.includes("₹1,234.56") || rendered.includes("₹1234.56"),
-      "Should format 123456 paise as ₹1,234.56");
+    assert(rendered.includes("INR 1,234.56") || rendered.includes("INR 1234.56"),
+      "Should format 123456 paise as INR 1,234.56");
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1214,6 +1214,69 @@ async function runTests() {
     const ledger2 = makeLedger({ id: "l2", date: new Date("2026-03-03T12:00:00Z"), amount: 50_000 });
     const ctx = buildPromptContext(bankTxn, [ledger1, ledger2], "bulk", makeClassification());
     assert(ctx.dateLagDays === 4, `dateLagDays should be 4 (earliest ledger), got ${ctx.dateLagDays}`);
+  });
+
+  await test("Unsubstituted placeholders are stripped and a warning is logged", () => {
+    const template = "Difference: {difference}. Warning: {some_hallucinated_placeholder}.";
+    const bankTxn = makeBankTxn({ amount: 100_000 });
+    const ledger = makeLedger({ amount: 100_000 });
+    const rendered = renderExplanation(template, bankTxn, [ledger], 0);
+    // {some_hallucinated_placeholder} should be stripped
+    assert(!rendered.includes("{some_hallucinated_placeholder}"), "Hallucinated placeholder must be stripped");
+    assert(rendered.includes("Difference: INR 0.00."), "Standard placeholders should still be rendered");
+  });
+
+  await test("Multi-currency ISO formatting support", () => {
+    const template = "Amount is {bankAmount}.";
+    const usdTxn = makeBankTxn({ amount: 12345, currency: "USD" });
+    const renderedUSD = renderExplanation(template, usdTxn, [], 0);
+    assert(renderedUSD.includes("USD 123.45"), `USD formatting should yield USD 123.45, got ${renderedUSD}`);
+
+    const eurTxn = makeBankTxn({ amount: 5000, currency: "EUR" });
+    const renderedEUR = renderExplanation(template, eurTxn, [], 0, "EUR");
+    assert(renderedEUR.includes("EUR 50.00"), `EUR formatting should yield EUR 50.00, got ${renderedEUR}`);
+  });
+
+  await test("RunTracker state transitions stay tripped once tripped", () => {
+    const tracker = new RunTracker();
+    assert(!tracker.isTripped(), "Should start untripped");
+    tracker.recordFailure();
+    tracker.recordFailure();
+    tracker.recordFailure();
+    assert(tracker.isTripped(), "Should trip after 3 failures");
+
+    // Success call post-trip should not untrip the state
+    tracker.recordSuccess();
+    assert(tracker.isTripped(), "Should stay tripped after recordSuccess when tripped");
+  });
+
+  await test("Hash stability and uniqueness tests", () => {
+    const bankTxn = makeBankTxn({ currency: "USD", amount: 200_000 });
+    const ledger = makeLedger({ amount: 200_000 });
+    const ctx = buildPromptContext(bankTxn, [ledger], "fuzzy", makeClassification({
+      discrepancyType: "PROCESSING_FEE",
+      confidenceBand: "LOW"
+    }));
+
+    const hash1 = buildReasonHash(ctx);
+    // Same context parsed through JSON roundtrip must yield exact same hash (stability)
+    const hashRoundtrip = buildReasonHash(JSON.parse(JSON.stringify(ctx)));
+    assert(hash1 === hashRoundtrip, "Hash must be stable under serialization/deserialization");
+
+    // Different currency -> different hash
+    const ctxDifferentCurrency = { ...ctx, currency: "INR" };
+    const hashDiffCurrency = buildReasonHash(ctxDifferentCurrency);
+    assert(hash1 !== hashDiffCurrency, "Different currency must yield different hash");
+
+    // Different discrepancy type -> different hash
+    const ctxDifferentType = { ...ctx, discrepancyType: "TIMING_DIFFERENCE" };
+    const hashDiffType = buildReasonHash(ctxDifferentType);
+    assert(hash1 !== hashDiffType, "Different discrepancy type must yield different hash");
+
+    // Different amount bucket -> different hash
+    const ctxDifferentBucket = { ...ctx, amountBucket: "10k-100k" };
+    const hashDiffBucket = buildReasonHash(ctxDifferentBucket);
+    assert(hash1 !== hashDiffBucket, "Different amount bucket must yield different hash");
   });
 
   // ── Summary ───────────────────────────────────────────────────────────────

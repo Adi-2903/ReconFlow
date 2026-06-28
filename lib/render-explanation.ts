@@ -30,13 +30,15 @@ export function renderExplanation(
     description: string;
     counterparty?: string;
     referenceId?: string;
+    currency?: string;
   },
   candidates: Array<{
     memo: string;
     counterparty?: string;
     invoiceRef?: string;
   }>,
-  diffMinor: number
+  diffMinor: number,
+  currency?: string
 ): string {
   // Defensive: single-sided cases (e.g. MISSING_ENTRY) have no candidates.
   // Templates for those types must not reference {ledgerCounterparty} or
@@ -44,12 +46,13 @@ export function renderExplanation(
   const candidate = candidates[0];
 
   let result = template;
+  const currencyCode = currency || bankTxn.currency || "INR";
 
   // Bank-side substitutions
   result = result.replace(/{bankCounterparty}/g, bankTxn.counterparty || "Unknown");
   result = result.replace(/{bankReference}/g, bankTxn.referenceId || "N/A");
   result = result.replace(/{bankDescription}/g, bankTxn.description || "");
-  result = result.replace(/{bankAmount}/g, `₹${(Math.abs(bankTxn.amount) / 100).toFixed(2)}`);
+  result = result.replace(/{bankAmount}/g, `${currencyCode} ${(Math.abs(bankTxn.amount) / 100).toFixed(2)}`);
 
   // Ledger-side substitutions — resolve to empty string for absent candidates
   result = result.replace(/{ledgerCounterparty}/g, candidate?.counterparty || "");
@@ -57,7 +60,22 @@ export function renderExplanation(
   result = result.replace(/{ledgerMemo}/g, candidate?.memo || "");
 
   // Numeric/derived substitutions
-  result = result.replace(/{difference}/g, `₹${(Math.abs(diffMinor) / 100).toFixed(2)}`);
+  result = result.replace(/{difference}/g, `${currencyCode} ${(Math.abs(diffMinor) / 100).toFixed(2)}`);
+
+  // Scan for any unresolved placeholders (e.g. {hallucinated_placeholder})
+  const placeholderRegex = /{[a-zA-Z0-9_]+}/g;
+  const unresolved = result.match(placeholderRegex);
+  if (unresolved && unresolved.length > 0) {
+    console.warn(
+      JSON.stringify({
+        event: "unsubstituted_placeholders_detected",
+        placeholders: unresolved,
+        template,
+        renderedResult: result,
+      })
+    );
+    result = result.replace(placeholderRegex, "");
+  }
 
   return result.trim();
 }
