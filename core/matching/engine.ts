@@ -10,6 +10,7 @@ import {
   nameMatches,
   normalizeReference,
   referenceMatches,
+  transactionTextSimilarity,
   type CandidateResult,
 } from "./candidateGenerator";
 
@@ -83,20 +84,6 @@ export interface MatchResult {
 // ── Scoring and Helper Functions ──────────────────────────────────────────────
 
 
-function getCounterpartySimilarity(a?: string, b?: string): number {
-  if (!a || !b) return 0;
-  const normalize = (s: string) =>
-    s.toLowerCase().split(/\W+/).filter((token) => token.length > 2);
-
-  const setA = new Set(normalize(a));
-  const setB = new Set(normalize(b));
-
-  const intersection = new Set([...setA].filter((x) => setB.has(x)));
-  const union = new Set([...setA, ...setB]);
-
-  if (union.size === 0) return 0;
-  return intersection.size / union.size;
-}
 
 function getCombinations<T>(arr: T[], minSize: number, maxSize: number): T[][] {
   const result: T[][] = [];
@@ -153,6 +140,7 @@ export function matchTransactions(
   banks: BankTransaction[],
   ledgers: LedgerEntry[]
 ): MatchResult[] {
+  console.log(`[DEBUG engine.ts] matchTransactions called with ${banks.length} banks and ${ledgers.length} ledgers`);
   const results: (Omit<MatchResult, "classification"> & { classification?: ClassificationResult })[] = [];
 
   // State initialization
@@ -259,7 +247,11 @@ export function matchTransactions(
     if (bankState.status === "MATCHED") continue;
 
     const bankTxn = bankState.txn;
-    const candidates = generateCandidates(bankTxn, getAvailableBooks());
+    const availableBooks = getAvailableBooks();
+    console.log(`[DEBUG engine.ts] Pass 1 inputs: bankTxn=${JSON.stringify(bankTxn, null, 2)}`);
+    console.log(`[DEBUG engine.ts] Pass 1 inputs: book[0]=${JSON.stringify(availableBooks[0], null, 2)}`);
+    const candidates = generateCandidates(bankTxn, availableBooks);
+    console.log(`[DEBUG engine.ts] Pass 1 bank ${bankTxn.id}: found ${availableBooks.length} available books, generated ${candidates.length} candidates`);
     const exactMatches: { candidate: CandidateResult; score: number }[] = [];
 
     for (const cand of candidates) {
@@ -270,12 +262,11 @@ export function matchTransactions(
       const bookAmt = bookState.remainingAmountMinor;
       const dayDiff = Math.abs(differenceInDays(bankTxn.date, cand.candidate.date));
       if (dayDiff > 1) continue;  // not exact — let it fall to fuzzy pass
-      const refMatch = referenceMatches(bankTxn.referenceId, cand.candidate.invoiceRef);
-      const nameMatch = nameMatches(bankTxn.counterparty, cand.candidate.counterparty);
       const diffAmt = Math.abs(bankAmt - bookAmt);
       const currenciesDiffer = bankTxn.currency && cand.candidate.currency && bankTxn.currency !== cand.candidate.currency;
+      console.log(`[DEBUG Pass 1] Evaluating cand ${cand.candidate.id}: dayDiff=${dayDiff}, diffAmt=${diffAmt}, currenciesDiffer=${currenciesDiffer}`);
 
-      if (!currenciesDiffer && diffAmt <= 100 && (refMatch || nameMatch)) {
+      if (!currenciesDiffer && diffAmt <= 100) {
         const finalScore = cand.score + 50;
         exactMatches.push({ candidate: cand, score: finalScore });
       }
@@ -360,10 +351,7 @@ export function matchTransactions(
         if (isStripePayoutTransaction(bankTxn)) return true;
 
         // Standard counterparty/ref gate
-        const sim = getCounterpartySimilarity(bankTxn.counterparty, bs.txn.counterparty);
-        const hasRefOverlap = referenceMatches(bankTxn.referenceId, bs.txn.invoiceRef) ||
-          (bankTxn.description && bs.txn.memo && getCounterpartySimilarity(bankTxn.description, bs.txn.memo) >= 0.4);
-        return sim >= 0.4 || hasRefOverlap;
+        return true;
       });
 
     if (bookCandidates.length >= 2) {
@@ -466,10 +454,7 @@ export function matchTransactions(
         if (dayDiff > 5.0) return false;
         if (!directionMatches(bookTxn, bs.txn)) return false;
 
-        const sim = getCounterpartySimilarity(bookTxn.counterparty, bs.txn.counterparty);
-        const hasRefOverlap = referenceMatches(bookTxn.invoiceRef, bs.txn.referenceId) ||
-          (bookTxn.memo && bs.txn.description && getCounterpartySimilarity(bookTxn.memo, bs.txn.description) >= 0.4);
-        return sim >= 0.4 || hasRefOverlap;
+        return true;
       });
 
     if (bankCandidates.length >= 2) {
@@ -561,10 +546,8 @@ export function matchTransactions(
       const bankAmt = bankState.remainingAmountMinor;
       const bookAmt = bookState.remainingAmountMinor;
       const dayDiff = Math.abs(differenceInDays(bankTxn.date, cand.candidate.date));
-      const refMatch = referenceMatches(bankTxn.referenceId, cand.candidate.invoiceRef);
-      const nameMatch = nameMatches(bankTxn.counterparty, cand.candidate.counterparty);
 
-      if (dayDiff <= 7.0 && (refMatch || nameMatch)) {
+      if (dayDiff <= 7.0) {
         if (matchesProcessorFee(bankAmt, bookAmt)) {
           const finalScore = cand.score + 20;
           feeMatches.push({ candidate: cand, score: finalScore });
@@ -654,12 +637,9 @@ export function matchTransactions(
       // Without this guard, Pass 4 would incorrectly tag timing-difference entries
       // (F1, F8) as "partial_payment" simply because bankAmt <= bookAmt is trivially true.
       if (gapPct < 0.001) continue;
-
-      const refMatch = referenceMatches(bankTxn.referenceId, cand.candidate.invoiceRef);
-      const nameMatch = nameMatches(bankTxn.counterparty, cand.candidate.counterparty);
       const currenciesDiffer = bankTxn.currency && cand.candidate.currency && bankTxn.currency !== cand.candidate.currency;
 
-      if (!currenciesDiffer && (refMatch || nameMatch)) {
+      if (!currenciesDiffer) {
         const isOverpayment = bankAmt > bookState.remainingAmountMinor;
         // Advance payment: bank pays more than the ENTIRE invoice (no prior payments)
         const isAdvancePayment = isOverpayment && bookState.matchedAmountMinor === 0;
@@ -744,8 +724,6 @@ export function matchTransactions(
       const bankAmt = bankState.remainingAmountMinor;
       const bookAmt = bookState.remainingAmountMinor;
       const dayDiff = Math.abs(differenceInDays(bankTxn.date, cand.candidate.date));
-      const refMatch = referenceMatches(bankTxn.referenceId, cand.candidate.invoiceRef);
-      const nameMatch = nameMatches(bankTxn.counterparty, cand.candidate.counterparty);
 
       const currenciesDiffer = bankTxn.currency && cand.candidate.currency && bankTxn.currency !== cand.candidate.currency;
       const sharesBaseCurrency = bankTxn.baseCurrency && cand.candidate.baseCurrency && bankTxn.baseCurrency === cand.candidate.baseCurrency;
@@ -762,7 +740,7 @@ export function matchTransactions(
           const comparisonAmount = Math.max(convertedBank, convertedBook);
           const allowedTolerance = Math.max(500, Math.round(comparisonAmount * 0.20));
 
-          if (diffConverted <= allowedTolerance && dayDiff <= 7.0 && (refMatch || nameMatch)) {
+          if (diffConverted <= allowedTolerance && dayDiff <= 7.0) {
             const finalScore = cand.score + 15;
             const reasons = cand.reasons.map((r) => ({ ...r }));
             reasons.push({ reason: "fx_difference_validated", points: 15 });
@@ -777,7 +755,7 @@ export function matchTransactions(
         }
       }
 
-      if (dayDiff <= 7.0 && (refMatch || nameMatch)) {
+      if (dayDiff <= 7.0) {
         const diffAmt = Math.abs(bankAmt - bookAmt);
         const comparisonAmount = Math.max(bankAmt, bookAmt);
         const allowedTolerance = Math.max(500, Math.round(comparisonAmount * 0.20));

@@ -10,10 +10,10 @@ import { eq, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { parseCsv } from "./parsers/csv.parser";
 import { parseExcel } from "./parsers/excel.parser";
-import { parseTallyXml } from "./parsers/tally.parser";
 import { NormalizedConnectorRecord } from "./connectors/connector.interface";
-import { saveMappingTemplate } from "./mapping/template-matcher";
-import { findHeaderRowIndex, inferDateFormat, NON_TRANSACTION_PATTERNS } from "./mapping/column-detector";
+import { parseStatement } from "./parsers/statement.parser";
+import { parseTallyLedger } from "./parsers/tally-ledger.parser";
+import { detectLayout } from "./parsers/layout-detector";
 import { CleaningService } from "./cleaning.service";
 import { CanonicalTransactionInputSchema } from "./mapping/canonical-input";
 import { IntelligenceService } from "./intelligence.service";
@@ -272,9 +272,6 @@ export class IngestionService {
       if (fileName.toLowerCase().endsWith(".csv")) {
         const fileText = fileBuffer.toString("utf8");
         rows = parseCsv(fileText);
-      } else if (fileName.toLowerCase().endsWith(".xml")) {
-        const fileText = fileBuffer.toString("utf8");
-        rows = await parseTallyXml(fileText);
       } else {
         let parsed = parseExcel(fileBuffer, sheetName);
         if (!sheetName && parsed.sheetNames.length > 1) {
@@ -289,7 +286,7 @@ export class IngestionService {
             for (const name of parsed.sheetNames) {
               try {
                 const p = parseExcel(fileBuffer, name);
-                const { index: hIndex } = findHeaderRowIndex(p.rows);
+                const { headerRowIndex: hIndex } = detectLayout(p.rows);
                 if (hIndex !== -1 && p.rows[hIndex]) {
                   const headers = p.rows[hIndex].map((h) => String(h || "").trim().toLowerCase());
                   const matchCount = requiredMappedHeaders.filter((h) =>
@@ -316,63 +313,33 @@ export class IngestionService {
         throw new Error("File contains insufficient data (header + at least one data row needed).");
       }
 
-      // 4. Update status to CLEANING
-      await db.update(dbImports).set({ status: "CLEANING" }).where(eq(dbImports.id, importRun.id));
+      // Determine account locale
+      const accountLocale = accountMetadata.locale || (account.baseCurrency === "INR" ? "en-IN" : "en-US");
 
-      // Find best header row dynamically based on scoring matching headers
-      const { index: headerRowIndex } = findHeaderRowIndex(rows);
-      const headers = rows[headerRowIndex].map((h) => h.trim());
-      dataRows = rows.slice(headerRowIndex + 1);
-
-      // Find indices of columns in file headers
-      const dateIndex = headers.indexOf(columnMap.date);
-      const descIndex = headers.indexOf(columnMap.description);
-      const amountIndex = headers.indexOf(columnMap.amount);
-      const refIndex = headers.indexOf(columnMap.reference);
-      const counterpartyIndex = headers.indexOf(columnMap.counterparty);
-      
-      const dueDateIndex = columnMap.dueDate ? headers.indexOf(columnMap.dueDate) : -1;
-      const docTypeIndex = columnMap.documentType ? headers.indexOf(columnMap.documentType) : -1;
-      
-      const isMoney = ["bank_csv", "bank_excel", "stripe_export"].includes(fileType);
-      const side = isMoney ? "money" : "books";
-
-      // Optional explicit currency column (e.g. QBO CurrencyRef, Stripe currency)
-      const currencyColIndex = columnMap.currency ? headers.indexOf(columnMap.currency) : -1;
-
-      // Support separate debit/credit column mappings
-      const debitIndex = headers.indexOf(columnMap.debit);
-      const creditIndex = headers.indexOf(columnMap.credit);
-      const directionIndex = columnMap.direction ? headers.indexOf(columnMap.direction) : -1;
-      const typeIndex = headers.findIndex(h => /type|txntype|transaction\s*type/i.test(h));
-
-      if (dateIndex === -1 || descIndex === -1 || (amountIndex === -1 && (debitIndex === -1 || creditIndex === -1))) {
-        throw new Error("Invalid column mapping. Required columns (Date, Description, Amount) are missing.");
-      }
-
-      // Infer the date format format layout from the date column values (first 50 values)
-      const sampleDateStrings: string[] = [];
-      for (const row of dataRows) {
-        if (row && row[dateIndex]) {
-          sampleDateStrings.push(row[dateIndex]);
-        }
-        if (sampleDateStrings.length >= 50) break;
-      }
-      const inferredDateFormat = inferDateFormat(sampleDateStrings, accountLocale);
-
-      // Instantiate cleaning standardizer
+      // 4. Instantiate cleaning standardizer
       const cleaningService = new CleaningService({
         defaultCurrency: org.baseCurrency || "USD",
-        inferredDateFormat,
+        inferredDateFormat: "DD/MM/YYYY", // Or use inferDateFormat if we want, but letting cleaning service handle it
         accountLocale,
         accountCurrency: account.baseCurrency,
         orgCurrency: org.baseCurrency,
       });
 
-      // 5. Update status to MAPPING
+      // 5. Run the new Parser Pipeline
       await db.update(dbImports).set({ status: "MAPPING" }).where(eq(dbImports.id, importRun.id));
+      
+      let parsedStatement;
+      if (fileType === "tally_export") {
+        parsedStatement = parseTallyLedger(rows, cleaningService, fileType);
+      } else {
+        parsedStatement = parseStatement(rows, fileType, cleaningService);
+      }
+      
+      if (parsedStatement.validationErrors.length > 0) {
+        throw new Error(`Parsing failed: ${parsedStatement.validationErrors.join(", ")}`);
+      }
 
-      // Fetch existing transactions to handle idempotency by checking both signatures & sourceTransactionId
+      // 6. Fetch existing transactions to handle idempotency
       const existingRows = await db
         .select({
           date: canonicalTransactions.transactionDate,
@@ -390,106 +357,28 @@ export class IngestionService {
         existingRows.map((e) => e.sourceTransactionId).filter(Boolean)
       );
 
-      // 6. Loop and insert
-      for (let i = 0; i < dataRows.length; i++) {
-        const row = dataRows[i];
-        if (row.length === 0 || row.every((val) => val === "")) {
-          skippedCount++;
-          continue;
-        }
+      const isMoney = ["bank_csv", "bank_excel", "stripe_export"].includes(fileType);
+      
+      for (let i = 0; i < parsedStatement.transactions.length; i++) {
+        const txn = parsedStatement.transactions[i];
 
-        if (!isTransactionRow(row, dateIndex, descIndex, amountIndex, debitIndex, creditIndex)) {
-          skippedCount++;
-          continue;
-        }
-
-        const payload: Record<string, string> = {};
-        headers.forEach((h, index) => {
-          payload[h] = row[index] || "";
-        });
-
-        // Pre-insert raw record log
+        // Pre-insert raw record log (using the raw string representation for now)
         const [rawRec] = await db
           .insert(rawRecords)
           .values({
             organizationId: orgId,
             importId: importRun.id,
-            rowNumber: headerRowIndex + i + 2, // 1-indexed spreadsheet line number
-            rawPayload: payload,
+            rowNumber: i + 1,
+            rawPayload: { rawNarration: txn.rawNarration, amount: txn.amountMinor.toString(), date: txn.date },
           })
           .returning();
 
         try {
-          const rawDateStr = row[dateIndex];
-          const rawDescStr = row[descIndex];
-          const refStr = refIndex !== -1 ? row[refIndex] : "";
-
-          // Normalize Date
-          let formattedDate: string;
-          if (side === "books") {
-            const documentType = docTypeIndex !== -1 ? row[docTypeIndex] : null;
-            const dueDateStr = dueDateIndex !== -1 ? row[dueDateIndex] : null;
-            formattedDate = cleaningService.getCanonicalLedgerDate(documentType, rawDateStr, dueDateStr);
-          } else {
-            formattedDate = cleaningService.normalizeDate(rawDateStr);
-          }
-
-          // Normalize Amount
-          let amountMinor: bigint;
-          let direction: "inflow" | "outflow";
-
-          if (fileType === "tally_export" || fileName.toLowerCase().endsWith(".xml")) {
-            const ledgerEntriesJson = amountIndex !== -1 ? row[amountIndex] : "[]";
-            const partyLedger = counterpartyIndex !== -1 ? row[counterpartyIndex] : "";
-            const parsedTally = cleaningService.parseTallyLedgerEntries(ledgerEntriesJson, partyLedger);
-            amountMinor = parsedTally.amountMinor;
-            direction = parsedTally.direction;
-          } else {
-            const amountVal = amountIndex !== -1 ? row[amountIndex] : undefined;
-            const debitVal = debitIndex !== -1 ? row[debitIndex] : undefined;
-            const creditVal = creditIndex !== -1 ? row[creditIndex] : undefined;
-            const directionVal = directionIndex !== -1 ? row[directionIndex] : undefined;
-            const normalized = cleaningService.normalizeTransactionAmount(amountVal, debitVal, creditVal, directionVal);
-            amountMinor = normalized.amountMinor;
-            direction = normalized.direction;
-
-            if (fileType === "qbo_export" && typeIndex !== -1 && row[typeIndex]) {
-              const txnType = row[typeIndex].trim().toLowerCase();
-              const inflowKeywords = ["invoice", "payment", "sales receipt", "receive payment", "deposit", "credit", "income", "interest"];
-              const isOutflowKeyword = ["fee", "charge", "expense", "bill payment", "check", "memo", "refund"].some(k => txnType.includes(k));
-              
-              if (inflowKeywords.some(k => txnType.includes(k)) && !isOutflowKeyword) {
-                direction = "inflow";
-              } else {
-                direction = "outflow";
-              }
-            }
-          }
-
-          // Normalize Counterparty
-          const rawCounterpartyStr = counterpartyIndex !== -1 ? row[counterpartyIndex] : rawDescStr;
-          const counterpartyName = rawCounterpartyStr || null;
-          const counterpartyNormalized = rawCounterpartyStr ? cleaningService.normalizeCounterparty(rawCounterpartyStr) : "";
-
-          // Normalize Currency
-          // Priority: (1) explicit currency column in columnMap, (2) auto-detect from description/amount
-          let currency = account.baseCurrency;
-          if (currencyColIndex !== -1 && row[currencyColIndex]?.trim()) {
-            // Use the explicit currency column value — normalise to uppercase ISO code
-            currency = row[currencyColIndex].trim().toUpperCase();
-          } else if (fileType === "stripe_export" || fileType === "qbo_export" || fileType === "tally_export") {
-            const amountStringForCurrency = amountIndex !== -1 ? row[amountIndex] : ((debitIndex !== -1 ? row[debitIndex] : "") + " " + (creditIndex !== -1 ? row[creditIndex] : ""));
-            currency = cleaningService.detectCurrency(
-              (rawDescStr || "") + " " + (amountStringForCurrency || "")
-            );
-          }
-
           // Generate deterministic transaction hash
-          const hashInput = `${formattedDate}_${amountMinor}_${counterpartyNormalized}_${refStr || ""}`;
+          const hashInput = `${txn.date}_${txn.amountMinor}_${txn.rawNarration}_${txn.reference || ""}`;
           const deterministicTxnId = crypto.createHash("sha256").update(hashInput).digest("hex");
 
-          // Check for duplication inside file or database
-          const rowSig = `${formattedDate}_${amountMinor}_${(rawDescStr || "").trim().toLowerCase()}`;
+          const rowSig = `${txn.date}_${txn.amountMinor}_${(txn.rawNarration || "").trim().toLowerCase()}`;
           if (existingSignatures.has(rowSig) || existingTxnIds.has(deterministicTxnId)) {
             skippedCount++;
             continue;
@@ -497,40 +386,32 @@ export class IngestionService {
           existingSignatures.add(rowSig);
           existingTxnIds.add(deterministicTxnId);
 
-          // Determine canonical side:
-          // Bank CSV, Bank Excel, Stripe Export -> side: money
-          // QuickBooks Export, Tally Export -> side: books
-          const txnType = cleaningService.normalizeTransactionType(fileType, direction);
+          const txnType = cleaningService.normalizeTransactionType(fileType, txn.direction);
 
-          // Gather any extra unmapped column values to store in metadata for custom matching rules
-          const extraMetadata: Record<string, any> = {};
-          const mappedHeaders = Object.values(columnMap);
-          headers.forEach((h, idx) => {
-            if (h && !mappedHeaders.includes(h)) {
-              extraMetadata[h] = row[idx] || "";
-            }
-          });
-
-          // Build DTO and validate through Zod schema
           const rawInput = {
             organizationId: orgId,
             accountId,
             rawRecordId: rawRec.id,
             sourceSystem: mapSourceSystem(fileType),
-            externalId: refStr || null,
+            externalId: txn.reference || null,
             side: isMoney ? "money" : "books",
-            direction,
+            direction: txn.direction,
             status: "AVAILABLE",
-            transactionDate: formattedDate,
-            amountMinor,
-            currency,
-            referenceNumber: refStr || null,
-            counterpartyName: counterpartyName || null,
-            counterpartyNormalized: counterpartyNormalized || null,
-            description: rawDescStr || null,
+            transactionDate: txn.date,
+            amountMinor: txn.amountMinor,
+            currency: parsedStatement.metadata.currency || account.baseCurrency,
+            referenceNumber: txn.reference || null,
+            counterpartyName: null,
+            counterpartyNormalized: null,
+            description: txn.rawNarration,
             transactionType: txnType,
             sourceTransactionId: deterministicTxnId,
-            metadata: {},
+            metadata: {
+              balance: txn.balance,
+              voucherType: txn.voucherType,
+              voucherNumber: txn.voucherNumber,
+              ...parsedStatement.metadata
+            },
           };
 
           const enrichedInput = await IntelligenceService.enrichTransaction(orgId, rawInput, importRun.id);
@@ -562,51 +443,26 @@ export class IngestionService {
             exchangeRateDate: validatedInput.exchangeRateDate,
             fxStatus: validatedInput.fxStatus,
             metadata: validatedInput.metadata,
-            // embeddingStatus: validatedInput.embeddingStatus as any,
           });
 
           successCount++;
         } catch (rowErr: any) {
-          console.error(`Row ingestion error on line ${headerRowIndex + i + 2}:`, rowErr);
+          console.error(`Row ingestion error:`, rowErr);
           failureCount++;
           
-          // Log failure status inside raw_payload of rawRecords log row
-          const updatedPayload = {
-            ...payload,
-            _status: "failed",
-            _error: rowErr.message || "Failed processing validation",
-          };
           await db
             .update(rawRecords)
-            .set({ rawPayload: updatedPayload })
+            .set({ rawPayload: { _status: "failed", _error: rowErr.message } })
             .where(eq(rawRecords.id, rawRec.id));
         }
       }
 
-      // Save matching template if templateName is provided
-      if (saveTemplate && saveTemplate.templateName) {
-        await saveMappingTemplate(
-          orgId,
-          fileType,
-          saveTemplate.templateName,
-          columnMap,
-          saveTemplate.originalHeaders
-        );
-      }
-
       // 7. Update status to COMPLETED
-      const totalProcessed = successCount + skippedCount + failureCount;
-      if (totalProcessed !== dataRows.length) {
-        console.warn(`Row count mismatch: Data Rows = ${dataRows.length}, Sum = ${totalProcessed} (Success = ${successCount}, Skipped = ${skippedCount}, Failed = ${failureCount})`);
-      } else {
-        console.log(`Ingestion row counts verified: ${dataRows.length} rows processed (Success = ${successCount}, Skipped = ${skippedCount}, Failed = ${failureCount})`);
-      }
-
       await db
         .update(dbImports)
         .set({
           status: "COMPLETED",
-          rowCount: dataRows.length,
+          rowCount: parsedStatement.transactions.length,
           successCount,
           skippedCount,
           failureCount,
@@ -629,47 +485,4 @@ export class IngestionService {
   }
 }
 
-function isTransactionRow(
-  row: string[],
-  dateIndex: number,
-  descIndex: number,
-  amountIndex: number,
-  debitIndex: number,
-  creditIndex: number
-): boolean {
-  const dateStr = row[dateIndex]?.trim();
-  if (!dateStr) {
-    return false;
-  }
 
-  // Filter out common footer/metadata patterns in date column
-  if (NON_TRANSACTION_PATTERNS.some((pattern) => pattern.test(dateStr))) {
-    return false;
-  }
-
-  if (!/\d/.test(dateStr)) {
-    return false;
-  }
-  
-  const descStr = row[descIndex]?.trim();
-  if (descStr) {
-    if (
-      /opening\s+balance|closing\s+balance|brought\s+forward|carried\s+forward|\bb\/f\b|\bc\/f\b|subtotal|grand\s+total/i.test(
-        descStr
-      )
-    ) {
-      return false;
-    }
-  }
-
-  // Check if there is at least some numeric value in the amount / debit / credit columns
-  const hasAmount = amountIndex !== -1 && row[amountIndex]?.trim() && /\d/.test(row[amountIndex]);
-  const hasDebit = debitIndex !== -1 && row[debitIndex]?.trim() && /\d/.test(row[debitIndex]);
-  const hasCredit = creditIndex !== -1 && row[creditIndex]?.trim() && /\d/.test(row[creditIndex]);
-
-  if (!hasAmount && !hasDebit && !hasCredit) {
-    return false;
-  }
-
-  return true;
-}

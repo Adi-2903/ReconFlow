@@ -473,16 +473,28 @@ export function classifyMatch(
   }
 
   // Check LOW CONFIDENCE / MANUAL REVIEW
-  if (confidenceBand === "LOW") {
+  const hasTextEvidence = reasons.some(r => 
+    r.reason === "narration_similarity" || 
+    r.reason === "reference_match" || 
+    r.reason === "counterparty_match" ||
+    r.reason === "source_alignment" ||
+    r.reason === "utr_match" ||
+    r.reason === "invoice_match" ||
+    r.reason === "voucher_match"
+  );
+
+  if (confidenceBand === "LOW" || !hasTextEvidence) {
       evidence.push({
           code: "MANUAL_REVIEW_REQUIRED",
-          message: "Match confidence is low. Requires manual accountant review.",
+          message: !hasTextEvidence 
+            ? "Match relies purely on amount and date with no textual or reference similarity. Requires manual review."
+            : "Match confidence is low. Requires manual accountant review.",
       });
       return {
           matchOutcome,
           discrepancyType: "MANUAL_REVIEW",
-          confidenceBand,
-          confidence,
+          confidenceBand: !hasTextEvidence ? "LOW" : confidenceBand,
+          confidence: !hasTextEvidence ? 0.40 : confidence,
           evidence
       };
   }

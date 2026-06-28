@@ -786,8 +786,10 @@ export default function ConnectPage() {
                           className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                         >
                           <option value="">-- Select Date --</option>
-                          {previewData.headers.map((h) => (
-                            <option key={h} value={h}>{h}</option>
+                          {previewData.headers.map((h, idx) => (
+                            <option key={`${h}-${idx}`} value={h}>
+                              {(h || "").trim() === "" ? `(Blank Column ${idx + 1})` : h}
+                            </option>
                           ))}
                         </select>
                       </div>
@@ -800,8 +802,10 @@ export default function ConnectPage() {
                           className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                         >
                           <option value="">-- Select Description --</option>
-                          {previewData.headers.map((h) => (
-                            <option key={h} value={h}>{h}</option>
+                          {previewData.headers.map((h, idx) => (
+                            <option key={`${h}-${idx}`} value={h}>
+                              {(h || "").trim() === "" ? `(Blank Column ${idx + 1})` : h}
+                            </option>
                           ))}
                         </select>
                       </div>
@@ -816,8 +820,10 @@ export default function ConnectPage() {
                               className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                             >
                               <option value="">-- Select Debit --</option>
-                              {previewData.headers.map((h) => (
-                                <option key={h} value={h}>{h}</option>
+                              {previewData.headers.map((h, idx) => (
+                                <option key={`${h}-${idx}`} value={h}>
+                                  {(h || "").trim() === "" ? `(Blank Column ${idx + 1})` : h}
+                                </option>
                               ))}
                             </select>
                           </div>
@@ -829,8 +835,10 @@ export default function ConnectPage() {
                               className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                             >
                               <option value="">-- Select Credit --</option>
-                              {previewData.headers.map((h) => (
-                                <option key={h} value={h}>{h}</option>
+                              {previewData.headers.map((h, idx) => (
+                                <option key={`${h}-${idx}`} value={h}>
+                                  {(h || "").trim() === "" ? `(Blank Column ${idx + 1})` : h}
+                                </option>
                               ))}
                             </select>
                           </div>
@@ -846,8 +854,10 @@ export default function ConnectPage() {
                                 className="flex-1 text-xs border border-slate-300 rounded-lg p-2 bg-white"
                               >
                                 <option value="">-- Select Amount --</option>
-                                {previewData.headers.map((h) => (
-                                  <option key={h} value={h}>{h}</option>
+                                {previewData.headers.map((h, idx) => (
+                                  <option key={`${h}-${idx}`} value={h}>
+                                    {(h || "").trim() === "" ? `(Blank Column ${idx + 1})` : h}
+                                  </option>
                                 ))}
                               </select>
                               <button
@@ -867,8 +877,10 @@ export default function ConnectPage() {
                               className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                             >
                               <option value="">-- Select Direction --</option>
-                              {previewData.headers.map((h) => (
-                                <option key={h} value={h}>{h}</option>
+                              {previewData.headers.map((h, idx) => (
+                                <option key={`${h}-${idx}`} value={h}>
+                                  {(h || "").trim() === "" ? `(Blank Column ${idx + 1})` : h}
+                                </option>
                               ))}
                             </select>
                           </div>
@@ -883,8 +895,10 @@ export default function ConnectPage() {
                           className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                         >
                           <option value="">-- Select Reference --</option>
-                          {previewData.headers.map((h) => (
-                            <option key={h} value={h}>{h}</option>
+                          {previewData.headers.map((h, idx) => (
+                            <option key={`${h}-${idx}`} value={h}>
+                              {(h || "").trim() === "" ? `(Blank Column ${idx + 1})` : h}
+                            </option>
                           ))}
                         </select>
                       </div>
@@ -897,8 +911,10 @@ export default function ConnectPage() {
                           className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                         >
                           <option value="">-- Select Counterparty --</option>
-                          {previewData.headers.map((h) => (
-                            <option key={h} value={h}>{h}</option>
+                          {previewData.headers.map((h, idx) => (
+                            <option key={`${h}-${idx}`} value={h}>
+                              {(h || "").trim() === "" ? `(Blank Column ${idx + 1})` : h}
+                            </option>
                           ))}
                         </select>
                       </div>
@@ -936,8 +952,10 @@ export default function ConnectPage() {
                       <table className="w-full text-[11px] text-left border-collapse bg-white">
                         <thead className="bg-slate-50 text-slate-600 uppercase border-b border-slate-200">
                           <tr>
-                            {previewData.headers.map((h) => (
-                              <th key={h} className="px-4 py-2.5 font-bold border-r border-slate-200 last:border-0">{h}</th>
+                            {previewData.headers.map((h, idx) => (
+                              <th key={`${h}-${idx}`} className="px-4 py-2.5 font-bold border-r border-slate-200 last:border-0">
+                                {(h || "").trim() === "" ? `(Blank Column ${idx + 1})` : h}
+                              </th>
                             ))}
                           </tr>
                         </thead>

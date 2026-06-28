@@ -72,7 +72,7 @@ export function directionMatches(
   return getDir(a.direction) === getDir(b.direction);
 }
 
-export function getCounterpartySimilarity(a?: string, b?: string): number {
+export function transactionTextSimilarity(a?: string, b?: string): number {
   if (!a || !b) return 0;
   const normalize = (s: string) =>
     s.toLowerCase().split(/\W+/).filter((token) => token.length > 2);
@@ -110,7 +110,10 @@ export function generateCandidates(
   const MIN_AMOUNT_TOLERANCE = 500n; // 500 paise
 
   for (const bookTxn of bookTxns) {
-    if (!directionMatches(bankTxn, bookTxn)) continue;
+    if (!directionMatches(bankTxn, bookTxn)) {
+      if (bookTxn.memo === "To Zomato Food Delivery") console.log(`[DEBUG Gen] skipped due to direction`);
+      continue;
+    }
 
     // Currency check
     const currenciesDiffer =
@@ -161,7 +164,10 @@ export function generateCandidates(
     else if (channel === "UPI") maxDateDifference = 2;
     else if (channel === "WIRE") maxDateDifference = 15;
 
-    if (Math.floor(dayDiff) > maxDateDifference) continue;
+    if (Math.floor(dayDiff) > maxDateDifference) {
+      if (bookTxn.memo === "To Zomato Food Delivery") console.log(`[DEBUG Gen] skipped due to date diff: dayDiff=${dayDiff}, maxDateDiff=${maxDateDifference}, bankDate=${bankTxn.date}, bookDate=${bookTxn.date}`);
+      continue;
+    }
 
     // ── Scoring ───────────────────────────────────────────────────────────────
     let scoreVal = 0;
@@ -254,6 +260,15 @@ export function generateCandidates(
     if (bankSource && bookSource && bankSource.toLowerCase() === bookSource.toLowerCase()) {
       scoreVal += 15;
       reasons.push({ reason: "source_alignment", points: 15 });
+    }
+
+    const narrationSim = transactionTextSimilarity(bankTxn.description, bookTxn.memo);
+    if (narrationSim > 0) {
+      const narrationPoints = Math.round(narrationSim * 40); // Max 40 points for 100% similarity
+      if (narrationPoints > 0) {
+        scoreVal += narrationPoints;
+        reasons.push({ reason: "narration_similarity", points: narrationPoints });
+      }
     }
 
     // Reference conflict penalty
