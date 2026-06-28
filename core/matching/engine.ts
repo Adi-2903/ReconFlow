@@ -140,7 +140,7 @@ export function matchTransactions(
   banks: BankTransaction[],
   ledgers: LedgerEntry[]
 ): MatchResult[] {
-  console.log(`[DEBUG engine.ts] matchTransactions called with ${banks.length} banks and ${ledgers.length} ledgers`);
+  // console.log(`[DEBUG engine.ts] matchTransactions called with ${banks.length} banks and ${ledgers.length} ledgers`);
   const results: (Omit<MatchResult, "classification"> & { classification?: ClassificationResult })[] = [];
 
   // State initialization
@@ -388,7 +388,7 @@ export function matchTransactions(
             score += 50;   // perfect sum → pushes into auto-approve (>=0.80)
           } else if (diffPct < 0.03) {
             score += 35;   // within 3% → covers Stripe fee deductions (~2.9%)
-                           // lands in accountant review (0.50-0.79)
+            // lands in accountant review (0.50-0.79)
           } else if (diffPct < 0.05) {
             score += 20;   // within 5% → still a plausible bulk match
           }
@@ -433,8 +433,8 @@ export function matchTransactions(
             amountScore: 0.95,
             dateScore: 0.90,
             textScore: 0.85
-        },
-        riskScore: 0
+          },
+          riskScore: 0
         });
       }
     }
@@ -519,8 +519,8 @@ export function matchTransactions(
             amountScore: 0.95,
             dateScore: 0.90,
             textScore: 0.85
-        },
-        riskScore: 0
+          },
+          riskScore: 0
         });
       }
     }
@@ -769,7 +769,7 @@ export function matchTransactions(
             score: finalScore,
             matchType: "tolerance",
             reasons
-            });
+          });
         }
       }
     }
@@ -857,7 +857,7 @@ export function matchTransactions(
   for (const res of results) {
     const matchedBankTxns = banks.filter(b => res.bankTransactionIds.includes(b.id));
     const primaryBankTxn = matchedBankTxns[0];
-    
+
     // For unmatched_ledger records, there is no bank transaction — use a synthetic
     // placeholder so the classifier can route to the UNMATCHED path cleanly.
     const classifierBankTxn = primaryBankTxn ?? {

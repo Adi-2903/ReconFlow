@@ -170,7 +170,7 @@ function makeMatch(
     bankTransactionIds: ["txn-001"],
     ledgerEntryIds: ["led-001"],
     confidenceScore: classification.confidence,
-    score: 100,
+    score: 80,
     confidenceBand: classification.confidenceBand,
     matchType: "exact",
     scoringBreakdown: { amountScore: 100, dateScore: 100, textScore: 80 },
@@ -1277,6 +1277,27 @@ async function runTests() {
     const ctxDifferentBucket = { ...ctx, amountBucket: "10k-100k" };
     const hashDiffBucket = buildReasonHash(ctxDifferentBucket);
     assert(hash1 !== hashDiffBucket, "Different amount bucket must yield different hash");
+  });
+
+  await test("Match score >= 95 routes to deterministic path and bypasses LLM", async () => {
+    const bankTxn = makeBankTxn({ amount: 165_000, description: "IMPS/998627192960/0031245678/FUND TRANSFER" });
+    const ledger = makeLedger({ amount: 165_000, counterparty: "To Rohan Mehta Construction" });
+    const classification = makeClassification({
+      discrepancyType: "MANUAL_REVIEW",
+      confidenceBand: "LOW",
+      confidence: 0.40
+    });
+    // Raw score is 100 (>= 95)
+    const match = makeMatch(classification, { score: 100 });
+
+    const result = await generateMatchReasoning(
+      "txn-score-skip", "org-001", bankTxn, [ledger],
+      match, new RunTracker(), new MockFailingProvider()
+    );
+
+    assert(result.reasoning.source === "PARAMETERIZED", "Should route to PARAMETERIZED deterministic path");
+    assert(result.renderedExplanation === "Despite matching amounts, this transaction requires manual review.",
+      `Should render the MANUAL_REVIEW template, got: "${result.renderedExplanation}"`);
   });
 
   // ── Summary ───────────────────────────────────────────────────────────────

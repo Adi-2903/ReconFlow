@@ -35,10 +35,18 @@ import type { BankTransaction, LedgerEntry, MatchResult } from "@/core/matching/
 
 // ── Observability ─────────────────────────────────────────────────────────────
 
-interface AIObservabilityEvent {
-  event: "ai_explanation_generated";
+interface LLMAttemptedEvent {
+  event: "llm_attempted";
   matchId: string;
-  source: "STATIC" | "PARAMETERIZED" | "CACHE_HIT" | "LLM";
+  discrepancyType: string;
+  promptVersion: string;
+  orgId: string;
+}
+
+interface ReasoningGeneratedEvent {
+  event: "reasoning_generated";
+  matchId: string;
+  finalSource: "STATIC" | "PARAMETERIZED" | "CACHE_HIT" | "LLM";
   discrepancyType: string;
   latencyMs: number | null;
   inputTokens: number | null;
@@ -50,6 +58,8 @@ interface AIObservabilityEvent {
   apiSuccess?: boolean;
   orgId: string;
 }
+
+type AIObservabilityEvent = LLMAttemptedEvent | ReasoningGeneratedEvent;
 
 function emitObservabilityEvent(event: AIObservabilityEvent): void {
   console.log(JSON.stringify(event));
@@ -170,6 +180,13 @@ const TEMPLATES: Partial<Record<string, TemplateSpec>> = {
     explanationTemplate:
       "Invoice reference numbers differ completely. Bank reference: '{bankReference}' — Ledger reference: '{ledgerReference}'. Identify the correct invoice.",
     suggestedAction: "REQUEST_DOCUMENTATION",
+    requiresHumanReview: true,
+    likelyReason: "no_match",
+  },
+  // Manual review fallback template
+  MANUAL_REVIEW: {
+    explanationTemplate: "Despite matching amounts, this transaction requires manual review.",
+    suggestedAction: "MANUAL_REVIEW",
     requiresHumanReview: true,
     likelyReason: "no_match",
   },
@@ -441,7 +458,7 @@ export async function generateMatchReasoning(
   const { discrepancyType, confidenceBand } = match.classification;
 
   // ── 1. Deterministic path ──────────────────────────────────────────────────
-  if (!shouldUseLLM({ discrepancyType, confidenceBand })) {
+  if (match.score >= 95 || !shouldUseLLM({ discrepancyType, confidenceBand })) {
     const spec = TEMPLATES[discrepancyType] ?? FALLBACK_TEMPLATE;
 
     const reasoning: AIReasoning = {
@@ -461,9 +478,9 @@ export async function generateMatchReasoning(
     };
 
     emitObservabilityEvent({
-      event: "ai_explanation_generated",
+      event: "reasoning_generated",
       matchId,
-      source: "PARAMETERIZED",
+      finalSource: "PARAMETERIZED",
       discrepancyType,
       latencyMs: reasoning.latencyMs ?? null,
       inputTokens: null,
@@ -482,6 +499,20 @@ export async function generateMatchReasoning(
 
   // ── 2. Circuit breaker check ───────────────────────────────────────────────
   if (tracker.isTripped()) {
+    emitObservabilityEvent({
+      event: "reasoning_generated",
+      matchId,
+      finalSource: "STATIC",
+      discrepancyType,
+      latencyMs: Date.now() - t0,
+      inputTokens: null,
+      outputTokens: null,
+      cacheHit: false,
+      promptVersion: PROMPT_VERSION,
+      valid: true,
+      apiSuccess: true,
+      orgId,
+    });
     return buildFallback(matchId, orgId, bankTxn, candidates, match, t0, "circuit breaker tripped");
   }
 
@@ -509,9 +540,9 @@ export async function generateMatchReasoning(
     };
 
     emitObservabilityEvent({
-      event: "ai_explanation_generated",
+      event: "reasoning_generated",
       matchId,
-      source: "CACHE_HIT",
+      finalSource: "CACHE_HIT",
       discrepancyType,
       latencyMs,
       inputTokens: null,
@@ -529,6 +560,14 @@ export async function generateMatchReasoning(
   }
 
   // ── 4. LLM call ───────────────────────────────────────────────────────────
+  emitObservabilityEvent({
+    event: "llm_attempted",
+    matchId,
+    discrepancyType,
+    promptVersion: PROMPT_VERSION,
+    orgId,
+  });
+
   try {
     const llmResult = await callLLM(ctx, provider);
     tracker.recordSuccess();
@@ -551,9 +590,9 @@ export async function generateMatchReasoning(
     };
 
     emitObservabilityEvent({
-      event: "ai_explanation_generated",
+      event: "reasoning_generated",
       matchId,
-      source: "LLM",
+      finalSource: "LLM",
       discrepancyType,
       latencyMs,
       inputTokens: null,
@@ -577,9 +616,9 @@ export async function generateMatchReasoning(
     const isValidationError = err instanceof z.ZodError || err instanceof SyntaxError || err?.name === "ZodError";
 
     emitObservabilityEvent({
-      event: "ai_explanation_generated",
+      event: "reasoning_generated",
       matchId,
-      source: "LLM",
+      finalSource: "STATIC",
       discrepancyType,
       latencyMs: Date.now() - t0,
       inputTokens: null,
