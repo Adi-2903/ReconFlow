@@ -1,0 +1,534 @@
+{
+  "primary_pair": {
+    "bank_file": "01_bank_statements/HDFC_Bluepeak_CurrentAC_Jan2026.csv",
+    "ledger_file": "03_accounting_ledger/QuickBooks_Invoices_Bills_Export_Jan2026.csv",
+    "stripe_file": "02_payment_processor/Stripe_Balance_Itemized_Jan2026.csv",
+    "matching_scenarios": [
+      {
+        "id": "E1",
+        "pass_expected": 1,
+        "outcome": "auto_approved",
+        "tags": [],
+        "desc": "Clean NEFT, same date, ref number present both sides",
+        "ledger_id": "INV-2001",
+        "ledger_amount": 118500.0,
+        "ledger_date": "2026-01-03",
+        "bank_amount": 118500.0,
+        "bank_date": "2026-01-03",
+        "bank_ref": "N052026010312345",
+        "counterparty": "Quantum Retail Solutions"
+      },
+      {
+        "id": "E2",
+        "pass_expected": 1,
+        "outcome": "auto_approved",
+        "tags": [],
+        "desc": "UPI payment, same day, exact amount",
+        "ledger_id": "INV-2002",
+        "ledger_amount": 24999.0,
+        "ledger_date": "2026-01-05",
+        "bank_amount": 24999.0,
+        "bank_date": "2026-01-05",
+        "bank_ref": "UPI/206105112233/Coral",
+        "counterparty": "Coral Bay Retail"
+      },
+      {
+        "id": "E3",
+        "pass_expected": 1,
+        "outcome": "auto_approved",
+        "tags": [],
+        "desc": "Vendor bill paid via NEFT same day exact amount (AP side)",
+        "ledger_id": "BILL-3001",
+        "ledger_amount": 42300.0,
+        "ledger_date": "2026-01-07",
+        "bank_amount": -42300.0,
+        "bank_date": "2026-01-07",
+        "bank_ref": "N052026010798765",
+        "counterparty": "CloudHost Infra Pvt Ltd"
+      },
+      {
+        "id": "E4",
+        "pass_expected": 1,
+        "outcome": "auto_approved",
+        "tags": [],
+        "desc": "Salary payout, exact match, 1-day date tolerance still same day",
+        "ledger_id": "JE-4001",
+        "ledger_amount": 185000.0,
+        "ledger_date": "2026-01-31",
+        "bank_amount": -185000.0,
+        "bank_date": "2026-01-31",
+        "bank_ref": "SALARY-JAN26-BATCH",
+        "counterparty": "Payroll"
+      },
+      {
+        "id": "B1",
+        "pass_expected": 2,
+        "outcome": "auto_approved",
+        "tags": [
+          "bulk"
+        ],
+        "desc": "One NEFT = sum of 3 separate invoices to same client",
+        "ledger_id": [
+          "INV-2010",
+          "INV-2011",
+          "INV-2012"
+        ],
+        "ledger_amount": [
+          30000.0,
+          25000.0,
+          32500.0
+        ],
+        "ledger_date": [
+          "2026-01-08",
+          "2026-01-09",
+          "2026-01-09"
+        ],
+        "bank_amount": 87500.0,
+        "bank_date": "2026-01-12",
+        "bank_ref": "N052026011255544",
+        "counterparty": "Vantage Logistics LLP"
+      },
+      {
+        "id": "B2",
+        "pass_expected": 2,
+        "outcome": "auto_approved",
+        "tags": [
+          "bulk",
+          "fee:stripe"
+        ],
+        "desc": "Stripe payout = sum of 4 charges minus Stripe fees (bulk+fee combo)",
+        "ledger_id": [
+          "INV-2020",
+          "INV-2021",
+          "INV-2022",
+          "INV-2023"
+        ],
+        "ledger_amount": [
+          45000.0,
+          38000.0,
+          52000.0,
+          29500.0
+        ],
+        "ledger_date": [
+          "2026-01-10",
+          "2026-01-10",
+          "2026-01-10",
+          "2026-01-10"
+        ],
+        "bank_amount": 159629.5,
+        "bank_date": "2026-01-14",
+        "bank_ref": "STRIPE PAYOUT po_1Pjk29",
+        "counterparty": "Stripe Payout",
+        "note": "159629.50 = sum of 4 charges each net of 2.9%+Rs.25 Stripe fee"
+      },
+      {
+        "id": "B3",
+        "pass_expected": 2,
+        "outcome": "auto_approved",
+        "tags": [
+          "bulk"
+        ],
+        "desc": "Single wire = 2 invoices summed, 5-day window edge (exactly day 5)",
+        "ledger_id": [
+          "INV-2030",
+          "INV-2031"
+        ],
+        "ledger_amount": [
+          67000.0,
+          53000.0
+        ],
+        "ledger_date": [
+          "2026-01-15",
+          "2026-01-15"
+        ],
+        "bank_amount": 120000.0,
+        "bank_date": "2026-01-20",
+        "bank_ref": "N052026012099887",
+        "counterparty": "Bright Path Consulting"
+      },
+      {
+        "id": "F1",
+        "pass_expected": 3,
+        "outcome": "medium_review",
+        "tags": [
+          "timing_difference"
+        ],
+        "desc": "Exact amount, date off by 4 days (cheque clearing delay)",
+        "ledger_id": "INV-2040",
+        "ledger_amount": 76000.0,
+        "ledger_date": "2026-01-05",
+        "bank_amount": 76000.0,
+        "bank_date": "2026-01-09",
+        "bank_ref": "CHQ/004821",
+        "counterparty": "Sharma Enterprises"
+      },
+      {
+        "id": "F2",
+        "pass_expected": 3,
+        "outcome": "medium_review",
+        "tags": [
+          "partial_payment"
+        ],
+        "desc": "Bank received less than invoice, no fee pattern explains it (genuine partial pay)",
+        "ledger_id": "INV-2041",
+        "ledger_amount": 50000.0,
+        "ledger_date": "2026-01-06",
+        "bank_amount": 45000.0,
+        "bank_date": "2026-01-06",
+        "bank_ref": "N052026010611111",
+        "counterparty": "Quantum Retail Solutions"
+      },
+      {
+        "id": "F3",
+        "pass_expected": 3,
+        "outcome": "medium_review",
+        "tags": [
+          "typo_reference"
+        ],
+        "desc": "Reference number typo: ledger INV-2031 vs bank narration shows INV-2013 (digit transposition)",
+        "ledger_id": "INV-2050",
+        "ledger_amount": 18750.0,
+        "ledger_date": "2026-01-11",
+        "bank_amount": 18750.0,
+        "bank_date": "2026-01-12",
+        "bank_ref": "NEFT REF INV-2013 PAYMENT",
+        "counterparty": "Nordic Byte AB"
+      },
+      {
+        "id": "F4",
+        "pass_expected": 3,
+        "outcome": "medium_review",
+        "tags": [
+          "typo_vendor_name"
+        ],
+        "desc": "Vendor name typo: 'Sharma Enterprises' (ledger) vs 'Sharama Enterprises' (bank narration)",
+        "ledger_id": "INV-2051",
+        "ledger_amount": 33200.0,
+        "ledger_date": "2026-01-13",
+        "bank_amount": 33200.0,
+        "bank_date": "2026-01-13",
+        "bank_ref": "NEFT FROM SHARAMA ENTERPRISES",
+        "counterparty": "Sharma Enterprises"
+      },
+      {
+        "id": "F5",
+        "pass_expected": 3,
+        "outcome": "medium_review",
+        "tags": [
+          "fx_rate"
+        ],
+        "desc": "USD invoice booked at one FX rate, bank credit settled 3 days later at different rate",
+        "ledger_id": "INV-2060",
+        "ledger_amount": 2400.0,
+        "ledger_currency": "USD",
+        "ledger_fx_rate_booking": 83.1,
+        "ledger_date": "2026-01-14",
+        "bank_amount": 199680.0,
+        "bank_date": "2026-01-17",
+        "bank_ref": "INWARD REMITTANCE FCY USD 2400",
+        "counterparty": "Nordic Byte AB",
+        "note": "bank_amount = 2400 * 83.20 (settlement rate, +0.12% move)"
+      },
+      {
+        "id": "F6",
+        "pass_expected": 3,
+        "outcome": "medium_review",
+        "tags": [
+          "fee:stripe"
+        ],
+        "desc": "Single Stripe charge minus 2.9%+Rs.25 fee, deposited individually (not bulk)",
+        "ledger_id": "INV-2061",
+        "ledger_amount": 62000.0,
+        "ledger_date": "2026-01-15",
+        "bank_amount": 60177.0,
+        "bank_date": "2026-01-17",
+        "bank_ref": "STRIPE TRANSFER ch_3Pjk88",
+        "counterparty": "Meridian Apps Inc",
+        "note": "60177.00 = 62000 - (62000*0.029) - 25"
+      },
+      {
+        "id": "F7",
+        "pass_expected": 3,
+        "outcome": "medium_review",
+        "tags": [
+          "fee:bank_wire"
+        ],
+        "desc": "NEFT short by flat bank wire charge of Rs.11.80",
+        "ledger_id": "INV-2062",
+        "ledger_amount": 95000.0,
+        "ledger_date": "2026-01-16",
+        "bank_amount": 94988.2,
+        "bank_date": "2026-01-16",
+        "bank_ref": "N052026011677123",
+        "counterparty": "Vantage Logistics LLP"
+      },
+      {
+        "id": "F8",
+        "pass_expected": 3,
+        "outcome": "medium_review",
+        "tags": [
+          "timing_difference",
+          "boundary:date_6day"
+        ],
+        "desc": "Date proximity boundary test: 6-day gap (within 7-day acceptable-with-lower-score band)",
+        "ledger_id": "INV-2063",
+        "ledger_amount": 41500.0,
+        "ledger_date": "2026-01-04",
+        "bank_amount": 41500.0,
+        "bank_date": "2026-01-10",
+        "bank_ref": "CHQ/004899",
+        "counterparty": "Bright Path Consulting"
+      },
+      {
+        "id": "F9a",
+        "pass_expected": 3,
+        "outcome": "medium_review",
+        "tags": [
+          "boundary:amount_4.8pct"
+        ],
+        "desc": "Amount proximity boundary test: 4.8% difference (just under 5% 'acceptable with note' line)",
+        "ledger_id": "INV-2064",
+        "ledger_amount": 20000.0,
+        "ledger_date": "2026-01-18",
+        "bank_amount": 19040.0,
+        "bank_date": "2026-01-18",
+        "bank_ref": "N052026011833221",
+        "counterparty": "Coral Bay Retail"
+      },
+      {
+        "id": "F9b",
+        "pass_expected": 3,
+        "outcome": "low_review_boundary",
+        "tags": [
+          "boundary:amount_19.5pct"
+        ],
+        "desc": "Amount proximity boundary test: 19.5% difference (just under 20% rejection line)",
+        "ledger_id": "INV-2065",
+        "ledger_amount": 20000.0,
+        "ledger_date": "2026-01-19",
+        "bank_amount": 16100.0,
+        "bank_date": "2026-01-19",
+        "bank_ref": "N052026011944556",
+        "counterparty": "Coral Bay Retail"
+      },
+      {
+        "id": "F10",
+        "pass_expected": 3,
+        "outcome": "auto_approved_or_medium",
+        "tags": [
+          "rounding"
+        ],
+        "desc": "1 paisa rounding difference from FX/tax calc",
+        "ledger_id": "INV-2066",
+        "ledger_amount": 12450.0,
+        "ledger_date": "2026-01-20",
+        "bank_amount": 12449.99,
+        "bank_date": "2026-01-20",
+        "bank_ref": "N052026012011223",
+        "counterparty": "Quantum Retail Solutions"
+      },
+      {
+        "id": "X1",
+        "pass_expected": 4,
+        "outcome": "unmatched_bank_only",
+        "tags": [
+          "no_ledger_counterpart"
+        ],
+        "desc": "Bank interest credit with zero ledger counterpart \u2014 needs manual categorization, not a missed invoice",
+        "ledger_id": null,
+        "ledger_amount": null,
+        "ledger_date": null,
+        "bank_amount": 842.0,
+        "bank_date": "2026-01-31",
+        "bank_ref": "INTT.PD:01-01-26 TO 31-01-26",
+        "counterparty": "HDFC Bank Interest"
+      },
+      {
+        "id": "X2",
+        "pass_expected": 4,
+        "outcome": "unmatched_ledger_only",
+        "tags": [
+          "outstanding_invoice"
+        ],
+        "desc": "Ledger invoice still unpaid \u2014 no bank txn exists at all this period (AR aging case)",
+        "ledger_id": "INV-2070",
+        "ledger_amount": 88000.0,
+        "ledger_date": "2026-01-22",
+        "bank_amount": null,
+        "bank_date": null,
+        "bank_ref": null,
+        "counterparty": "Sharma Enterprises"
+      },
+      {
+        "id": "X3",
+        "pass_expected": 4,
+        "outcome": "rejected_amount_too_far",
+        "tags": [
+          "boundary:amount_reject"
+        ],
+        "desc": "Same-day, similar narration, but amount is 35% off \u2014 must be rejected by amount filter despite text/date proximity",
+        "ledger_id": "INV-2071",
+        "ledger_amount": 40000.0,
+        "ledger_date": "2026-01-23",
+        "bank_amount": 26000.0,
+        "bank_date": "2026-01-23",
+        "bank_ref": "NEFT FROM CORAL BAY RETAIL",
+        "counterparty": "Coral Bay Retail"
+      },
+      {
+        "id": "X4a",
+        "pass_expected": "1_or_collision_risk",
+        "outcome": "auto_approved_careful",
+        "tags": [
+          "collision_risk"
+        ],
+        "desc": "Twin transaction 1 of 2: same client, same day, same amount, two different invoices \u2014 engine must not double-link one bank row to both",
+        "ledger_id": "INV-2072",
+        "ledger_amount": 15000.0,
+        "ledger_date": "2026-01-24",
+        "bank_amount": 15000.0,
+        "bank_date": "2026-01-24",
+        "bank_ref": "N052026012455001",
+        "counterparty": "Vantage Logistics LLP"
+      },
+      {
+        "id": "X4b",
+        "pass_expected": "1_or_collision_risk",
+        "outcome": "auto_approved_careful",
+        "tags": [
+          "collision_risk"
+        ],
+        "desc": "Twin transaction 2 of 2 (see X4a) \u2014 must independently match its own bank row",
+        "ledger_id": "INV-2073",
+        "ledger_amount": 15000.0,
+        "ledger_date": "2026-01-24",
+        "bank_amount": 15000.0,
+        "bank_date": "2026-01-24",
+        "bank_ref": "N052026012455002",
+        "counterparty": "Vantage Logistics LLP"
+      },
+      {
+        "id": "X5",
+        "pass_expected": 4,
+        "outcome": "excluded_not_revenue",
+        "tags": [
+          "reversed_transaction"
+        ],
+        "desc": "NEFT credit reversed/returned next day (failed transfer) \u2014 must NOT be matched as paid revenue",
+        "ledger_id": null,
+        "ledger_amount": null,
+        "ledger_date": null,
+        "bank_amount": 55000.0,
+        "bank_date": "2026-01-25",
+        "bank_ref": "NEFT RETURN-INSUFFICIENT DETAILS",
+        "counterparty": "Unknown Sender",
+        "reversal_amount": -55000.0,
+        "reversal_date": "2026-01-26",
+        "reversal_ref": "NEFT RET REVERSAL OF 25-01-26"
+      }
+    ],
+    "cleaning_artifacts": [
+      {
+        "id": "C1",
+        "issue": "exact_duplicate_row",
+        "desc": "Same amount/date/ref appears twice in the export (bank export glitch)"
+      },
+      {
+        "id": "C2",
+        "issue": "missing_amount",
+        "desc": "Both withdrawal and deposit columns blank on one row"
+      },
+      {
+        "id": "C3",
+        "issue": "missing_date",
+        "desc": "Date field blank on one row"
+      },
+      {
+        "id": "C4",
+        "issue": "negative_in_deposit_column",
+        "desc": "Deposit column shows a negative number due to export glitch"
+      },
+      {
+        "id": "C5",
+        "issue": "future_dated_typo",
+        "desc": "Year typo'd as 2027 instead of 2026"
+      },
+      {
+        "id": "C6",
+        "issue": "currency_symbol_in_amount",
+        "desc": "Amount field contains 'Rs.' / comma-formatted text instead of clean number"
+      },
+      {
+        "id": "C7",
+        "issue": "whitespace_pollution",
+        "desc": "Narration field has leading/trailing/double spaces and a non-breaking space"
+      },
+      {
+        "id": "C8",
+        "issue": "mojibake_encoding",
+        "desc": "\u20b9 symbol corrupted to mojibake (\u00e2\u201a\u00b9) from a bad PDF->CSV encoding pass"
+      }
+    ],
+    "known_traps": [
+      "Every QBO ledger date in this file is 01/DD/YYYY (MM/DD/YYYY format). Since month is always '01', a parser that assumes DD/MM/YYYY (the Indian default) instead of detecting the file's actual locale will silently reinterpret every date as a different month (e.g. 01/08/2026 -> Aug 1 instead of Jan 8). This cascades into spurious 'timing difference' tags or outright non-matches across the whole ledger, not just one row.",
+      "HDFC file has 5 letterhead/metadata rows before the real header row, and the account number+IFSC+branch are crammed into a single comma-separated line (row 4) -- a naive 'skip N rows' approach will break the moment statement length varies.",
+      "Several legitimate transactions (filler rows) share narration keywords like 'NEFT TO' with no ledger counterpart by design (GST payments, rent, SaaS subscriptions, ATM withdrawals) -- these are real operating expenses, not reconciliation failures, and should not show up as 'exceptions needing review' once correctly classified as non-AR/AP.",
+      "X4a/X4b are a deliberate collision case: identical amount, identical date, identical counterparty, but genuinely two different invoices and two different bank reference numbers. A matching engine keyed only on (amount, date, counterparty) without using the reference number will either double-link one bank row to both invoices or randomly drop one.",
+      "X5 is a NEFT credit that gets reversed the next day. If your ingestion treats every credit row as revenue without netting against same-counterparty-near-date debit reversals, this will be wrongly auto-matched as a paid invoice when no such invoice exists."
+    ]
+  },
+  "secondary_pair": {
+    "bank_file": "01_bank_statements/SBI_Bluepeak_OldCurrentAC_Jan2026.csv",
+    "ledger_file": "03_accounting_ledger/Tally_Ledger_Voucher_Export.xlsx",
+    "purpose": "Tests schema mapping across a completely different bank+ledger vocabulary pair (SBI columns: 'Txn Date/Value Date/Description/Ref No./Debit/Credit' vs Tally columns: 'Date/Voucher Type/Voucher No./Particulars/Debit Amount/Credit Amount'). Also uses 2-digit year dates (DD/MM/YY) on the bank side and DD-Mon-YY on the ledger side -- different from the primary pair's formats.",
+    "expected_matches": [
+      {
+        "counterparty": "Sharma Enterprises",
+        "amount": 27500.0,
+        "match_type": "exact",
+        "note": "bank 04/01/26, ledger 4-Jan-26"
+      },
+      {
+        "counterparty": "Quantum Retail Solutions",
+        "amount": 13200.0,
+        "match_type": "exact_with_1day_lag",
+        "note": "bank txn date 08/01/26 vs value date 09/01/26 -- ledger dated 8-Jan-26, tests which bank date column you key off"
+      },
+      {
+        "counterparty": "Office Stationery Vendor",
+        "amount": 4500.0,
+        "match_type": "exact",
+        "note": "AP side, debit in both"
+      },
+      {
+        "counterparty": "Nordic Byte AB",
+        "amount": 44000.0,
+        "match_type": "exact_with_1day_lag",
+        "note": "RTGS settlement, txn/value date differ by 1 day"
+      },
+      {
+        "counterparty": "Courier Services Pvt Ltd",
+        "amount": 2150.0,
+        "match_type": "exact",
+        "note": "AP side"
+      },
+      {
+        "counterparty": "AMC Vendor",
+        "amount": 6750.0,
+        "match_type": "exact_with_1day_lag",
+        "note": "AMC Payment Annual / AMC renewal payment"
+      }
+    ],
+    "expected_exceptions": [
+      {
+        "side": "bank_only",
+        "amount": 8000.0,
+        "desc": "Cash deposit at branch counter, no ledger voucher exists -- should land in exceptions, not silently dropped"
+      }
+    ]
+  },
+  "parsing_only_file": {
+    "bank_file": "01_bank_statements/ICICI_Bluepeak_Savings_Jan2026.xlsx",
+    "purpose": "No ledger counterpart provided -- this file exists purely to stress-test Phase 1-3 (ingestion/cleaning/schema mapping), not the matching engine. Has 2 sheets ('Summary' which must NOT be parsed as a transaction table, and 'Transactions' which has its own letterhead rows AND a stray 'Page 1 of 1' row injected mid-table). Dates are DD-Mon-YYYY."
+  }
+}
