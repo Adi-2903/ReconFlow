@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { LayoutDashboard, AlertCircle, Settings, Plus, Link2, BarChart2, Menu, X, Play, RotateCcw, Loader2 } from "lucide-react";
+import { LayoutDashboard, AlertCircle, Settings, Plus, Link2, BarChart2, Menu, X, Play, RotateCcw, Loader2, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useData } from "@/lib/data-context";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { NewRunModal } from "@/components/new-run-modal/NewRunModal";
 
 
@@ -20,6 +21,7 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isResettingMatches, setIsResettingMatches] = useState(false);
   const { matches, exceptionCount, isNewRunModalOpen, setIsNewRunModalOpen } = useData();
@@ -76,11 +78,11 @@ export function AppShell({ children }: AppShellProps) {
           </button>
           
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-slate-900 flex items-center justify-center rounded-sm">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-slate-900 flex items-center justify-center rounded-sm shadow-sm">
               <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white rotate-45 transition-transform group-hover:rotate-90 duration-300"></div>
             </div>
-            <Link href="/dashboard" className="font-bold text-lg sm:text-xl tracking-tight uppercase">
-              ReconFlow
+            <Link href="/dashboard" className="font-serif text-2xl sm:text-3xl tracking-tight text-slate-900 flex items-baseline">
+              Recon<span className="italic text-accent-ink font-serif mr-0.5">F</span>low
             </Link>
           </div>
         </div>
@@ -122,7 +124,41 @@ export function AppShell({ children }: AppShellProps) {
           >
             <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => signOut({ callbackUrl: "/sign-in" })}>Sign out</Button>
+          
+          <Popover>
+            <PopoverTrigger className="flex items-center justify-center rounded-full hover:ring-2 hover:ring-slate-200 transition-all focus:outline-none">
+              <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border border-slate-200 shadow-sm">
+                {session?.user?.image ? (
+                  <AvatarImage src={session.user.image} alt={session.user.name || "User"} />
+                ) : (
+                  <AvatarFallback className="bg-slate-100 text-slate-700 font-medium text-xs">
+                    {session?.user?.name ? session.user.name.charAt(0).toUpperCase() : "U"}
+                  </AvatarFallback>
+                )}
+              </Avatar>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64 p-2 bg-white rounded-xl shadow-lg border border-slate-200" sideOffset={8}>
+              <div className="flex flex-col space-y-1 p-3 border-b border-slate-100 mb-2">
+                <p className="text-sm font-semibold text-slate-900 truncate">{session?.user?.name || "User"}</p>
+                <p className="text-xs text-slate-500 truncate">{session?.user?.email || "No email"}</p>
+              </div>
+              <Link href="/settings" className="flex items-center w-full px-3 py-2 text-sm text-slate-700 rounded-md hover:bg-slate-50 transition-colors">
+                <Settings className="mr-2 h-4 w-4 text-slate-500" />
+                Settings
+              </Link>
+              <a href="mailto:adityajain2903@gmail.com?subject=ReconFlow%20Support%20Request" className="flex items-center w-full px-3 py-2 text-sm text-slate-700 rounded-md hover:bg-slate-50 transition-colors">
+                <AlertCircle className="mr-2 h-4 w-4 text-slate-500" />
+                Support
+              </a>
+              <button 
+                onClick={() => signOut({ callbackUrl: "/sign-in" })}
+                className="flex items-center w-full px-3 py-2 text-sm text-red-600 rounded-md hover:bg-red-50 transition-colors mt-1"
+              >
+                <LogOut className="mr-2 h-4 w-4 text-red-500" />
+                Sign out
+              </button>
+            </PopoverContent>
+          </Popover>
         </div>
       </header>
 
@@ -198,10 +234,10 @@ function NavItem({ href, icon: Icon, label, active, badge, badgeColor, onClick }
       <Link
         href={href}
         onClick={onClick}
-        className="flex items-center gap-3 px-3 py-2 bg-accent text-accent-foreground font-medium rounded-md text-sm shadow-sm relative overflow-hidden"
+        className="flex items-center gap-3 px-3 py-2 bg-white shadow-sm border border-slate-200 text-slate-900 font-medium rounded-lg text-sm relative overflow-hidden transition-all"
       >
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-900 rounded-r-full" />
-        <Icon className="h-4 w-4 shrink-0 text-slate-900" />
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-accent-ink" />
+        <Icon className="h-4 w-4 shrink-0 text-accent-ink" />
         <span className="truncate">{label}</span>
         {badge && <span className={cn(`ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold`, badgeColor)}>{badge}</span>}
       </Link>
@@ -211,7 +247,7 @@ function NavItem({ href, icon: Icon, label, active, badge, badgeColor, onClick }
     <Link
       href={href}
       onClick={onClick}
-      className="flex items-center gap-3 px-3 py-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 rounded-md text-sm font-medium transition-colors border border-transparent"
+      className="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-white hover:shadow-sm hover:text-slate-900 hover:border-slate-200 border border-transparent rounded-lg text-sm font-medium transition-all"
     >
       <Icon className="h-4 w-4 shrink-0" />
       <span className="truncate">{label}</span>

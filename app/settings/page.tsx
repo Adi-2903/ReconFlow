@@ -389,10 +389,10 @@ export default function SettingsPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     <tr className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-medium text-slate-900">John Doe</td>
-                      <td className="px-4 py-3 text-slate-500">john@acme.com</td>
+                      <td className="px-4 py-3 font-medium text-slate-900">{session?.user?.name || "John Doe"}</td>
+                      <td className="px-4 py-3 text-slate-500">{session?.user?.email || "john@acme.com"}</td>
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">Admin</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">Admin (You)</span>
                       </td>
                       <td className="px-4 py-3 text-right"></td>
                     </tr>
