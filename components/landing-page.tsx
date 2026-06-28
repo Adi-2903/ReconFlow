@@ -1,693 +1,1024 @@
+"use client";
+
+import * as React from "react";
+import { motion } from "motion/react";
 import Link from "next/link";
-import {
-  ArrowRight,
-  CheckCircle2,
-  Zap,
-  BarChart3,
-  Link2,
-  ShieldCheck,
-  Activity,
-  BrainCircuit,
-  X,
-  Check,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AuthModal } from "./auth-modal";
+
+/* ---------- Decorative SVGs ---------- */
+
+function LedgerGrid() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="absolute inset-0 h-full w-full text-brand-border"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <pattern id="ledger-dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+          <circle cx="1" cy="1" r="1" fill="currentColor" />
+        </pattern>
+        <radialGradient id="fade" cx="50%" cy="40%" r="60%">
+          <stop offset="0%" stopColor="white" stopOpacity="0" />
+          <stop offset="100%" stopColor="white" stopOpacity="1" />
+        </radialGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#ledger-dots)" opacity="0.5" />
+      <rect width="100%" height="100%" fill="url(#fade)" />
+    </svg>
+  );
+}
+
+function Squiggle({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 220 14"
+      className={className}
+      preserveAspectRatio="none"
+    >
+      <path
+        d="M2 8 Q 30 2, 55 8 T 110 8 T 165 8 T 218 8"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
+function WaxStamp() {
+  return (
+    <div className="absolute -right-4 -top-4 select-none" aria-hidden="true">
+      <div className="relative grid size-24 rotate-[-14deg] place-items-center rounded-full border-2 border-accent-ink/70 text-accent-ink shadow-[0_8px_24px_-12px_oklch(0.42_0.08_165/0.35)]">
+        <div className="absolute inset-1 rounded-full border border-dashed border-accent-ink/50" />
+        <div className="text-center font-serif leading-none">
+          <div className="text-[9px] font-sans font-semibold uppercase tracking-[0.18em]">
+            Reconciled
+          </div>
+          <div className="mt-1 text-[10px] font-sans tracking-widest text-accent-ink/70">
+            18 · JUN
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Brand mark + integration icons ---------- */
+
+function Wordmark({ className = "" }: { className?: string }) {
+  return (
+    <span className={`font-serif text-2xl leading-none tracking-tight ${className}`}>
+      Recon<span className="italic text-accent-ink">F</span>low
+    </span>
+  );
+}
+
+function StripeIcon() {
+  return (
+    <div className="grid size-10 place-items-center rounded-xl bg-[#635BFF] text-white shadow-sm">
+      <span className="font-sans text-lg font-bold leading-none">S</span>
+    </div>
+  );
+}
+function QuickBooksIcon() {
+  return (
+    <div className="grid size-10 place-items-center rounded-xl bg-[#2CA01C] text-white shadow-sm">
+      <span className="font-sans text-[11px] font-bold leading-none">qb</span>
+    </div>
+  );
+}
+function TallyIcon() {
+  return (
+    <div className="grid size-10 place-items-center rounded-xl bg-[#1F4E96] text-white shadow-sm">
+      <span className="font-sans text-[11px] font-bold leading-none">T</span>
+    </div>
+  );
+}
+function RazorpayIcon() {
+  return (
+    <div className="grid size-10 place-items-center rounded-xl bg-[#0C2451] text-white shadow-sm">
+      <span className="font-sans text-[11px] font-bold leading-none">R</span>
+    </div>
+  );
+}
+
+/* ---------- Page ---------- */
 
 interface LandingPageProps {
   isLoggedIn: boolean;
 }
 
 export default function LandingPage({ isLoggedIn }: LandingPageProps) {
+  const [isAuthOpen, setIsAuthOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("auth") === "true") {
+        setIsAuthOpen(true);
+      } else if (params.get("demo") === "true") {
+        window.location.href = "mailto:adityajain2903@gmail.com?subject=ReconFlow%20Demo%20Booking%20Request";
+        const url = new URL(window.location.href);
+        url.searchParams.delete("demo");
+        window.history.replaceState({}, "", url.pathname + url.search);
+      }
+    }
+  }, []);
+
+  const openAuth = () => {
+    setIsAuthOpen(true);
+  };
+
+  const handleCloseAuth = () => {
+    setIsAuthOpen(false);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("auth");
+      url.searchParams.delete("demo");
+      window.history.replaceState({}, "", url.pathname + url.search);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-white selection:bg-[var(--accent-soft)] selection:text-[var(--accent-ink)] font-sans">
-      <style>{`
-        :root {
-          --accent-ink: oklch(0.42 0.13 165);
-          --accent-warm: oklch(0.78 0.13 65);
-          --accent-soft: oklch(0.97 0.03 90);
-          --accent-flag: oklch(0.65 0.18 35);
-          --brand-black: oklch(0.18 0.01 270);
-          --brand-muted: oklch(0.52 0.01 270);
-          --brand-border: oklch(0.9 0.005 270);
-        }
-        .font-serif-display {
-          font-family: "Source Serif 4", "Georgia", serif;
-        }
-      `}</style>
-
-      {/* Navbar */}
-      <header className="fixed top-0 inset-x-0 h-16 bg-white/80 backdrop-blur-lg border-b border-[var(--brand-border)] z-50 transition-all">
-        <div className="container mx-auto px-4 sm:px-6 h-full flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm"
-              style={{ backgroundColor: "var(--accent-ink)" }}
-            >
-              <Activity className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-[var(--brand-black)]">
-              ReconFlow
-            </span>
-          </div>
-
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-[var(--brand-muted)]">
-            <a
-              href="#features"
-              className="hover:text-[var(--accent-ink)] transition-colors"
-            >
-              Features
-            </a>
-            <a
-              href="#how-it-works"
-              className="hover:text-[var(--accent-ink)] transition-colors"
-            >
-              How it Works
-            </a>
-            <a
-              href="#why"
-              className="hover:text-[var(--accent-ink)] transition-colors"
-            >
-              Why ReconFlow
-            </a>
-            <a
-              href="#integrations"
-              className="hover:text-[var(--accent-ink)] transition-colors"
-            >
-              Integrations
-            </a>
-          </nav>
-
-          <div className="flex items-center gap-4">
-            <Link href="/sign-in">
-              <Button
-                variant="ghost"
-                className="hidden sm:inline-flex text-[var(--brand-muted)] hover:text-[var(--brand-black)]"
-              >
-                Log in
-              </Button>
-            </Link>
-            <Link href={isLoggedIn ? "/dashboard" : "/sign-in"}>
-              <Button
-                className="text-white shadow-md hover:opacity-90"
-                style={{ backgroundColor: "var(--accent-ink)" }}
-              >
-                {isLoggedIn ? "Go to Dashboard" : "Get Started"}
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="pt-16">
-        {/* Hero Section */}
-        <section className="relative pt-24 pb-32 overflow-hidden bg-white">
-          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.06] mix-blend-multiply pointer-events-none" />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-7xl pointer-events-none">
-            <div
-              className="absolute -top-[35%] -left-[10%] w-[60%] h-[60%] rounded-full blur-[130px] opacity-[0.18]"
-              style={{ backgroundColor: "var(--accent-ink)" }}
-            />
-            <div
-              className="absolute top-[15%] -right-[10%] w-[50%] h-[50%] rounded-full blur-[130px] opacity-[0.18]"
-              style={{ backgroundColor: "var(--accent-warm)" }}
-            />
-          </div>
-
-          <div className="container mx-auto px-4 sm:px-6 relative z-10">
-            <div className="max-w-4xl mx-auto text-center">
-              <div
-                className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-sm font-medium mb-8"
-                style={{
-                  backgroundColor: "var(--accent-soft)",
-                  borderColor: "var(--brand-border)",
-                  color: "var(--accent-ink)",
-                }}
-              >
-                <SparklesIcon className="w-4 h-4" />
-                <span>AI-Powered Bank Reconciliation</span>
-              </div>
-
-              <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-[var(--brand-black)] mb-8 leading-[1.1]">
-                Reconcile faster with <br className="hidden md:block" />
-                <span style={{ color: "var(--accent-ink)" }}>
-                  intelligent automation
-                </span>
-              </h1>
-
-              <p className="text-lg md:text-xl text-[var(--brand-muted)] mb-10 max-w-2xl mx-auto leading-relaxed">
-                Connect your bank feeds, QuickBooks, and Tally exports. Let
-                our AI engine instantly match transactions, handle
-                exceptions, and generate audit-ready reports.
-              </p>
-
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link href={isLoggedIn ? "/dashboard" : "/sign-in"}>
-                  <Button
-                    size="lg"
-                    className="h-14 px-8 text-base text-white shadow-xl hover:opacity-90"
-                    style={{ backgroundColor: "var(--brand-black)" }}
-                  >
-                    {isLoggedIn ? "Go to Dashboard" : "Start Reconciling Now"}
-                    <ArrowRight className="ml-2 w-5 h-5" />
-                  </Button>
-                </Link>
-                <Link href="#how-it-works">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="h-14 px-8 text-base bg-white border-[var(--brand-border)] text-[var(--brand-black)] hover:bg-[var(--accent-soft)]"
-                  >
-                    See how it works
-                  </Button>
-                </Link>
-              </div>
-            </div>
-
-            {/* Dashboard Mockup Visual */}
-            <div className="mt-20 relative max-w-5xl mx-auto">
-              <div
-                className="absolute -inset-1 rounded-2xl blur opacity-20"
-                style={{
-                  background:
-                    "linear-gradient(90deg, var(--accent-ink), var(--accent-warm))",
-                }}
-              />
-              <div className="relative rounded-2xl bg-white border border-[var(--brand-border)] shadow-2xl overflow-hidden">
-                <div className="h-12 border-b border-[var(--brand-border)] bg-[var(--accent-soft)] flex items-center px-4 gap-2">
-                  <div className="flex gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-[var(--accent-flag)]" />
-                    <div className="w-3 h-3 rounded-full bg-[var(--accent-warm)]" />
-                    <div className="w-3 h-3 rounded-full bg-[var(--accent-ink)]" />
-                  </div>
-                  <div className="mx-auto w-64 h-6 bg-white rounded-md border border-[var(--brand-border)] flex items-center justify-center">
-                    <span className="text-[10px] text-[var(--brand-muted)] font-mono">
-                      reconflow.com/dashboard
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-6 md:p-8 bg-[var(--accent-soft)]/40 flex flex-col gap-6">
-                  {/* Mock Stats */}
-                  <div className="grid grid-cols-3 gap-4">
-                    {[
-                      {
-                        label: "Total Matches",
-                        value: "1,248",
-                        color: "var(--accent-ink)",
-                      },
-                      {
-                        label: "Pending Exceptions",
-                        value: "12",
-                        color: "var(--accent-flag)",
-                      },
-                      {
-                        label: "Reconciliation Rate",
-                        value: "98.4%",
-                        color: "var(--accent-ink)",
-                      },
-                    ].map((stat, i) => (
-                      <div
-                        key={i}
-                        className="bg-white p-4 rounded-xl border border-[var(--brand-border)] shadow-sm"
-                      >
-                        <div className="text-sm text-[var(--brand-muted)] font-medium mb-1">
-                          {stat.label}
-                        </div>
-                        <div
-                          className="text-2xl font-bold"
-                          style={{ color: stat.color }}
-                        >
-                          {stat.value}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Interactive Visualizer Mock */}
-                  <div className="bg-white rounded-xl border border-[var(--brand-border)] shadow-sm p-6 relative overflow-hidden">
-                    <div className="text-sm font-semibold text-[var(--brand-black)] mb-6 flex items-center justify-between">
-                      <span>Live Matching Engine</span>
-                      <div
-                        className="flex items-center gap-2 text-xs px-2 py-1 rounded-full"
-                        style={{
-                          color: "var(--accent-ink)",
-                          backgroundColor: "var(--accent-soft)",
-                        }}
-                      >
-                        <BrainCircuit className="w-3.5 h-3.5" /> AI Active
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                      {/* Left: Bank */}
-                      <div className="w-full md:w-2/5 border border-[var(--brand-border)] rounded-lg p-4 bg-[var(--accent-soft)]/40">
-                        <div className="text-[10px] font-bold text-[var(--brand-muted)] uppercase tracking-wider mb-3">
-                          Stripe Payout
-                        </div>
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="font-medium text-[var(--brand-black)] text-sm">
-                              Transfer to Bank
-                            </div>
-                            <div className="text-xs text-[var(--brand-muted)] mt-1">
-                              po_1NxY...
-                            </div>
-                          </div>
-                          <div
-                            className="font-bold text-sm"
-                            style={{ color: "var(--accent-ink)" }}
-                          >
-                            +$4,250.00
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Center: Match Link */}
-                      <div className="flex flex-col items-center justify-center shrink-0 py-2 relative w-full md:w-1/5">
-                        <div className="w-full h-px bg-[var(--brand-border)] absolute top-1/2 -translate-y-1/2 z-0 hidden md:block" />
-                        <div className="w-px h-full bg-[var(--brand-border)] absolute left-1/2 -translate-x-1/2 z-0 md:hidden" />
-                        <div
-                          className="relative z-10 bg-white border-2 rounded-full w-8 h-8 flex items-center justify-center shadow-sm"
-                          style={{ borderColor: "var(--accent-ink)" }}
-                        >
-                          <CheckCircle2
-                            className="w-4 h-4"
-                            style={{ color: "var(--accent-ink)" }}
-                          />
-                        </div>
-                        <div
-                          className="text-[10px] font-bold mt-2 bg-white px-2 relative z-10"
-                          style={{ color: "var(--accent-ink)" }}
-                        >
-                          EXACT MATCH
-                        </div>
-                      </div>
-
-                      {/* Right: Ledger */}
-                      <div className="w-full md:w-2/5 border border-[var(--brand-border)] rounded-lg p-4 bg-[var(--accent-soft)]/40">
-                        <div className="text-[10px] font-bold text-[var(--brand-muted)] uppercase tracking-wider mb-3">
-                          QuickBooks Ledger
-                        </div>
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="font-medium text-[var(--brand-black)] text-sm">
-                              Stripe Settlement
-                            </div>
-                            <div className="text-xs text-[var(--brand-muted)] mt-1">
-                              Ref: STR-4250
-                            </div>
-                          </div>
-                          <div className="font-bold text-[var(--brand-black)] text-sm">
-                            $4,250.00
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Logos Section */}
-        <section
-          id="integrations"
-          className="py-16 bg-white border-y border-[var(--brand-border)]"
-        >
-          <div className="container mx-auto px-4 text-center">
-            <p className="text-sm font-semibold text-[var(--brand-muted)] tracking-widest uppercase mb-8">
-              Connects seamlessly with
-            </p>
-            <div className="flex flex-wrap justify-center items-center gap-12 opacity-70 grayscale hover:grayscale-0 transition-all duration-500">
-              <div className="text-2xl font-bold tracking-tighter text-[var(--brand-black)]">
-                QuickBooks
-              </div>
-              <div className="text-2xl font-bold tracking-tighter text-[var(--brand-black)] flex items-center gap-1">
-                <div
-                  className="w-5 h-5 rounded-sm"
-                  style={{ backgroundColor: "var(--accent-ink)" }}
-                />{" "}
-                Stripe
-              </div>
-              <div className="text-2xl font-bold tracking-tighter text-[var(--brand-black)]">
-                TALLY.ERP
-              </div>
-              <div className="text-xl font-bold tracking-tighter text-[var(--brand-black)]">
-                CSV &amp; Excel
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Features Section */}
-        <section id="features" className="py-24 bg-white">
-          <div className="container mx-auto px-4 sm:px-6 max-w-6xl">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold text-[var(--brand-black)] mb-4">
-                Everything you need to close the books
-              </h2>
-              <p className="text-lg text-[var(--brand-muted)] max-w-2xl mx-auto">
-                Reconflow automates the tedious parts of financial
-                reconciliation, giving your finance team their time back.
-              </p>
-            </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              <FeatureCard
-                icon={<Link2 className="w-6 h-6" style={{ color: "var(--accent-ink)" }} />}
-                title="Multi-Source Sync"
-                description="Connect live to QuickBooks and Stripe, or upload your bank statements and Tally XMLs directly."
-              />
-              <FeatureCard
-                icon={<Zap className="w-6 h-6" style={{ color: "var(--accent-ink)" }} />}
-                title="4-Pass Matching Engine"
-                description="Our deterministic engine matches exact amounts, fuzzy dates, reference IDs, and grouped payouts."
-              />
-              <FeatureCard
-                icon={<BrainCircuit className="w-6 h-6" style={{ color: "var(--accent-ink)" }} />}
-                title="AI Exception Handling"
-                description="Reconflow reasons through edge cases, mismatched names, and missing fees to explain every suggested match in plain language."
-              />
-              <FeatureCard
-                icon={<BarChart3 className="w-6 h-6" style={{ color: "var(--accent-ink)" }} />}
-                title="Real-time Reporting"
-                description="View your reconciliation health instantly. Spot unrecorded payments or missing deposits before month-end."
-              />
-              <FeatureCard
-                icon={<ShieldCheck className="w-6 h-6" style={{ color: "var(--accent-ink)" }} />}
-                title="Audit-Ready Exports"
-                description="Download complete reconciliation reports as CSV, Excel, or PDF to hand off to your auditors."
-              />
-              <FeatureCard
-                icon={<Activity className="w-6 h-6" style={{ color: "var(--accent-ink)" }} />}
-                title="Privacy First"
-                description="Your financial data is encrypted and secure. We never store raw credentials."
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* How It Works */}
-        <section
-          id="how-it-works"
-          className="py-24"
-          style={{ backgroundColor: "var(--accent-soft)" }}
-        >
-          <div className="container mx-auto px-4 sm:px-6 max-w-6xl">
-            <div className="text-center mb-20">
-              <p
-                className="text-sm font-semibold tracking-widest uppercase mb-3"
-                style={{ color: "var(--accent-ink)" }}
-              >
-                How it works
-              </p>
-              <h2 className="font-serif-display text-3xl md:text-4xl font-bold text-[var(--brand-black)]">
-                From statement to sign-off in four steps
-              </h2>
-            </div>
-
-            <div className="relative grid md:grid-cols-4 gap-12 md:gap-6">
-              {/* hairline connector row, desktop only */}
-              <div
-                className="hidden md:block absolute top-7 left-[12.5%] right-[12.5%] h-px"
-                style={{ backgroundColor: "var(--brand-border)" }}
-              />
-
-              {[
-                {
-                  n: "01",
-                  title: "Connect",
-                  desc: "Link QuickBooks and Stripe, or drop in bank statements and Tally exports — HDFC, ICICI, SBI, all formats welcome.",
-                },
-                {
-                  n: "02",
-                  title: "AI Match",
-                  desc: "The 4-pass engine runs exact, fuzzy, and bulk matching in seconds, then hands edge cases to the AI for a plain-language read.",
-                },
-                {
-                  n: "03",
-                  title: "Exception Dashboard",
-                  desc: "Everything that didn't auto-match lands in one queue, each with the AI's reasoning attached — no spreadsheet archaeology.",
-                },
-                {
-                  n: "04",
-                  title: "Approve",
-                  desc: "Review the AI's suggested matches, approve or override in one click, and export an audit-ready reconciliation report.",
-                },
-              ].map((step) => (
-                <div key={step.n} className="relative flex flex-col items-start">
-                  <div
-                    className="font-serif-display italic text-4xl mb-5 bg-[var(--accent-soft)] pr-3 relative z-10"
-                    style={{ color: "var(--accent-ink)" }}
-                  >
-                    {step.n}
-                  </div>
-                  <h3 className="text-lg font-bold text-[var(--brand-black)] mb-2">
-                    {step.title}
-                  </h3>
-                  <p className="text-[var(--brand-muted)] leading-relaxed text-[15px]">
-                    {step.desc}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Why ReconFlow — compare table */}
-        <section id="why" className="py-24 bg-white">
-          <div className="container mx-auto px-4 sm:px-6 max-w-5xl">
-            <div className="text-center mb-16">
-              <p
-                className="text-sm font-semibold tracking-widest uppercase mb-3"
-                style={{ color: "var(--accent-ink)" }}
-              >
-                Why ReconFlow
-              </p>
-              <h2 className="font-serif-display text-3xl md:text-4xl font-bold text-[var(--brand-black)]">
-                Built for how Indian finance teams actually reconcile
-              </h2>
-            </div>
-
-            <div className="rounded-2xl border border-[var(--brand-border)] overflow-hidden shadow-sm">
-              {/* header row */}
-              <div className="grid grid-cols-2">
-                <div className="px-6 md:px-8 py-5 bg-white border-b border-r border-[var(--brand-border)]">
-                  <span className="text-sm font-semibold text-[var(--brand-muted)] uppercase tracking-wider">
-                    Legacy tools
-                  </span>
-                </div>
-                <div
-                  className="px-6 md:px-8 py-5 border-b border-[var(--brand-border)]"
-                  style={{ backgroundColor: "var(--accent-soft)" }}
-                >
-                  <span
-                    className="text-sm font-semibold uppercase tracking-wider"
-                    style={{ color: "var(--accent-ink)" }}
-                  >
-                    ReconFlow
-                  </span>
-                </div>
-              </div>
-
-              {[
-                {
-                  legacy: "Exact-match only — anything else becomes manual work",
-                  recon:
-                    "AI-explained matches for fuzzy dates, partial refs, and renamed counterparties",
-                },
-                {
-                  legacy: "6–12 month implementation with consultants",
-                  recon: "Connect your accounts and start matching within an hour",
-                },
-                {
-                  legacy: "Bulk payouts unpacked by hand, line by line",
-                  recon:
-                    "Bulk subset-sum matching reconciles grouped settlements automatically",
-                },
-                {
-                  legacy: "Black-box scoring with no audit trail",
-                  recon: "Every AI suggestion comes with a plain-language explanation",
-                },
-              ].map((row, i, arr) => (
-                <div
-                  key={i}
-                  className={`grid grid-cols-2 ${i !== arr.length - 1 ? "border-b border-[var(--brand-border)]" : ""}`}
-                >
-                  <div className="px-6 md:px-8 py-6 border-r border-[var(--brand-border)] flex gap-3 items-start">
-                    <X
-                      className="w-5 h-5 shrink-0 mt-0.5"
-                      style={{ color: "var(--accent-flag)" }}
-                    />
-                    <span className="text-[var(--brand-muted)] leading-relaxed">
-                      {row.legacy}
-                    </span>
-                  </div>
-                  <div className="px-6 md:px-8 py-6 flex gap-3 items-start bg-[var(--accent-soft)]/40">
-                    <Check
-                      className="w-5 h-5 shrink-0 mt-0.5"
-                      style={{ color: "var(--accent-ink)" }}
-                    />
-                    <span className="text-[var(--brand-black)] leading-relaxed font-medium">
-                      {row.recon}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Final CTA */}
-        <section
-          className="py-28 relative overflow-hidden"
-          style={{ backgroundColor: "var(--accent-ink)" }}
-        >
-          <div
-            className="absolute -top-1/3 -right-1/4 w-[60%] h-[140%] rounded-full blur-[120px] opacity-20 pointer-events-none"
-            style={{ backgroundColor: "var(--accent-warm)" }}
-          />
-          <div className="container mx-auto px-4 sm:px-6 max-w-3xl text-center relative z-10">
-            <h2 className="font-serif-display text-4xl md:text-5xl font-bold text-white mb-8 leading-tight">
-              Close your books in hours, not days.
-            </h2>
-            <p className="text-white/75 text-lg mb-10 max-w-xl mx-auto">
-              Start matching your first statement free — no credit card, no
-              setup call.
-            </p>
-            <Link href={isLoggedIn ? "/dashboard" : "/sign-in"}>
-              <Button
-                size="lg"
-                className="h-14 px-10 text-base font-semibold shadow-xl hover:opacity-90"
-                style={{ backgroundColor: "var(--accent-warm)", color: "var(--brand-black)" }}
-              >
-                {isLoggedIn ? "Go to Dashboard" : "Start Reconciling Now"}
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-            </Link>
-          </div>
-        </section>
-      </main>
-
-      {/* Footer — minimal three-column */}
-      <footer className="bg-white border-t border-[var(--brand-border)] py-16">
-        <div className="container mx-auto px-4 sm:px-6 max-w-6xl">
-          <div className="grid md:grid-cols-3 gap-10 mb-12">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div
-                  className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: "var(--accent-ink)" }}
-                >
-                  <Activity className="w-4 h-4 text-white" />
-                </div>
-                <span className="text-lg font-bold tracking-tight text-[var(--brand-black)]">
-                  ReconFlow
-                </span>
-              </div>
-              <p className="text-sm text-[var(--brand-muted)] leading-relaxed max-w-xs">
-                AI-powered reconciliation for Indian startups. Connect your
-                books and your bank, and let the matching engine do the rest.
-              </p>
-            </div>
-
-            <div>
-              <h4 className="text-sm font-semibold text-[var(--brand-black)] uppercase tracking-wider mb-4">
-                Product
-              </h4>
-              <ul className="space-y-3 text-sm text-[var(--brand-muted)]">
-                <li>
-                  <a href="#features" className="hover:text-[var(--accent-ink)] transition-colors">
-                    Features
-                  </a>
-                </li>
-                <li>
-                  <a href="#how-it-works" className="hover:text-[var(--accent-ink)] transition-colors">
-                    How it Works
-                  </a>
-                </li>
-                <li>
-                  <a href="#integrations" className="hover:text-[var(--accent-ink)] transition-colors">
-                    Integrations
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-sm font-semibold text-[var(--brand-black)] uppercase tracking-wider mb-4">
-                Company
-              </h4>
-              <ul className="space-y-3 text-sm text-[var(--brand-muted)]">
-                <li>
-                  <a href="#" className="hover:text-[var(--accent-ink)] transition-colors">
-                    Privacy
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-[var(--accent-ink)] transition-colors">
-                    Terms
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-[var(--accent-ink)] transition-colors">
-                    Contact
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="pt-8 border-t border-[var(--brand-border)] text-sm text-[var(--brand-muted)]">
-            &copy; {new Date().getFullYear()} ReconFlow Inc. All rights reserved.
-          </div>
-        </div>
-      </footer>
+    <div className="min-h-screen bg-white font-sans text-brand-black selection:bg-accent-ink selection:text-white">
+      <Nav isLoggedIn={isLoggedIn} onOpenAuth={openAuth} />
+      <Hero isLoggedIn={isLoggedIn} />
+      <Stats />
+      <Integrations />
+      <ProductPeek />
+      <HowItWorks />
+      <Compare />
+      <Pricing />
+      <Trust />
+      <FinalCTA isLoggedIn={isLoggedIn} />
+      <SiteFooter />
+      <AuthModal isOpen={isAuthOpen} onClose={handleCloseAuth} />
     </div>
   );
 }
 
-function FeatureCard({
-  icon,
-  title,
-  description,
+
+/* ---------- Sections ---------- */
+
+function Nav({
+  isLoggedIn,
+  onOpenAuth,
 }: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
+  isLoggedIn: boolean;
+  onOpenAuth: () => void;
 }) {
   return (
-    <div className="bg-white p-6 md:p-8 rounded-2xl border border-[var(--brand-border)] shadow-sm hover:shadow-md transition-shadow">
-      <div
-        className="w-12 h-12 rounded-xl flex items-center justify-center mb-6"
-        style={{ backgroundColor: "var(--accent-soft)" }}
-      >
-        {icon}
+    <nav className="fixed top-0 z-50 w-full border-b border-brand-border/60 bg-white/80 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
+        <Link href="/" className="flex items-center gap-2">
+          <Wordmark />
+        </Link>
+        <div className="hidden gap-8 text-sm font-medium text-brand-muted md:flex">
+          <Link href="#product" className="transition-colors hover:text-brand-black">
+            Product
+          </Link>
+          <Link href="#integrations" className="transition-colors hover:text-brand-black">
+            Integrations
+          </Link>
+          <Link href="#pricing" className="transition-colors hover:text-brand-black">
+            Pricing
+          </Link>
+          <Link href="#security" className="transition-colors hover:text-brand-black">
+            Security
+          </Link>
+        </div>
+        <div className="flex items-center gap-3">
+          {!isLoggedIn && (
+            <button
+              onClick={onOpenAuth}
+              className="hidden text-sm font-medium text-brand-muted hover:text-brand-black sm:block cursor-pointer bg-transparent border-0 outline-none"
+            >
+              Log in
+            </button>
+          )}
+          {isLoggedIn ? (
+            <Link
+              href="/dashboard"
+              className="rounded-full bg-brand-black px-5 py-2 text-sm font-medium text-white ring-2 ring-transparent transition-all hover:ring-accent-warm/60"
+            >
+              Go to Dashboard
+            </Link>
+          ) : (
+            <a
+              href="mailto:adityajain2903@gmail.com?subject=ReconFlow%20Demo%20Booking"
+              className="rounded-full bg-brand-black px-5 py-2 text-sm font-medium text-white ring-2 ring-transparent transition-all hover:ring-accent-warm/60"
+            >
+              Book a demo
+            </a>
+          )}
+        </div>
       </div>
-      <h3 className="text-xl font-bold text-[var(--brand-black)] mb-3">{title}</h3>
-      <p className="text-[var(--brand-muted)] leading-relaxed">{description}</p>
+    </nav>
+  );
+}
+
+function Eyebrow({ index, label }: { index: string; label: string }) {
+  return (
+    <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-brand-muted">
+      <span className="size-1.5 bg-accent-warm" />
+      <span>{index}</span>
+      <span className="text-brand-border">—</span>
+      <span>{label}</span>
     </div>
   );
 }
 
-function SparklesIcon(props: any) {
+function Hero({
+  isLoggedIn,
+}: {
+  isLoggedIn: boolean;
+}) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
+    <section className="relative overflow-hidden pt-36 md:pt-44">
+      <LedgerGrid />
+      <motion.div 
+        initial="hidden"
+        animate="show"
+        viewport={{ once: true }}
+        variants={{
+          hidden: {},
+          show: {
+            transition: { staggerChildren: 0.15 },
+          },
+        }}
+        className="relative mx-auto max-w-5xl px-6 text-center"
+      >
+        <motion.div variants={{ hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 50, damping: 20 } } }} className="mx-auto mb-10 inline-flex items-center gap-2 rounded-full border border-brand-border/60 bg-white/60 px-3 py-1.5 text-xs font-medium text-brand-muted backdrop-blur-sm">
+          <span className="size-1.5 rounded-full bg-accent-ink" />
+          Now in private beta · Built for ₹5Cr–₹50Cr startups
+        </motion.div>
+        
+        <motion.h1 variants={{ hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 50, damping: 20 } } }} className="mx-auto max-w-4xl font-serif text-5xl leading-[1.1] tracking-[auto] md:text-7xl lg:text-[5.5rem] lg:leading-[1.05] lg:tracking-[-0.02em]">
+          The intelligent layer for <br className="hidden sm:block" />
+          <span className="relative inline-block">
+            <span className="italic">modern</span>
+            <Squiggle className="absolute -bottom-2 left-0 h-3 w-full text-accent-warm opacity-80" />
+          </span>{" "}
+          reconciliation.
+        </motion.h1>
+        
+        <motion.p variants={{ hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 50, damping: 20 } } }} className="mx-auto mt-10 max-w-[38rem] text-lg leading-relaxed text-brand-muted/90 md:text-xl">
+          ReconFlow auto-matches Stripe, QuickBooks, and Tally against your bank ledger.
+          AI suggests, your accountant approves — close the month in hours, not days.
+        </motion.p>
+        
+        <motion.div variants={{ hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 50, damping: 20 } } }} className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          {isLoggedIn ? (
+            <Link
+              href="/dashboard"
+              className="w-full flex items-center justify-center gap-2 rounded-full bg-brand-black px-8 py-4 text-base font-medium text-white shadow-md shadow-brand-black/5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-black/10 sm:w-auto"
+            >
+              <svg
+                className="size-4 fill-current"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              Go to Dashboard
+            </Link>
+          ) : (
+            <a
+              href="mailto:adityajain2903@gmail.com?subject=ReconFlow%20Demo%20Booking"
+              className="w-full flex items-center justify-center gap-2 rounded-full bg-brand-black px-8 py-4 text-base font-medium text-white shadow-md shadow-brand-black/5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-black/10 sm:w-auto"
+            >
+              <svg
+                className="size-4 fill-current"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              Book a 15-min demo
+            </a>
+          )}
+          <Link
+            href="#product"
+            className="w-full rounded-full border border-brand-border bg-white px-8 py-4 text-base font-medium text-brand-black shadow-sm transition-all duration-300 hover:bg-accent-soft/40 sm:w-auto text-center"
+          >
+            Try the live demo
+          </Link>
+        </motion.div>
+
+        {/* Trust Row */}
+        <motion.div variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { duration: 1, delay: 0.5 } } }} className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 text-[11px] font-medium tracking-wide text-brand-muted/60 uppercase">
+          <span>• No implementation fee</span>
+          <span>• Read-only integrations</span>
+          <span>• Enterprise-ready security</span>
+        </motion.div>
+      </motion.div>
+
+      {/* Product Transition Peek */}
+      <motion.div 
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.6 }}
+        className="relative mx-auto mt-20 max-w-5xl px-6 md:mt-28"
+      >
+        <div className="relative mx-auto overflow-hidden rounded-t-3xl border-x border-t border-brand-border/80 bg-white shadow-2xl shadow-brand-black/[0.03] [mask-image:linear-gradient(to_bottom,white_50%,transparent_100%)]">
+          <div className="flex items-center justify-between border-b border-brand-border/50 bg-accent-soft/30 px-6 py-4 md:px-8">
+            <div className="flex items-center gap-3">
+              <div className="size-2 rounded-full bg-accent-ink"></div>
+              <div className="text-xs font-semibold uppercase tracking-widest text-brand-muted">Ledger Sync</div>
+            </div>
+            <div className="hidden text-xs font-medium text-brand-muted sm:block">Last synced: Just now</div>
+          </div>
+          <div className="h-40 bg-white p-6 md:h-56 md:p-8">
+             <div className="flex flex-col gap-4">
+               <div className="flex items-center justify-between rounded-xl border border-brand-border/40 bg-accent-soft/10 p-4">
+                 <div className="flex items-center gap-4">
+                   <div className="size-8 rounded-full bg-brand-border/30"></div>
+                   <div className="h-2 w-24 rounded bg-brand-border/40 md:w-32"></div>
+                 </div>
+                 <div className="h-2 w-12 rounded bg-brand-border/40 md:w-16"></div>
+               </div>
+               <div className="flex items-center justify-between rounded-xl border border-brand-border/40 bg-accent-soft/10 p-4">
+                 <div className="flex items-center gap-4">
+                   <div className="size-8 rounded-full bg-brand-border/30"></div>
+                   <div className="h-2 w-20 rounded bg-brand-border/40 md:w-28"></div>
+                 </div>
+                 <div className="h-2 w-12 rounded bg-brand-border/40 md:w-16"></div>
+               </div>
+             </div>
+          </div>
+        </div>
+      </motion.div>
+    </section>
+  );
+}
+
+function Stats() {
+  const stats = [
+    { figure: "3–5", unit: "days", caption: "saved at every month-end close" },
+    { figure: "98%", unit: "", caption: "transactions auto-matched on day one" },
+    { figure: "₹15–25k", unit: "/mo", caption: "accountant cost saved, per company" },
+  ];
+  return (
+    <section className="border-y border-brand-border bg-accent-soft/60 py-20">
+      <div className="mx-auto grid max-w-7xl gap-12 px-6 md:grid-cols-3">
+        {stats.map((s) => (
+          <div key={s.caption} className="text-center md:text-left">
+            <div className="font-serif text-6xl italic leading-none text-accent-ink md:text-7xl">
+              {s.figure}
+              <span className="ml-1 font-sans text-xl not-italic text-brand-muted">{s.unit}</span>
+            </div>
+            <p className="mt-4 max-w-xs text-sm leading-relaxed text-brand-muted md:text-base">
+              {s.caption}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Integrations() {
+  const apps = [
+    { name: "Stripe", Icon: StripeIcon, note: "Payments & payouts" },
+    { name: "QuickBooks", Icon: QuickBooksIcon, note: "Accounting ledger" },
+    { name: "Tally", Icon: TallyIcon, note: "ERP & GST" },
+    { name: "Razorpay", Icon: RazorpayIcon, note: "UPI & cards" },
+  ];
+  return (
+    <section id="integrations" className="py-28 scroll-mt-24">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="mb-14 max-w-2xl">
+          <Eyebrow index="01" label="Integrations" />
+          <h2 className="mt-4 font-serif text-4xl md:text-5xl">
+            One hub. <span className="italic text-accent-ink">Every</span> source of truth.
+          </h2>
+          <p className="mt-4 text-brand-muted">
+            Direct, native connections — no Plaid middlemen, no brittle CSV pipelines.
+            ReconFlow speaks each platform's API natively.
+          </p>
+        </div>
+
+        <div className="relative rounded-3xl border border-brand-border bg-white p-10 shadow-[0_30px_80px_-50px_oklch(0.42_0.08_165/0.4)]">
+          {/* hub & spokes */}
+          <div className="relative grid grid-cols-2 items-center gap-12 md:grid-cols-[1fr_auto_1fr]">
+            <div className="space-y-5">
+              {apps.slice(0, 2).map(({ name, Icon, note }) => (
+                <IntegrationBadge key={name} name={name} note={note} Icon={Icon} side="left" />
+              ))}
+            </div>
+
+            <div className="mx-auto grid size-32 place-items-center rounded-full border border-accent-ink/30 bg-accent-soft text-center">
+              <div>
+                <Wordmark className="!text-lg" />
+                <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-muted">
+                  Hub
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              {apps.slice(2).map(({ name, Icon, note }) => (
+                <IntegrationBadge key={name} name={name} note={note} Icon={Icon} side="right" />
+              ))}
+            </div>
+          </div>
+          <p className="mt-10 text-center text-xs uppercase tracking-[0.18em] text-brand-muted">
+            + HDFC · ICICI · Axis · Kotak · 40 more banks via direct feeds
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function IntegrationBadge({
+  name,
+  note,
+  Icon,
+  side,
+}: {
+  name: string;
+  note: string;
+  Icon: () => React.ReactElement;
+  side: "left" | "right";
+}) {
+  return (
+    <div
+      className={`flex items-center gap-4 rounded-2xl border border-brand-border bg-white px-5 py-4 transition-all hover:border-accent-ink/40 hover:shadow-md ${
+        side === "right" ? "md:flex-row-reverse md:text-right" : ""
+      }`}
     >
-      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-      <path d="M5 3v4" />
-      <path d="M19 17v4" />
-      <path d="M3 5h4" />
-      <path d="M17 19h4" />
-    </svg>
+      <Icon />
+      <div>
+        <div className="font-serif text-xl leading-none">{name}</div>
+        <div className="mt-1 text-xs uppercase tracking-wider text-brand-muted">{note}</div>
+      </div>
+    </div>
+  );
+}
+
+function ProductPeek() {
+  return (
+    <section id="product" className="relative bg-accent-soft/60 py-32 overflow-hidden scroll-mt-24">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="mb-16 max-w-2xl relative z-10">
+          <Eyebrow index="02" label="Inside the product" />
+          <h2 className="mt-4 font-serif text-4xl md:text-5xl">
+            Every exception, <span className="italic text-accent-ink">explained</span>.
+          </h2>
+          <p className="mt-4 text-lg text-brand-muted">
+            Legacy tools tell you it's mismatched. ReconFlow tells you it's a Stripe wire fee
+            of ₹400 — and offers a one-click resolution.
+          </p>
+        </div>
+
+        <motion.div 
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: "-100px" }}
+          variants={{
+            hidden: {},
+            show: {
+              transition: { staggerChildren: 0.15 },
+            },
+          }}
+          className="relative z-10"
+        >
+          {/* Magazine Annotation 1 */}
+          <motion.div 
+            variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] } } }}
+            className="absolute -left-4 top-1/4 hidden max-w-[140px] md:block xl:-left-12"
+          >
+            <div className="h-px w-8 bg-brand-border/80 mb-2"></div>
+            <p className="font-serif text-sm italic text-brand-black">AI explains every match.</p>
+          </motion.div>
+
+          {/* Magazine Annotation 2 */}
+          <motion.div 
+            variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.4 } } }}
+            className="absolute -right-4 bottom-1/4 hidden max-w-[140px] text-right md:block xl:-right-12"
+          >
+            <div className="h-px w-8 bg-brand-border/80 mb-2 ml-auto"></div>
+            <p className="font-serif text-sm italic text-brand-black">Approve with one click.</p>
+          </motion.div>
+
+          <motion.div 
+            variants={{ hidden: { opacity: 0, y: 30 }, show: { opacity: 1, y: 0, transition: { duration: 1, ease: [0.16, 1, 0.3, 1] } } }}
+            className="relative overflow-hidden rounded-xl border border-brand-border/60 bg-white shadow-[0_20px_60px_-15px_oklch(0.42_0.08_165/0.15)] ring-1 ring-black/5 md:mx-16 xl:mx-24"
+          >
+            {/* Dashboard Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-brand-border/50 bg-accent-soft/20 px-6 py-4 gap-4">
+              <div className="flex items-center gap-4">
+                <h3 className="font-serif text-xl tracking-tight">Reconciliation Queue</h3>
+                <span className="rounded-full bg-accent-ink/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent-ink">
+                  14 Pending
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <input type="text" placeholder="Search references..." className="w-48 rounded-md border border-brand-border/60 bg-white px-3 py-1.5 text-xs text-brand-black placeholder-brand-muted/60 shadow-sm focus:border-accent-ink focus:outline-none focus:ring-1 focus:ring-accent-ink" readOnly />
+                </div>
+                <button className="rounded-md border border-brand-border/60 bg-white px-3 py-1.5 text-xs font-medium text-brand-black shadow-sm hover:bg-accent-soft/40">
+                  Filter
+                </button>
+              </div>
+            </div>
+
+            {/* Table Header */}
+            <div className="grid grid-cols-12 gap-4 border-b border-brand-border/50 bg-white px-6 py-3 text-[10px] font-semibold uppercase tracking-widest text-brand-muted/80">
+              <div className="col-span-3 sm:col-span-2">Date & Ref</div>
+              <div className="col-span-4 sm:col-span-3 hidden sm:block">Description</div>
+              <div className="col-span-3 sm:col-span-2 text-right">Amount</div>
+              <div className="col-span-4 sm:col-span-3">AI Analysis</div>
+              <div className="col-span-2 text-right">Action</div>
+            </div>
+
+            {/* Table Body */}
+            <div className="divide-y divide-brand-border/40 bg-white">
+              <DashRow
+                date="18 Jun"
+                refNum="INV-0184"
+                description="Stripe Payout"
+                counterparty="HDFC Current"
+                amount="₹ 1,45,000"
+                tone="match"
+                status="Exact Match"
+                analysis="100% confidence. Amounts and dates align perfectly."
+                action="View"
+              />
+              <DashRow
+                date="18 Jun"
+                refNum="SUB-0991"
+                description="Razorpay Settlement"
+                counterparty="Tally Ledger"
+                amount="₹ 11,600"
+                tone="suggest"
+                status="AI Suggestion"
+                analysis="Short ₹400. Identified as standard gateway fee."
+                action="Approve"
+                actionPrimary
+              />
+              <DashRow
+                date="17 Jun"
+                refNum="WIR-2210"
+                description="Incoming Wire"
+                counterparty="ICICI Bank"
+                amount="+ ₹ 120"
+                tone="flag"
+                status="Unmatched"
+                analysis="No matching invoice found in last 30 days."
+                action="Review"
+              />
+            </div>
+          </motion.div>
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+function DashRow({
+  date,
+  refNum,
+  description,
+  counterparty,
+  amount,
+  tone,
+  status,
+  analysis,
+  action,
+  actionPrimary,
+}: {
+  date: string;
+  refNum: string;
+  description: string;
+  counterparty: string;
+  amount: string;
+  tone: "match" | "suggest" | "flag";
+  status: string;
+  analysis: string;
+  action: string;
+  actionPrimary?: boolean;
+}) {
+  const toneStyles = {
+    match: { badge: "bg-accent-ink/10 text-accent-ink" },
+    suggest: { badge: "bg-[#855A1F]/10 text-[#855A1F]" },
+    flag: { badge: "bg-accent-flag/10 text-accent-flag" },
+  };
+
+  const style = toneStyles[tone];
+
+  return (
+    <motion.div 
+      variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } } }}
+      className="group grid grid-cols-12 gap-4 items-center px-6 py-4 transition-colors hover:bg-accent-soft/20"
+    >
+      <div className="col-span-3 sm:col-span-2">
+        <div className="text-xs font-medium text-brand-black">{date}</div>
+        <div className="mt-1 font-mono text-[10px] text-brand-muted/80">{refNum}</div>
+      </div>
+      
+      <div className="col-span-4 sm:col-span-3 hidden sm:block">
+        <div className="text-sm text-brand-black">{description}</div>
+        <div className="mt-0.5 text-xs text-brand-muted">{counterparty}</div>
+      </div>
+      
+      <div className="col-span-3 sm:col-span-2 text-right">
+        <div className="font-serif text-base text-brand-black">{amount}</div>
+      </div>
+      
+      <div className="col-span-4 sm:col-span-3">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${style.badge}`}>
+            {status}
+          </span>
+        </div>
+        <p className="text-[11px] leading-snug text-brand-muted">{analysis}</p>
+      </div>
+      
+      <div className="col-span-2 flex justify-end">
+        <button
+          className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${
+            actionPrimary
+              ? "bg-brand-black text-white shadow-sm hover:bg-brand-black/90 hover:shadow"
+              : "border border-brand-border/60 bg-white text-brand-black shadow-sm hover:bg-accent-soft/40"
+          }`}
+        >
+          {action}
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+function HowItWorks() {
+  const steps = [
+    {
+      n: "01",
+      title: "Connect",
+      body: "1-click OAuth to Stripe, QuickBooks, Tally, and your bank. Read-only access. Live in an hour, not six months.",
+    },
+    {
+      n: "02",
+      title: "AI matches",
+      body: "Exact, fuzzy, and bulk matching — handles partial payments, FX deltas, and wire fees automatically.",
+    },
+    {
+      n: "03",
+      title: "Review exceptions",
+      body: "Only what AI couldn't confidently match lands on your dashboard, with evidence and a suggested fix.",
+    },
+    {
+      n: "04",
+      title: "You approve",
+      body: "Nothing touches your ledger until a human clicks Approve. AI is the assistant, you stay in control.",
+    },
+  ];
+  return (
+    <section id="how-it-works" className="py-28 scroll-mt-24">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="mb-16 max-w-2xl">
+          <Eyebrow index="03" label="How it works" />
+          <h2 className="mt-4 font-serif text-4xl md:text-5xl">
+            Four steps. <span className="italic text-accent-ink">Zero</span> spreadsheets.
+          </h2>
+        </div>
+        <div className="grid gap-10 md:grid-cols-4">
+          {steps.map((s, i) => (
+            <div key={s.n} className="relative">
+              {i < steps.length - 1 && (
+                <div
+                  aria-hidden
+                  className="absolute left-12 top-6 hidden h-px w-[calc(100%-3rem)] bg-gradient-to-r from-accent-warm/60 to-transparent md:block"
+                />
+              )}
+              <div className="font-serif text-5xl italic text-accent-warm">{s.n}</div>
+              <h3 className="mt-4 font-serif text-2xl">{s.title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-brand-muted">{s.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Compare() {
+  const rows = [
+    { label: "Setup time", legacy: "6–12 months", us: "Under 1 hour" },
+    { label: "Mismatch handling", legacy: "Flag and fail", us: "AI explains the root cause" },
+    { label: "Bulk payments", legacy: "Manual unbundling", us: "4 invoices + 1 fee → matched" },
+    { label: "FX & wire fees", legacy: "Treated as errors", us: "Auto-reconciled with evidence" },
+    { label: "Pricing", legacy: "Crores per year", us: "₹25k–₹1.6L per month" },
+  ];
+  return (
+    <section className="bg-accent-soft/60 py-28">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="mb-14 max-w-2xl">
+          <Eyebrow index="04" label="Why ReconFlow" />
+          <h2 className="mt-4 font-serif text-4xl md:text-5xl">
+            Legacy tools were built for <span className="italic">audit firms</span>.
+            We're built for <span className="italic text-accent-ink">your CFO</span>.
+          </h2>
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-brand-border bg-white">
+          <div className="grid grid-cols-3 border-b border-brand-border bg-accent-soft/50 px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-brand-muted">
+            <div></div>
+            <div>BlackLine / Numeric</div>
+            <div className="text-accent-ink">ReconFlow</div>
+          </div>
+          {rows.map((r) => (
+            <div
+              key={r.label}
+              className="grid grid-cols-3 items-center border-b border-brand-border/70 px-6 py-5 last:border-b-0"
+            >
+              <div className="text-sm font-semibold">{r.label}</div>
+              <div className="flex items-center gap-2 text-sm text-brand-muted">
+                <span className="text-accent-flag">✕</span>
+                {r.legacy}
+              </div>
+              <div className="flex items-center gap-2 text-sm text-brand-black">
+                <span className="text-accent-ink">✓</span>
+                {r.us}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Pricing() {
+  const tiers = [
+    {
+      name: "Early Adopter",
+      audience: "Self-serve beta",
+      price: "₹0",
+      priceSub: "Free during beta",
+      features: [
+        "Up to 5,000 transactions/mo",
+        "Stripe + QuickBooks integration",
+        "Community support (Discord)",
+        "Read-only secure bank feeds",
+      ],
+      cta: "Get Beta Access",
+      href: "mailto:adityajain2903@gmail.com?subject=ReconFlow%20Beta%20Access%20Request",
+    },
+    {
+      name: "Design Partner",
+      audience: "Co-build ReconFlow with us",
+      price: "Free Pilot",
+      priceSub: "Co-build with founders",
+      features: [
+        "Unlimited transactions",
+        "Custom ERP connectors (Tally, etc.)",
+        "Direct WhatsApp/Slack with founders",
+        "50% lifetime discount post-beta",
+      ],
+      highlight: true,
+      cta: "Book a 15-min Call",
+      href: "mailto:adityajain2903@gmail.com?subject=ReconFlow%20Design%20Partner%20Call",
+    },
+    {
+      name: "Enterprise",
+      audience: "For larger scale-ups",
+      price: "Custom",
+      priceSub: "Tailored deployment",
+      features: [
+        "Multi-entity support",
+        "On-premise / private cloud",
+        "SLA & dedicated support",
+        "Custom matching engine rules",
+      ],
+      cta: "Contact Founders",
+      href: "mailto:adityajain2903@gmail.com?subject=ReconFlow%20Enterprise%20Inquiry",
+    },
+  ];
+  return (
+    <section id="pricing" className="py-28 scroll-mt-24">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="mb-14 text-center">
+          <Eyebrow index="05" label="Pricing & Plans" />
+          <h2 className="mt-4 font-serif text-4xl md:text-5xl">
+            SaaS-ready plans, <span className="italic text-accent-ink">open for pilots</span>.
+          </h2>
+          <p className="mx-auto mt-4 max-w-xl text-brand-muted">
+            We are looking for early design partners and beta testers to co-build the future of Indian bank reconciliation.
+          </p>
+        </div>
+        <div className="grid gap-6 md:grid-cols-3">
+          {tiers.map((t) => (
+            <div
+              key={t.name}
+              className={`relative flex flex-col rounded-2xl border bg-white p-8 ${
+                t.highlight
+                  ? "border-accent-warm shadow-[0_30px_80px_-50px_oklch(0.78_0.13_65/0.6)]"
+                  : "border-brand-border"
+              }`}
+            >
+              {t.highlight && (
+                <div className="absolute -top-3 right-6 rounded-full bg-accent-warm px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-brand-black">
+                  Most chosen
+                </div>
+              )}
+              <div className="font-serif text-2xl">{t.name}</div>
+              <div className="mt-1 text-xs uppercase tracking-[0.16em] text-brand-muted">
+                {t.audience}
+              </div>
+              <div className="mt-6 flex flex-col min-h-[70px] justify-end">
+                <span className="font-serif text-5xl leading-none">{t.price}</span>
+                {t.priceSub && (
+                  <span className="mt-2 text-xs font-medium text-brand-muted uppercase tracking-wider">
+                    {t.priceSub}
+                  </span>
+                )}
+              </div>
+              <ul className="mt-8 flex-1 space-y-3 text-sm text-brand-muted">
+                {t.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2">
+                    <span className="mt-1 text-accent-ink">✓</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href={t.href}
+                className={`mt-8 rounded-full px-5 py-3 text-center text-sm font-medium transition-all ${
+                  t.highlight
+                    ? "bg-brand-black text-white hover:scale-[1.02]"
+                    : "border border-brand-border text-brand-black hover:bg-accent-soft"
+                }`}
+              >
+                {t.cta}
+              </a>
+            </div>
+          ))}
+        </div>
+        <div className="mt-8 rounded-2xl border border-dashed border-brand-border bg-accent-soft/40 p-6 text-center text-sm text-brand-muted">
+          Want to co-build a custom integration or run a pilot during the hackathon? &nbsp;
+          <a
+            href="mailto:adityajain2903@gmail.com?subject=ReconFlow%20Direct%20Founder%20Contact"
+            className="font-semibold text-brand-black underline underline-offset-4 hover:text-accent-ink"
+          >
+            Talk to the founders directly →
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Trust() {
+  const items = [
+    { label: "Read-only", body: "We never write to your bank without you" },
+    { label: "SOC 2", body: "Type I in progress, Type II by Q4" },
+    { label: "Hosted in India", body: "Secure cloud · DPDP-aligned" },
+    { label: "Human-approved", body: "AI suggests, your accountant ships" },
+  ];
+  return (
+    <section id="security" className="border-y border-brand-border bg-white py-20">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="mb-10 text-center">
+          <Eyebrow index="06" label="Security & trust" />
+          <h2 className="mt-4 font-serif text-3xl md:text-4xl">
+            Your bank doesn't trust just <span className="italic">anyone</span>. Neither should you.
+          </h2>
+        </div>
+        <div className="grid gap-4 md:grid-cols-4">
+          {items.map((i) => (
+            <div
+              key={i.label}
+              className="rounded-xl border border-brand-border bg-white p-5 transition-colors hover:border-accent-ink/40"
+            >
+              <div className="flex items-center gap-2">
+                <svg
+                  aria-hidden
+                  viewBox="0 0 24 24"
+                  className="size-4 text-accent-ink"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 2 L3 6 v6 c0 5 3.5 8.5 9 10 c5.5 -1.5 9 -5 9 -10 V6 Z" />
+                </svg>
+                <span className="font-serif text-lg">{i.label}</span>
+              </div>
+              <p className="mt-2 text-sm text-brand-muted">{i.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FinalCTA({
+  isLoggedIn,
+}: {
+  isLoggedIn: boolean;
+}) {
+  return (
+    <section id="demo" className="relative overflow-hidden bg-[oklch(0.18_0.02_165)] py-28 text-white">
+      <div className="absolute inset-0 opacity-[0.08]">
+        <LedgerGrid />
+      </div>
+      <div className="relative mx-auto max-w-3xl px-6 text-center">
+        <h2 className="font-serif text-5xl leading-[1.05] md:text-6xl">
+          Close your books in <span className="italic text-accent-warm">hours</span>, not days.
+        </h2>
+        <p className="mx-auto mt-6 max-w-xl text-white/70">
+          Join the finance teams who reclaimed their month-end. Live demo in 30 minutes — bring
+          one real bank statement and we'll match it on the call.
+        </p>
+        <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          {isLoggedIn ? (
+            <Link
+              href="/dashboard"
+              className="w-full rounded-full bg-accent-warm px-8 py-4 text-base font-semibold text-brand-black transition-all hover:scale-[1.02] sm:w-auto text-center"
+            >
+              Go to Dashboard
+            </Link>
+          ) : (
+            <a
+              href="mailto:adityajain2903@gmail.com?subject=ReconFlow%20Demo%20Booking"
+              className="w-full rounded-full bg-accent-warm px-8 py-4 text-base font-semibold text-brand-black transition-all hover:scale-[1.02] sm:w-auto text-center"
+            >
+              Book your demo
+            </a>
+          )}
+          <Link
+            href="#product"
+            className="w-full rounded-full border border-white/20 px-8 py-4 text-base font-medium text-white transition-colors hover:bg-white/5 sm:w-auto text-center"
+          >
+            Watch a 2-min walkthrough
+          </Link>
+        </div>
+        <p className="mt-6 text-xs uppercase tracking-[0.18em] text-white/40">
+          No credit card · No procurement cycle · Pilot in a week
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function SiteFooter() {
+  return (
+    <footer className="border-t border-brand-border bg-white py-14">
+      <div className="mx-auto grid max-w-7xl gap-10 px-6 md:grid-cols-3">
+        <div>
+          <Wordmark />
+          <p className="mt-4 max-w-xs text-sm text-brand-muted">
+            AI bank reconciliation for Indian startups. Stripe, QuickBooks, Tally — matched and
+            approved.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-6 text-sm md:col-span-2 md:grid-cols-3">
+          <FooterCol
+            title="Product"
+            links={["Integrations", "Pricing", "Security", "Changelog"]}
+          />
+          <FooterCol title="Company" links={["About", "Careers", "Blog", "Contact"]} />
+          <FooterCol title="Legal" links={["Privacy", "Terms", "DPA", "Status"]} />
+        </div>
+      </div>
+      <div className="mx-auto mt-12 flex max-w-7xl flex-col items-start justify-between gap-4 border-t border-brand-border px-6 pt-6 text-xs uppercase tracking-[0.16em] text-brand-muted md:flex-row md:items-center">
+        <div>© {new Date().getFullYear()} ReconFlow Technologies Pvt. Ltd.</div>
+        <div className="flex gap-6">
+          <Link href="#">Twitter</Link>
+          <Link href="#">LinkedIn</Link>
+          <Link href="#">GitHub</Link>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+function FooterCol({ title, links }: { title: string; links: string[] }) {
+  return (
+    <div>
+      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-muted">
+        {title}
+      </div>
+      <ul className="mt-4 space-y-2">
+        {links.map((l) => (
+          <li key={l}>
+            <Link 
+              href={l === "Contact" ? "mailto:adityajain2903@gmail.com?subject=ReconFlow%20Contact" : "#"} 
+              className="text-brand-black hover:text-accent-ink"
+            >
+              {l}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

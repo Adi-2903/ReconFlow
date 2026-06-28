@@ -102,9 +102,12 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 sm:p-6 sm:px-8 flex flex-col gap-6 sm:gap-8 h-full font-sans text-slate-900 mx-auto w-full max-w-7xl relative">
-      <div className="shrink-0 flex flex-col sm:flex-row sm:items-start justify-between gap-4 pt-2 sm:pt-4">
+      {/* Premium subtle background grid */}
+      <div className="absolute inset-0 z-0 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(148, 163, 184, 0.15) 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
+      
+      <div className="shrink-0 flex flex-col sm:flex-row sm:items-start justify-between gap-4 pt-2 sm:pt-4 relative z-10">
         <div className="flex flex-col">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Dashboard</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 font-serif">Dashboard</h1>
           <p className="text-sm text-slate-500 mt-1 font-medium">
             Overview of your reconciliation status for this period.
           </p>
@@ -133,12 +136,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 shrink-0">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 shrink-0 relative z-10">
         {/* Metric Cards */}
-        <MetricCard title="Auto-matched" value={autoMatchedCount.toString()} change={`${autoMatchedCount} transactions matched`} icon={<CheckCircle2 className="w-5 h-5 text-green-600" />} />
-        <MetricCard title="Need review" value={needReviewCount.toString()} change={`${needReviewCount} transactions pending`} icon={<FileStack className="w-5 h-5 text-blue-600" />} />
-        <MetricCard title="Exceptions" value={exceptionsCount.toString()} change={exceptionsCount > 0 ? "Requires attention" : "All caught up"} alert={exceptionsCount > 0} icon={<AlertCircle className="w-5 h-5 text-amber-600" />} />
-        <MetricCard title="Total reconciled" value={formatter.format(totalReconciledValue)} change="Calculated dynamically" icon={<TrendingUp className="w-5 h-5 text-slate-600" />} />
+        <MetricCard title="Auto-matched" value={autoMatchedCount.toString()} change={`${autoMatchedCount} transactions matched`} icon={<CheckCircle2 className="w-5 h-5 text-accent-teal" />} />
+        <MetricCard title="Need review" value={needReviewCount.toString()} change={`${needReviewCount} transactions pending`} icon={<FileStack className="w-5 h-5 text-accent-ink" />} />
+        <MetricCard title="Exceptions" value={exceptionsCount.toString()} change={exceptionsCount > 0 ? "Requires attention" : "All caught up"} alert={exceptionsCount > 0} icon={<AlertCircle className="w-5 h-5 text-accent-warm" />} />
+        <MetricCard title="Total reconciled" value={formatter.format(totalReconciledValue)} change="Calculated dynamically" icon={<TrendingUp className="w-5 h-5 text-slate-700" />} />
       </div>
 
       <div className="flex-1 overflow-hidden min-h-[400px]">
@@ -169,18 +172,18 @@ export default function DashboardPage() {
 
 function MetricCard({ title, value, change, alert = false, icon }: { title: string; value: string; change: string; alert?: boolean; icon?: React.ReactNode }) {
   return (
-    <div className="bg-white p-4 sm:p-5 border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 group flex flex-col justify-between h-full relative overflow-hidden">
-      {alert && <div className="absolute top-0 left-0 w-full h-1 bg-amber-500" />}
+    <div className="bg-white/80 backdrop-blur-sm p-5 border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group flex flex-col justify-between h-full relative overflow-hidden">
+      {alert && <div className="absolute top-0 left-0 w-full h-1 bg-accent-warm" />}
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">{title}</p>
-          <div className="p-1.5 bg-slate-50 rounded-md group-hover:bg-slate-100 transition-colors">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{title}</p>
+          <div className="p-1.5 bg-slate-50 border border-slate-100 rounded-lg group-hover:bg-white group-hover:shadow-sm transition-all duration-300">
             {icon}
           </div>
         </div>
-        <p className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">{value}</p>
+        <p className="text-3xl font-serif font-semibold text-slate-900 tracking-tight">{value}</p>
       </div>
-      <p className={`text-xs font-bold mt-3 ${alert ? "text-amber-600" : "text-emerald-600"} flex items-center gap-1`}>
+      <p className={`text-xs font-semibold mt-4 flex items-center gap-1 ${alert ? "text-accent-warm" : "text-accent-teal"}`}>
         {change}
       </p>
     </div>

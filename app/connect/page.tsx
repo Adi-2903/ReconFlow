@@ -402,11 +402,14 @@ export default function ConnectPage() {
   const isReady = isBankConnected && isLedgerConnected;
 
   return (
-    <div className="w-full max-w-[720px] mx-auto py-12 md:py-16 px-4 font-sans flex flex-col gap-10 bg-white min-h-screen">
-
+    <div className="w-full font-sans flex flex-col items-center bg-slate-50 min-h-screen relative overflow-hidden">
+      {/* Premium subtle background grid */}
+      <div className="absolute inset-0 z-0 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(148, 163, 184, 0.15) 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
+      
+      <div className="w-full max-w-[720px] py-12 md:py-16 px-4 flex flex-col gap-10 relative z-10">
       {/* Section 1: Header */}
       <div className="text-center md:text-left flex flex-col gap-2">
-        <h1 className="text-[24px] font-medium text-slate-900 tracking-tight">Connect your accounts</h1>
+        <h1 className="text-[28px] font-bold text-slate-900 tracking-tight font-serif">Connect your accounts</h1>
         <p className="text-[16px] text-slate-500">
           ReconFlow reads your data read-only. Nothing is written without your approval.
         </p>
@@ -1196,7 +1199,7 @@ export default function ConnectPage() {
           </p>
         </div>
       </div>
-
     </div>
+  </div>
   );
 }
