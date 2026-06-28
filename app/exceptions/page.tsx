@@ -17,10 +17,13 @@ import {
   ArrowRight,
   TrendingUp,
   FileSpreadsheet,
+  Keyboard,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { api, ExceptionItem, AvailableLedgerEntry, AuditLogEntry } from "@/lib/api-client";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 export default function ExceptionsPage() {
   const { handleApprove, handleReject, handleManualMatch, isDemoMode } = useData();
@@ -35,6 +38,7 @@ export default function ExceptionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   // Comments for Resolve Match
   const [resolveComment, setResolveComment] = useState("");
@@ -234,6 +238,38 @@ export default function ExceptionsPage() {
     return result;
   }, [exceptions, searchQuery, filterType]);
 
+  // Export to CSV
+  const handleExportCSV = useCallback(() => {
+    if (filteredExceptions.length === 0) {
+      toast.error("No exceptions in current view to export");
+      return;
+    }
+
+    const headers = ["Date", "Amount (INR)", "Reference ID", "Reason Tag", "Reason Text", "Flags", "Source"];
+    const rows = filteredExceptions.map((item) => [
+      item.date,
+      (item.amount / 100).toFixed(2),
+      `"${item.reference.replace(/"/g, '""')}"`,
+      `"${item.reasonTag.replace(/"/g, '""')}"`,
+      `"${item.reasonText.replace(/"/g, '""')}"`,
+      `"${(item.flags || []).join(", ")}"`,
+      item.source,
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `reconflow_exceptions_${new Date().toISOString().split("T")[0]}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success(`Successfully exported ${filteredExceptions.length} exceptions`);
+  }, [filteredExceptions]);
+
   // Formatter helpers
   const formatAmountINR = (amountMinor: number) => {
     const amount = Math.abs(amountMinor) / 100;
@@ -414,6 +450,22 @@ export default function ExceptionsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Button
+            variant="outline"
+            className="h-8 text-xs font-semibold gap-1 text-slate-600 bg-white hover:bg-slate-50"
+            onClick={() => setIsShortcutsOpen(true)}
+          >
+            <Keyboard className="w-3.5 h-3.5" />
+            Shortcuts
+          </Button>
+          <Button
+            variant="outline"
+            className="h-8 text-xs font-semibold gap-1 text-slate-600 bg-white hover:bg-slate-50"
+            onClick={handleExportCSV}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            Export CSV
+          </Button>
           <Button
             variant="outline"
             className="h-8 text-xs font-semibold gap-1 text-slate-600 bg-white hover:bg-slate-50"
@@ -890,6 +942,58 @@ export default function ExceptionsPage() {
           )}
         </div>
       </div>
+
+      <Dialog open={isShortcutsOpen} onOpenChange={setIsShortcutsOpen}>
+        <DialogContent className="sm:max-w-[420px] p-6 bg-white rounded-xl shadow-lg border border-slate-200">
+          <DialogHeader className="mb-4">
+            <div className="flex items-center gap-2 text-slate-900">
+              <Keyboard className="w-5 h-5 text-indigo-600" />
+              <DialogTitle className="text-lg font-bold font-serif">Exceptions Workspace Hotkeys</DialogTitle>
+            </div>
+            <DialogDescription className="text-slate-500 text-xs mt-1">
+              Power user shortcuts to review and process exceptions quickly without using the mouse.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="flex items-center justify-between py-2 border-b border-slate-100">
+              <span className="text-xs font-semibold text-slate-600">Navigate Queue</span>
+              <div className="flex items-center gap-1.5">
+                <kbd className="px-2 py-1 text-xs font-semibold text-slate-800 bg-slate-100 border border-slate-200 rounded shadow-xs">↓</kbd>
+                <span className="text-slate-400 text-xs">/</span>
+                <kbd className="px-2 py-1 text-xs font-semibold text-slate-800 bg-slate-100 border border-slate-200 rounded shadow-xs">↑</kbd>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between py-2 border-b border-slate-100">
+              <span className="text-xs font-semibold text-slate-600">Approve Suggested Match</span>
+              <div className="flex items-center gap-1">
+                <kbd className="px-2 py-1 text-xs font-semibold text-slate-800 bg-slate-100 border border-slate-200 rounded shadow-xs">Ctrl</kbd>
+                <span className="text-slate-400 text-xs">+</span>
+                <kbd className="px-2 py-1 text-xs font-semibold text-slate-800 bg-slate-100 border border-slate-200 rounded shadow-xs">Enter</kbd>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between py-2 border-b border-slate-100">
+              <span className="text-xs font-semibold text-slate-600">Reject Suggested Match</span>
+              <div className="flex items-center gap-1">
+                <kbd className="px-2 py-1 text-xs font-semibold text-slate-800 bg-slate-100 border border-slate-200 rounded shadow-xs">Ctrl</kbd>
+                <span className="text-slate-400 text-xs">+</span>
+                <kbd className="px-2 py-1 text-xs font-semibold text-slate-800 bg-slate-100 border border-slate-200 rounded shadow-xs">Backspace</kbd>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <Button
+              onClick={() => setIsShortcutsOpen(false)}
+              className="text-xs font-semibold h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              Got it
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
