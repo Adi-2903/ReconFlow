@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { runReconciliation } from "@/services/recon.service";
+import { db } from "@/core/db";
+import { organizations } from "@/core/db/schema";
+import { eq } from "drizzle-orm";
+import { getOrCreateUserOrganization } from "@/core/db/org-helper";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,6 +16,12 @@ export async function POST(req: NextRequest) {
     if (!periodStart || !periodEnd) {
       return Response.json({ error: "Missing periodStart or periodEnd" }, { status: 400 });
     }
+
+    const orgId = await getOrCreateUserOrganization(userId);
+    await db.update(organizations).set({
+      activePeriodStart: new Date(periodStart),
+      activePeriodEnd: new Date(periodEnd)
+    }).where(eq(organizations.id, orgId));
 
     const result = await runReconciliation(userId, periodStart, periodEnd);
     return Response.json(result);

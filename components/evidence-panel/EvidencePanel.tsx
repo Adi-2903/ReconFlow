@@ -10,9 +10,13 @@ export interface EvidencePanelProps {
     bankRow: { amount: number; date: string; description: string; referenceId: string; source: string };
     ledgerRows: Array<{ amount: number; date: string; memo: string; invoiceRef: string }>;
     confidenceScore: number;
-    matchType: 'exact' | 'fuzzy' | 'bulk' | 'none';
+    matchType: string;
+    matchOutcome?: string;
+    discrepancyType?: string;
+    evidenceList?: Array<{ code: string; message: string }> | null;
     reasonText: string;
     scoringBreakdown: { amountScore: number; dateScore: number; textScore: number };
+    riskScore: number; // 0 – 100 integer (Phase 8)
     status: 'pending' | 'approved' | 'rejected';
     flags?: string[];
   } | null;
@@ -104,9 +108,34 @@ function EvidenceContent({ match, onApprove, onReject, onClose }: { match: NonNu
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className={`self-start inline-flex items-center gap-1.5 px-3 py-1 rounded-full border ${getPillColor(match.confidenceScore)}`}>
-          <span className="font-bold text-sm tracking-tight">{scorePct}% Match</span>
-          <span className="text-[10px] uppercase font-bold tracking-widest opacity-80">{match.matchType}</span>
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border ${getPillColor(match.confidenceScore)}`}>
+            <span className="font-bold text-sm tracking-tight">{scorePct}% Match</span>
+          </div>
+          {match.matchOutcome && (
+            <div className="px-2.5 py-0.5 rounded-full border bg-slate-100 border-slate-200 text-slate-700 text-[10px] font-bold uppercase tracking-wider">
+              {match.matchOutcome.replace(/_/g, " ")}
+            </div>
+          )}
+          {match.discrepancyType && match.discrepancyType !== "NONE" && (
+            <div className="px-2.5 py-0.5 rounded-full border bg-amber-50 border-amber-200 text-amber-700 text-[10px] font-bold uppercase tracking-wider">
+              {match.discrepancyType.replace(/_/g, " ")}
+            </div>
+          )}
+          {/* Phase 8 — Risk Score composite badge (factor breakdown deferred to Phase 9) */}
+          <div
+            className={`px-2.5 py-0.5 rounded-full border text-[10px] font-bold tracking-wider ${
+              match.riskScore >= 70
+                ? "bg-red-50 border-red-300 text-red-700"
+                : match.riskScore >= 35
+                ? "bg-amber-50 border-amber-300 text-amber-700"
+                : "bg-green-50 border-green-300 text-green-700"
+            }`}
+            title="Risk score (Phase 8)"
+          >
+            {match.riskScore >= 70 ? "⚠️ High Risk" : match.riskScore >= 35 ? "Med Risk" : "✓ Low Risk"}
+            {" "}{match.riskScore}/100
+          </div>
         </div>
       </div>
 
@@ -212,7 +241,19 @@ function EvidenceContent({ match, onApprove, onReject, onClose }: { match: NonNu
                 </div>
               </div>
 
-              {flags.length > 0 && (
+              {match.evidenceList && match.evidenceList.length > 0 ? (
+                <div className="pt-3 border-t border-slate-100">
+                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Audit Evidence Trails</h4>
+                  <ul className="space-y-2 text-xs text-slate-600">
+                    {match.evidenceList.map((e, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="text-amber-600 font-mono text-[9px] bg-amber-50 px-1.5 py-0.5 border border-amber-200 rounded shrink-0 mt-0.5">{e.code}</span>
+                        <span>{e.message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : flags.length > 0 ? (
                 <div className="pt-2">
                   <ul className="space-y-2 text-sm text-slate-600">
                     {flags.includes('wire_fee') && (
@@ -235,7 +276,7 @@ function EvidenceContent({ match, onApprove, onReject, onClose }: { match: NonNu
                     )}
                   </ul>
                 </div>
-              )}
+              ) : null}
             </div>
           </section>
         )}

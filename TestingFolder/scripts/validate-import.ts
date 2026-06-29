@@ -6,7 +6,7 @@ import { parseTallyFile } from "../parsers/tallyParser";
 import { parseQuickBooks } from "../parsers/quickBooksParser";
 import { parseBankCsv } from "../parsers/bankParser";
 
-import { runMatcher } from "../matching/runMatcher.js";
+import { runMatcher } from "../matching/runMatcher";
 
 import { validateImport } from "../validators/importValidator";
 import { validateTotals } from "../validators/accountingValidator";
@@ -320,11 +320,18 @@ async function main() {
             )
     );
 
+    const normalizePair = (pairStr: string) => {
+        const [banks, books] = pairStr.split(":");
+        const sortedBanks = (banks || "").split(/[;,]/).map(x => x.trim()).filter(Boolean).sort().join(";");
+        const sortedBooks = (books || "").split(/[;,]/).map(x => x.trim()).filter(Boolean).sort().join(";");
+        return `${sortedBanks}:${sortedBooks}`;
+    };
+
     const expectedSet =
         new Set(
             expectedMatches.map(
                 (m) =>
-                    `${m.bank_transaction_ids}:${m.book_transaction_ids}`
+                    normalizePair(`${m.bank_transaction_ids}:${m.book_transaction_ids}`)
             )
         );
 
@@ -332,7 +339,7 @@ async function main() {
         generatedMatches.filter(
             (match) =>
                 !expectedSet.has(
-                    `${match.bankTransactionIds.join(",")}:${match.bookTransactionIds.join(",")}`
+                    normalizePair(`${match.bankTransactionIds.join(";")}:${match.bookTransactionIds.join(";")}`)
                 )
         );
 

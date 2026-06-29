@@ -1,12 +1,14 @@
 // npm install @tanstack/react-virtual
 "use client";
 
+"use no memo";
+
 import React, { useState, useMemo, useCallback, useRef, useEffect, KeyboardEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { MatchData as MatchRowType } from "@/types/match";
 import { CheckCircle2 } from "lucide-react";
 
-type FilterType = "all" | "pending" | "approved" | "rejected" | "exceptions";
+type FilterType = "all" | "pending" | "approved" | "rejected" | "exceptions" | "exact_match";
 
 interface VirtualMatchTableProps {
   matches: MatchRowType[];
@@ -41,13 +43,15 @@ const truncate = (str: string, len: number) => {
 const MatchRowView = React.memo(({ 
   match, 
   index, 
-  style, 
+  size,
+  start,
   isFocused, 
   onClick 
 }: { 
   match: MatchRowType; 
   index: number; 
-  style: React.CSSProperties; 
+  size: number;
+  start: number;
   isFocused: boolean;
   onClick: (id: string) => void 
 }) => {
@@ -55,7 +59,12 @@ const MatchRowView = React.memo(({
     onClick(match.id);
   }, [match.id, onClick]);
 
-  const scorePct = Math.round(match.confidenceScore * 100);
+  const scorePct =
+    match.status === "approved" && match.matchType !== "none"
+      ? 100
+      : match.confidenceScore != null
+      ? Math.round(match.confidenceScore * 100)
+      : 0;
   let colorClass = "bg-red-500";
   let badgeColor = "bg-red-100 text-red-700";
   if (match.confidenceScore >= 0.95) {
@@ -75,7 +84,10 @@ const MatchRowView = React.memo(({
 
   return (
     <div
-      style={style}
+      style={{
+        height: `${size}px`,
+        transform: `translateY(${start}px)`,
+      }}
       className={`absolute top-0 left-0 w-full flex items-center border-b border-slate-100 cursor-pointer overflow-hidden border-l-4 pr-4 transition-colors ${leftBorderClass} ${isFocused ? "bg-slate-100 outline-none" : "hover:bg-slate-50 bg-white"}`}
       onClick={handleItemClick}
     >
@@ -88,7 +100,7 @@ const MatchRowView = React.memo(({
         <div className="flex items-center gap-2 text-xs text-slate-400 truncate whitespace-nowrap leading-tight mt-0.5">
           <span>{formatDate(match.bankRow.date)}</span>
           <span>•</span>
-          <span>{match.bankRow.reference}</span>
+          <span>{match.bankRow.referenceId || "—"}</span>
         </div>
       </div>
 
@@ -107,13 +119,35 @@ const MatchRowView = React.memo(({
                 {scorePct}%
               </span>
               <span className={`px-1.5 py-[1px] rounded text-[9px] font-bold uppercase tracking-wider ${badgeColor}`}>
-                {match.matchType}
+                {match.discrepancyType && match.discrepancyType !== "NONE"
+                  ? match.discrepancyType.replace(/_/g, " ")
+                  : match.matchOutcome
+                  ? match.matchOutcome.replace(/_/g, " ")
+                  : match.matchType}
+              </span>
+            </div>
+            <div className="flex items-center justify-center mt-0.5">
+              <span
+                className={`px-1.5 py-[1px] rounded text-[9px] font-bold tracking-wider ${
+                  match.riskScore >= 70
+                    ? "bg-red-100 text-red-700"
+                    : match.riskScore >= 35
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-green-100 text-green-700"
+                }`}
+                title={`Risk score: ${match.riskScore}/100`}
+              >
+                Risk {match.riskScore}
               </span>
             </div>
           </>
         ) : (
           <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
-            No Match
+            {match.discrepancyType && match.discrepancyType !== "NONE"
+              ? match.discrepancyType.replace(/_/g, " ")
+              : match.matchOutcome
+              ? match.matchOutcome.replace(/_/g, " ")
+              : "No Match"}
           </span>
         )}
       </div>
@@ -121,11 +155,13 @@ const MatchRowView = React.memo(({
       {/* Ledger Side */}
       <div className="flex-1 flex flex-col justify-center items-end px-4 overflow-hidden h-full py-1 text-right">
         {match.matchType === "none" ? (
-          <span className="text-slate-400 italic text-sm">— No match</span>
-        ) : match.matchType === "bulk" && match.ledgerRows ? (
+          <span className="text-slate-400 italic text-sm">
+            {match.status === "approved" ? "— Exception (Approved)" : "— No match"}
+          </span>
+        ) : match.ledgerRows && match.ledgerRows.length > 1 ? (
           <>
             <div className="flex items-center gap-2 truncate whitespace-nowrap justify-end">
-              <span className="text-slate-700 font-medium">Bulk ({match.ledgerRows.length} items)</span>
+              <span className="text-slate-700 font-medium">Multiple ({match.ledgerRows.length} items)</span>
               <span className="font-bold text-slate-900">
                 {formatINR(match.ledgerRows.reduce((s, r) => s + r.amount, 0))}
               </span>
@@ -173,6 +209,7 @@ export function VirtualMatchTable({
     return matches.filter((m) => {
       if (activeFilter === "all") return true;
       if (activeFilter === "exceptions") return m.matchType === "none";
+      if (activeFilter === "exact_match") return m.matchType === "exact";
       return m.status === activeFilter; // covers pending, approved, rejected
     });
   }, [matches, activeFilter]);
@@ -184,6 +221,7 @@ export function VirtualMatchTable({
       approved: matches.filter((m) => m.status === "approved").length,
       rejected: matches.filter((m) => m.status === "rejected").length,
       exceptions: matches.filter((m) => m.matchType === "none").length,
+      exact_match: matches.filter((m) => m.matchType === "exact").length,
     };
   }, [matches]);
 
@@ -236,6 +274,7 @@ export function VirtualMatchTable({
   const filters: { key: FilterType; label: string }[] = [
     { key: "all", label: "All" },
     { key: "pending", label: "Pending" },
+    { key: "exact_match", label: "Exact Match" },
     { key: "approved", label: "Approved" },
     { key: "rejected", label: "Rejected" },
     { key: "exceptions", label: "Exceptions" },
@@ -320,10 +359,8 @@ export function VirtualMatchTable({
                   key={virtualRow.key}
                   index={virtualRow.index}
                   match={match}
-                  style={{
-                    height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
+                  size={virtualRow.size}
+                  start={virtualRow.start}
                   isFocused={focusedIndex === virtualRow.index}
                   onClick={handleRowClickCall}
                 />

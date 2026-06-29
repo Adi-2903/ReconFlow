@@ -37,6 +37,15 @@ export async function parseBankCsv(
                             row.amount
                         ),
 
+                    amountMinor:
+                        BigInt(
+                            Math.round(
+                                Number(
+                                    row.amount
+                                ) * 100
+                            )
+                        ),
+
                     direction:
                         row.direction
                             .toLowerCase(),

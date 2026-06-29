@@ -1,11 +1,13 @@
 import { db } from "@/core/db";
-import { matches, bankTransactions } from "@/core/db/schema";
+import { matches, canonicalTransactions } from "@/core/db/schema";
 import { eq, and, or, sql, desc } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface ExceptionItem {
   id: string;
+  bankTransactionId: string;
+  ledgerEntryIds: string[];
   amount: number;
   date: string;
   source: string;
@@ -40,17 +42,19 @@ export async function listExceptions(userId: string): Promise<ExceptionsResult> 
   const exceptionsData = await db
     .select({
       id: matches.id,
-      amount: bankTransactions.amount,
-      date: bankTransactions.date,
-      referenceId: bankTransactions.referenceId,
-      source: bankTransactions.source,
+      bankTransactionId: matches.bankTransactionId,
+      ledgerEntryIds: matches.ledgerEntryIds,
+      amountMinor: canonicalTransactions.amountMinor,
+      date: canonicalTransactions.transactionDate,
+      referenceId: canonicalTransactions.referenceNumber,
+      metadata: canonicalTransactions.metadata,
       reasonText: matches.reasonText,
       evidence: matches.evidence,
       status: matches.status,
       createdAt: matches.createdAt,
     })
     .from(matches)
-    .innerJoin(bankTransactions, eq(matches.bankTransactionId, bankTransactions.id))
+    .innerJoin(canonicalTransactions, eq(matches.bankTransactionId, canonicalTransactions.id))
     .where(
       and(
         eq(matches.userId, userId),
@@ -62,7 +66,7 @@ export async function listExceptions(userId: string): Promise<ExceptionsResult> 
         or(eq(matches.status, "pending"), eq(matches.status, "rejected"))
       )
     )
-    .orderBy(desc(bankTransactions.amount));
+    .orderBy(desc(canonicalTransactions.amountMinor));
 
   const formatted: ExceptionItem[] = exceptionsData.map((exc) => {
     const evidence = (exc.evidence as any) || {};
@@ -74,14 +78,18 @@ export async function listExceptions(userId: string): Promise<ExceptionsResult> 
       reasonTag = REASON_MAP[evidence.likelyReason] || reasonTag;
     }
 
+    const metadata = (exc.metadata as any) || {};
+
     return {
       id: exc.id,
-      amount: Math.round(Number(exc.amount) * 100),
+      bankTransactionId: exc.bankTransactionId || "",
+      ledgerEntryIds: exc.ledgerEntryIds || [],
+      amount: Number(exc.amountMinor),
       date: new Date(exc.date).toLocaleDateString("en-IN", {
         month: "short",
         day: "numeric",
       }),
-      source: exc.source || "Bank",
+      source: metadata.source || "Bank",
       reference: exc.referenceId || "N/A",
       reasonTag,
       reasonText: exc.reasonText || "Manual review required.",

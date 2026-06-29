@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/core/db";
-import { users } from "@/core/db/schema";
-import { eq } from "drizzle-orm";
+import { connectors } from "@/core/db/schema";
+import { eq, and } from "drizzle-orm";
+import { getOrCreateUserOrganization, getOrCreateFinancialAccount } from "@/core/db/org-helper";
 import OAuthClient from "intuit-oauth";
 
 export async function GET(req: NextRequest) {
@@ -29,16 +30,42 @@ export async function GET(req: NextRequest) {
     // Calculate expiry
     const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
 
-    // Save tokens securely in the database
-    await db
-      .update(users)
-      .set({
-        qboAccessToken: tokenData.access_token,
-        qboRefreshToken: tokenData.refresh_token,
-        qboRealmId: realmId,
-        qboTokenExpiresAt: expiresAt,
-      })
-      .where(eq(users.id, userId));
+    // Resolve tenant and account context
+    const orgId = await getOrCreateUserOrganization(userId);
+    const accountId = await getOrCreateFinancialAccount(orgId, "quickbooks", "QuickBooks Ledger");
+
+    // Save tokens securely in the connectors table
+    const [existing] = await db
+      .select()
+      .from(connectors)
+      .where(and(eq(connectors.organizationId, orgId), eq(connectors.accountId, accountId)))
+      .limit(1);
+
+    if (existing) {
+      await db
+        .update(connectors)
+        .set({
+          accessToken: tokenData.access_token,
+          refreshToken: tokenData.refresh_token,
+          tokenExpiresAt: expiresAt,
+          status: "connected",
+          settings: { qboRealmId: realmId },
+        })
+        .where(eq(connectors.id, existing.id));
+    } else {
+      await db
+        .insert(connectors)
+        .values({
+          organizationId: orgId,
+          accountId: accountId,
+          connectorType: "quickbooks",
+          accessToken: tokenData.access_token,
+          refreshToken: tokenData.refresh_token,
+          tokenExpiresAt: expiresAt,
+          status: "connected",
+          settings: { qboRealmId: realmId },
+        });
+    }
 
     // Redirect the user back to the connect page with a success parameter
     return NextResponse.redirect(new URL("/connect?qbo_connected=true", req.url));

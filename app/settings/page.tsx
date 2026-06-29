@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { signOut, useSession } from "next-auth/react";
+import { api } from "@/lib/api-client";
 
 type Section = "General" | "Reconciliation Rules" | "Notifications" | "Team" | "Danger Zone";
 
@@ -64,9 +65,9 @@ export default function SettingsPage() {
 
   const handleResetData = async () => {
     try {
-      const res = await fetch("/api/settings/reset", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to reset data");
+      await api.settings.reset();
       toast.success("Data reset successfully");
+      window.location.href = "/dashboard";
     } catch (error) {
       console.error(error);
       toast.error("Error resetting data");
@@ -78,8 +79,7 @@ export default function SettingsPage() {
 
   const handleDeleteAccount = async () => {
     try {
-      const res = await fetch("/api/settings/delete-account", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to delete account");
+      await api.settings.deleteAccount();
       toast.success("Account deleted successfully");
       signOut({ callbackUrl: "/login" });
     } catch (error) {
@@ -337,8 +337,8 @@ export default function SettingsPage() {
             <div className="space-y-6 animate-in fade-in">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold tracking-tight">Team</h2>
+                <Button size="sm" onClick={() => setInviteOpen(true)} className="bg-slate-900 text-white hover:bg-slate-800">Invite team member</Button>
                 <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-                  <DialogTrigger render={<Button size="sm" className="bg-slate-900 text-white hover:bg-slate-800">Invite team member</Button>} />
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Invite external team member</DialogTitle>
@@ -389,10 +389,10 @@ export default function SettingsPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     <tr className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-medium text-slate-900">John Doe</td>
-                      <td className="px-4 py-3 text-slate-500">john@acme.com</td>
+                      <td className="px-4 py-3 font-medium text-slate-900">{session?.user?.name || "John Doe"}</td>
+                      <td className="px-4 py-3 text-slate-500">{session?.user?.email || "john@acme.com"}</td>
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">Admin</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">Admin (You)</span>
                       </td>
                       <td className="px-4 py-3 text-right"></td>
                     </tr>
@@ -435,8 +435,8 @@ export default function SettingsPage() {
                       Delete all matches and run history. Bank transactions and ledger entries will remain intact.
                     </p>
                   </div>
+                  <Button variant="outline" onClick={() => setResetOpen(true)} className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 shrink-0">Reset data</Button>
                   <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-                    <DialogTrigger render={<Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 shrink-0">Reset data</Button>} />
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Reset reconciliation data?</DialogTitle>
@@ -468,8 +468,8 @@ export default function SettingsPage() {
                       Permanently delete your account and all associated data. This action cannot be undone.
                     </p>
                   </div>
+                  <Button variant="outline" onClick={() => setDeleteOpen(true)} className="border-red-600 text-red-600 hover:bg-red-50 hover:text-red-700 shrink-0">Delete account</Button>
                   <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-                    <DialogTrigger render={<Button variant="outline" className="border-red-600 text-red-600 hover:bg-red-50 hover:text-red-700 shrink-0">Delete account</Button>} />
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Deactivate and delete account?</DialogTitle>

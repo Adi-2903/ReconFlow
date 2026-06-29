@@ -25,7 +25,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               // Create user if not exists (e.g., Google first sign-in)
               const newUser = await db.insert(users).values({
                 email: user.email,
-                companyName: user.name || "My Company"
+                name: user.name || "My Company"
               }).returning();
               token.userId = newUser[0].id;
             }

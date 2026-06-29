@@ -1,0 +1,9 @@
+balance_transaction_id,type,source,amount,fee,net,currency,created_utc,available_on_utc,description,customer_email,reporting_category
+txn_ch_3Pjk88aQ001,charge,ch_3Pjk88aQ001,45000.00,1330.00,43670.00,inr,2026-01-10T09:14:22Z,2026-01-12T00:00:00Z,Payment for INV-2020 via Stripe Checkout,billing@vantagelogistics.example,charge
+txn_ch_3Pjk88aQ002,charge,ch_3Pjk88aQ002,38000.00,1127.00,36873.00,inr,2026-01-10T09:14:22Z,2026-01-12T00:00:00Z,Payment for INV-2021 via Stripe Checkout,billing@vantagelogistics.example,charge
+txn_ch_3Pjk88aQ003,charge,ch_3Pjk88aQ003,52000.00,1533.00,50467.00,inr,2026-01-10T09:14:22Z,2026-01-12T00:00:00Z,Payment for INV-2022 via Stripe Checkout,billing@vantagelogistics.example,charge
+txn_ch_3Pjk88aQ004,charge,ch_3Pjk88aQ004,29500.00,880.50,28619.50,inr,2026-01-10T09:14:22Z,2026-01-12T00:00:00Z,Payment for INV-2023 via Stripe Checkout,billing@vantagelogistics.example,charge
+txn_po_1Pjk29,payout,po_1Pjk29,-159629.50,0.00,-159629.50,inr,2026-01-14T03:00:00Z,2026-01-14T03:00:00Z,STRIPE PAYOUT po_1Pjk29 to bank account ****5678,,payout
+txn_ch_3Pjk88,charge,ch_3Pjk88,62000.00,1823.00,60177.00,inr,2026-01-15T11:40:05Z,2026-01-17T00:00:00Z,Payment for INV-2061 via Stripe Checkout,accounts@meridianapps.example,charge
+txn_re_9921,refund,re_9921,-8500.00,0.00,-8500.00,inr,2026-01-19T16:02:11Z,2026-01-19T16:02:11Z,Refund for order #4471 - customer requested cancellation,shopper@coralbay.example,refund
+txn_dp_1140,dispute,dp_1140,-22000.00,1500.00,-23500.00,inr,2026-01-22T08:11:00Z,2026-01-29T00:00:00Z,"Chargeback - card not present dispute, INV-2071 related order",disputed@unknown.example,dispute

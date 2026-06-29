@@ -1,11 +1,33 @@
 import { differenceInDays } from "date-fns";
+import { classifyMatch, ClassificationResult } from "./classifier";
+import { isStripePayoutTransaction, hasReferenceConflict, getConfidenceBand, isDigitTransposition } from "./matchingHelpers";
+import { matchesProcessorFee, matchesProcessorFeeForCombo } from "./feeFormulas";
+import { computeRiskScore } from "./riskEngine";
+import {
+  generateCandidates,
+  directionMatches,
+  getEffectiveAmountMinor,
+  nameMatches,
+  normalizeReference,
+  referenceMatches,
+  transactionTextSimilarity,
+  type CandidateResult,
+} from "./candidateGenerator";
+
 
 export interface BankTransaction {
   id: string;
-  amount: number; // in paise (integer, no decimals)
+  amount: number; // in paise
   date: Date;
   description: string;
   referenceId: string;
+  direction?: "inflow" | "outflow" | "credit" | "debit";
+  currency?: string;
+  baseCurrency?: string;
+  convertedAmountMinor?: number;
+  fxStatus?: string;
+  counterparty?: string;
+  matchingSignals?: any;
 }
 
 export interface LedgerEntry {
@@ -14,76 +36,59 @@ export interface LedgerEntry {
   date: Date;
   memo: string;
   invoiceRef: string;
+  direction?: "inflow" | "outflow" | "credit" | "debit";
+  currency?: string;
+  baseCurrency?: string;
+  convertedAmountMinor?: number;
+  fxStatus?: string;
+  counterparty?: string;
+  matchingSignals?: any;
+}
+
+export type MatchType =
+  | "exact"
+  | "utr_exact"
+  | "tolerance"
+  | "fuzzy"
+  | "fee_adjustment"
+  | "one_to_many"
+  | "many_to_one"
+  | "bulk"
+  | "partial_payment"
+  | "fx_difference"
+  | "unmatched_ledger"
+  | "none";
+
+export interface CandidateReason {
+  reason: string;
+  points: number;
 }
 
 export interface MatchResult {
-  bankTransactionId: string;
-  ledgerEntryIds: string[]; // array supports bulk matches
-  confidenceScore: number;  // 0.0 to 1.0, 2 decimal places max
-  matchType: "exact" | "fuzzy" | "bulk" | "none";
+  bankTransactionIds: string[];
+  ledgerEntryIds: string[];
+  confidenceScore: number;  // 0.0 to 1.0
+  score: number;            // raw score
+  confidenceBand: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW" | "NONE";
+  matchType: MatchType;
+  reasons?: CandidateReason[];
   scoringBreakdown: {
     amountScore: number;
     dateScore: number;
     textScore: number;
   };
+  classification: ClassificationResult;
+  riskScore: number; // 0 – 100 integer (Phase 8)
 }
 
-// ── Scoring functions ─────────────────────────────────────────────────────────
+// ── Scoring and Helper Functions ──────────────────────────────────────────────
 
-export function scoreAmount(bankAmount: number, ledgerAmount: number): number {
-  if (bankAmount === ledgerAmount) return 1.0;
 
-  const diff = Math.abs(bankAmount - ledgerAmount);
-  const larger = Math.max(bankAmount, ledgerAmount);
 
-  // Hard reject: difference exceeds 20% of the larger amount
-  if (diff / larger > 0.20) return 0;
-
-  // Smooth exponential decay
-  // At diff=0        → 1.0
-  // At diff=₹500     → ~0.78
-  // At diff=₹1,000   → ~0.61
-  // At diff=₹2,000   → ~0.37
-  return Math.exp(-diff / 120_000); // 120_000 paise = ₹1200 decay constant
-}
-
-export function scoreDate(bankDate: Date, ledgerDate: Date): number {
-  const diffDays = Math.abs(differenceInDays(bankDate, ledgerDate));
-  if (diffDays === 0) return 1.0;
-  if (diffDays === 1) return 0.85;
-  if (diffDays === 2) return 0.70;
-  if (diffDays === 3) return 0.55;
-  return 0; // More than 3 days → no contribution
-}
-
-export function scoreText(bankDesc: string, ledgerRef: string): number {
-  const normalize = (s: string) =>
-    s.toLowerCase().split(/\W+/).filter((token) => token.length > 2);
-
-  const bankTokens = new Set(normalize(bankDesc));
-  const ledgerTokens = new Set(normalize(ledgerRef));
-
-  // Strong signal: shared numeric sequence (invoice/reference number match)
-  const bankNums = new Set((bankDesc.match(/\d{4,}/g) || []));
-  const ledgerNums = new Set((ledgerRef.match(/\d{4,}/g) || []));
-  const numericOverlap = [...bankNums].some((n) => ledgerNums.has(n));
-  if (numericOverlap) return 0.92;
-
-  // Jaccard similarity on word tokens
-  const intersection = new Set([...bankTokens].filter((t) => ledgerTokens.has(t)));
-  const union = new Set([...bankTokens, ...ledgerTokens]);
-
-  if (union.size === 0) return 0.10; // Both empty → low but not zero
-
-  return Math.round((intersection.size / union.size) * 100) / 100;
-}
-
-// ── Utility ───────────────────────────────────────────────────────────────────
-
-const getCombinations = <T>(arr: T[], maxSize: number): T[][] => {
+function getCombinations<T>(arr: T[], minSize: number, maxSize: number): T[][] {
   const result: T[][] = [];
   const f = (start: number, combo: T[]) => {
-    if (combo.length >= 2 && combo.length <= maxSize) {
+    if (combo.length >= minSize && combo.length <= maxSize) {
       result.push([...combo]);
     }
     if (combo.length >= maxSize) return;
@@ -95,200 +100,859 @@ const getCombinations = <T>(arr: T[], maxSize: number): T[][] => {
   };
   f(0, []);
   return result;
-};
+}
 
-// ── Main engine ───────────────────────────────────────────────────────────────
+
+
+// candidateGenerator.ts owns all candidate scoring / ranking logic.
+// Re-exported here for backwards compatibility with any imports that
+// previously pointed at engine.ts.
+export { generateCandidates } from "./candidateGenerator";
+
+// ── State Representation ───────────────────────────────────────────────────────
+
+interface TransactionState<T> {
+  id: string;
+  txn: T;
+  status: "UNMATCHED" | "PARTIALLY_MATCHED" | "MATCHED";
+  matchedAmountMinor: number;
+  remainingAmountMinor: number;
+}
+
+
+// ── Main Matching Engine ────────────────────────────────────────────────────────
+//
+// Pipeline pass order:
+//   Pass 0 — UTR Deterministic Match   (utr_exact)
+//   Pass 1 — Exact Match               (exact)
+//   Pass 2 — Subset Match 2A+2B        (one_to_many / many_to_one)
+//   Pass 3 — Processor Fee Match       (fee_adjustment, incl. TDS)
+//   Pass 4 — Partial / Overpayment     (partial_payment)
+//   Pass 5 — Tolerance / FX            (tolerance / fx_difference)
+//   Pass 6 — Unmatched Bank + Ledger   (none / unmatched_ledger)
+//
+// Subset (Pass 2) runs before Fee (Pass 3) so that deterministic sum-based
+// combinations are evaluated before approximate fee-ratio approximations.
+// This prevents a fee match from consuming a transaction that belongs to a
+// more accurate multi-ledger reconciliation.
 
 export function matchTransactions(
   banks: BankTransaction[],
   ledgers: LedgerEntry[]
 ): MatchResult[] {
-  const results: MatchResult[] = [];
-  const claimedBankIds = new Set<string>();
-  const claimedLedgerIds = new Set<string>();
+  // console.log(`[DEBUG engine.ts] matchTransactions called with ${banks.length} banks and ${ledgers.length} ledgers`);
+  const results: (Omit<MatchResult, "classification"> & { classification?: ClassificationResult })[] = [];
 
-  // ── Pass 1: Exact match ───────────────────────────────────────────────────
-  // Finds the BEST exact candidate (not just the first), so duplicate-amount
-  // invoices are disambiguated by text similarity.
-  for (const bank of banks) {
-    if (claimedBankIds.has(bank.id)) continue;
+  // State initialization
+  const bankStates = new Map<string, TransactionState<BankTransaction>>();
+  for (const b of banks) {
+    const amt = getEffectiveAmountMinor(b);
+    bankStates.set(b.id, {
+      id: b.id,
+      txn: b,
+      status: "UNMATCHED",
+      matchedAmountMinor: 0,
+      remainingAmountMinor: amt
+    });
+  }
 
-    const combinedBankDesc = `${bank.description} ${bank.referenceId}`;
+  const bookStates = new Map<string, TransactionState<LedgerEntry>>();
+  for (const b of ledgers) {
+    const amt = getEffectiveAmountMinor(b);
+    bookStates.set(b.id, {
+      id: b.id,
+      txn: b,
+      status: "UNMATCHED",
+      matchedAmountMinor: 0,
+      remainingAmountMinor: amt
+    });
+  }
 
-    let bestLedgerId: string | null = null;
-    let bestTextScore = -1;
-    let bestDateScore = 0;
+  const getAvailableBooks = () =>
+    Array.from(bookStates.values())
+      .filter((state) => state.status !== "MATCHED")
+      .map((state) => state.txn);
 
-    for (const ledger of ledgers) {
-      if (claimedLedgerIds.has(ledger.id)) continue;
+  // ==========================================
+  // PASS 0: UTR DETERMINISTIC MATCH
+  // ==========================================
+  // UTR (Unique Transaction Reference) is mandated by RBI as a universally
+  // unique identifier across NEFT and RTGS transactions in India.
+  // A UTR match is treated as ground-truth regardless of settlement date lag.
+  //
+  // Amount tolerance: max(500 paise, 0.1% of the larger amount).
+  // Purpose: guard against corrupt data only — the UTR itself is authoritative.
+  // No date gate is applied.
+  for (const bankState of bankStates.values()) {
+    if (bankState.status === "MATCHED") continue;
 
-      const sAmt = scoreAmount(bank.amount, ledger.amount);
-      const sDate = scoreDate(bank.date, ledger.date);
+    const bankTxn = bankState.txn;
+    const bankUtr: string | undefined = bankTxn.matchingSignals?.utr;
+    if (!bankUtr) continue; // no UTR on this bank transaction
 
-      // Exact pass: amount must be identical, date within 1 day
-      if (sAmt !== 1.0 || sDate < 0.85) continue;
+    const bankEffective = getEffectiveAmountMinor(bankTxn);
 
-      const combinedLedgerRef = `${ledger.memo} ${ledger.invoiceRef}`;
-      const sText = scoreText(combinedBankDesc, combinedLedgerRef);
+    let utrBookState: TransactionState<LedgerEntry> | null = null;
 
-      // FIX: pick the candidate with the highest text score, not just the first
-      if (sText > bestTextScore) {
-        bestTextScore = sText;
-        bestDateScore = sDate;
-        bestLedgerId = ledger.id;
-      }
+    for (const bookState of bookStates.values()) {
+      if (bookState.status === "MATCHED") continue;
+      const bookUtr: string | undefined = bookState.txn.matchingSignals?.utr;
+      if (!bookUtr || bookUtr !== bankUtr) continue;
+      if (!directionMatches(bankTxn, bookState.txn)) continue;
+
+      // Amount guard: catches corrupt UTR data (collision with very different amounts).
+      // Not a business-logic gate — the UTR is the authoritative identifier.
+      const bookEffective = getEffectiveAmountMinor(bookState.txn);
+      const amtDiff = Math.abs(bankEffective - bookEffective);
+      const amtTolerance = Math.max(500, Math.round(Math.max(bankEffective, bookEffective) * 0.001));
+      if (amtDiff > amtTolerance) continue;
+
+      utrBookState = bookState;
+      break; // UTR is unique; first match is the only valid match
     }
 
-    if (bestLedgerId) {
+    if (utrBookState) {
+      bankState.status = "MATCHED";
+      bankState.matchedAmountMinor = bankState.remainingAmountMinor;
+      bankState.remainingAmountMinor = 0;
+
+      utrBookState.status = "MATCHED";
+      utrBookState.matchedAmountMinor = utrBookState.remainingAmountMinor;
+      utrBookState.remainingAmountMinor = 0;
+
+      // Score of 200 guarantees VERY_HIGH band (threshold: 150).
+      const utrScore = 200;
       results.push({
-        bankTransactionId: bank.id,
-        ledgerEntryIds: [bestLedgerId],
-        confidenceScore: 1.0,
-        matchType: "exact",
+        bankTransactionIds: [bankTxn.id],
+        ledgerEntryIds: [utrBookState.id],
+        confidenceScore: parseFloat((Math.min(100, utrScore) / 100).toFixed(2)),
+        score: utrScore,
+        confidenceBand: getConfidenceBand(utrScore),
+        matchType: "utr_exact",
+        reasons: [{ reason: "utr_deterministic_match", points: utrScore }],
         scoringBreakdown: {
           amountScore: 1.0,
-          dateScore: bestDateScore,
-          textScore: bestTextScore,
+          dateScore: 1.0,
+          textScore: 1.0
         },
+        riskScore: 0
       });
-      claimedBankIds.add(bank.id);
-      claimedLedgerIds.add(bestLedgerId);
     }
   }
 
-  // ── Pass 2: Bulk match (subset-sum) ──────────────────────────────────────
-  for (const bank of banks) {
-    if (claimedBankIds.has(bank.id)) continue;
+  // ==========================================
+  // PASS 1: EXACT MATCH (Layer 6A)
+  // ==========================================
+  for (const bankState of bankStates.values()) {
+    if (bankState.status === "MATCHED") continue;
 
-    // Candidate ledgers: unclaimed and within a 5-day window of the bank date
-    const candidateLedgers = ledgers.filter(
-      (l) =>
-        !claimedLedgerIds.has(l.id) &&
-        Math.abs(differenceInDays(bank.date, l.date)) <= 5
-    );
+    const bankTxn = bankState.txn;
+    const availableBooks = getAvailableBooks();
+    console.log(`[DEBUG engine.ts] Pass 1 inputs: bankTxn=${JSON.stringify(bankTxn, null, 2)}`);
+    console.log(`[DEBUG engine.ts] Pass 1 inputs: book[0]=${JSON.stringify(availableBooks[0], null, 2)}`);
+    const candidates = generateCandidates(bankTxn, availableBooks);
+    console.log(`[DEBUG engine.ts] Pass 1 bank ${bankTxn.id}: found ${availableBooks.length} available books, generated ${candidates.length} candidates`);
+    const exactMatches: { candidate: CandidateResult; score: number }[] = [];
 
-    if (candidateLedgers.length < 2) continue;
+    for (const cand of candidates) {
+      const bookState = bookStates.get(cand.candidate.id)!;
+      if (bookState.status === "MATCHED") continue;
 
-    const combos = getCombinations(candidateLedgers, 4);
+      const bankAmt = bankState.remainingAmountMinor;
+      const bookAmt = bookState.remainingAmountMinor;
+      const dayDiff = Math.abs(differenceInDays(bankTxn.date, cand.candidate.date));
+      if (dayDiff > 1) continue;  // not exact — let it fall to fuzzy pass
+      const diffAmt = Math.abs(bankAmt - bookAmt);
+      const currenciesDiffer = bankTxn.currency && cand.candidate.currency && bankTxn.currency !== cand.candidate.currency;
+      console.log(`[DEBUG Pass 1] Evaluating cand ${cand.candidate.id}: dayDiff=${dayDiff}, diffAmt=${diffAmt}, currenciesDiffer=${currenciesDiffer}`);
 
-    let bestCombo: LedgerEntry[] | null = null;
-    let bestConfidence = 0;
-    let bestBreakdown = { amountScore: 0, dateScore: 0, textScore: 0 };
-
-    const combinedBankDesc = `${bank.description} ${bank.referenceId}`;
-
-    for (const combo of combos) {
-      const sumAmount = combo.reduce((s, l) => s + l.amount, 0);
-      const sAmt = scoreAmount(bank.amount, sumAmount);
-      if (sAmt === 0) continue; // Outside 20% tolerance → skip immediately
-
-      const sDate =
-        combo.reduce((acc, l) => acc + scoreDate(bank.date, l.date), 0) /
-        combo.length;
-
-      const sText =
-        combo.reduce(
-          (acc, l) =>
-            acc + scoreText(combinedBankDesc, `${l.memo} ${l.invoiceRef}`),
-          0
-        ) / combo.length;
-
-      const confidence = sAmt * 0.5 + sDate * 0.3 + sText * 0.2;
-
-      if (confidence > bestConfidence) {
-        bestConfidence = confidence;
-        bestCombo = combo;
-        bestBreakdown = { amountScore: sAmt, dateScore: sDate, textScore: sText };
+      if (!currenciesDiffer && diffAmt <= 100) {
+        const finalScore = cand.score + 50;
+        exactMatches.push({ candidate: cand, score: finalScore });
       }
     }
 
-    if (bestCombo) {
-      results.push({
-        bankTransactionId: bank.id,
-        ledgerEntryIds: bestCombo.map((c) => c.id),
-        confidenceScore: parseFloat(bestConfidence.toFixed(2)),
-        matchType: "bulk",
-        scoringBreakdown: bestBreakdown,
+    if (exactMatches.length > 0) {
+      exactMatches.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        const dateDiffA = Math.abs(differenceInDays(bankTxn.date, a.candidate.candidate.date));
+        const dateDiffB = Math.abs(differenceInDays(bankTxn.date, b.candidate.candidate.date));
+        if (dateDiffA !== dateDiffB) return dateDiffA - dateDiffB;
+        const refA = a.candidate.candidate.invoiceRef || "";
+        const refB = b.candidate.candidate.invoiceRef || "";
+        if (refA !== refB) return refA.localeCompare(refB);
+        return a.candidate.candidate.id.localeCompare(b.candidate.candidate.id);
       });
-      claimedBankIds.add(bank.id);
-      bestCombo.forEach((c) => claimedLedgerIds.add(c.id));
+
+      const best = exactMatches[0].candidate;
+      const bookState = bookStates.get(best.candidate.id)!;
+
+      bankState.status = "MATCHED";
+      bankState.matchedAmountMinor = bankState.remainingAmountMinor;
+      bankState.remainingAmountMinor = 0;
+
+      bookState.status = "MATCHED";
+      bookState.matchedAmountMinor = bookState.remainingAmountMinor;
+      bookState.remainingAmountMinor = 0;
+
+      const baseReasons = best.reasons.map((r) => ({ ...r }));
+      baseReasons.push({ reason: "exact_match_validated", points: 50 });
+      const finalScore = exactMatches[0].score;
+
+      results.push({
+        bankTransactionIds: [bankTxn.id],
+        ledgerEntryIds: [best.candidate.id],
+        confidenceScore: parseFloat((Math.min(100, finalScore) / 100).toFixed(2)),
+        score: finalScore,
+        confidenceBand: getConfidenceBand(finalScore),
+        matchType: "exact",
+        reasons: baseReasons,
+        scoringBreakdown: {
+          amountScore: 1.0,
+          dateScore: 1.0,
+          textScore: 1.0
+        },
+        riskScore: 0
+      });
     }
   }
 
-  // ── Pass 3: Fuzzy match ───────────────────────────────────────────────────
-  for (const bank of banks) {
-    if (claimedBankIds.has(bank.id)) continue;
+  // ==========================================
+  // PASS 2: SUBSET MATCH (Layer 6C)
+  // ==========================================
+  // Subset matching runs BEFORE fee matching (Issue 4).
+  // Deterministic sum-based combinations are more reliable than fee approximations.
+  // Evaluating subsets first prevents a fee-ratio match from consuming a transaction
+  // that belongs to a precise many-ledger reconciliation.
 
-    const combinedBankDesc = `${bank.description} ${bank.referenceId}`;
+  // Pass 2A: One-to-Many
+  for (const bankState of bankStates.values()) {
+    if (bankState.status === "MATCHED") continue;
 
-    let bestLedgerId: string | null = null;
-    let bestConfidence = 0;
-    let bestBreakdown = { amountScore: 0, dateScore: 0, textScore: 0 };
+    const bankTxn = bankState.txn;
+    const bankAmt = bankState.remainingAmountMinor;
 
-    for (const ledger of ledgers) {
-      if (claimedLedgerIds.has(ledger.id)) continue;
+    const bookCandidates = Array.from(bookStates.values())
+      .filter((bs) => {
+        if (bs.status === "MATCHED") return false;
+        const dayDiff = Math.abs(differenceInDays(bankTxn.date, bs.txn.date));
+        if (dayDiff > 5.0) return false;
+        if (!directionMatches(bankTxn, bs.txn)) return false;
 
-      const sAmt = scoreAmount(bank.amount, ledger.amount);
+        // Currency guard — always applies even for Stripe payouts
+        const currenciesDiffer = bankTxn.currency && bs.txn.currency
+          && bankTxn.currency !== bs.txn.currency;
+        const sharesBase = (bankTxn.baseCurrency || bankTxn.currency)
+          === (bs.txn.baseCurrency || bs.txn.currency);
+        if (currenciesDiffer && !sharesBase) return false;
 
-      // FIX: hard gate — if amounts are completely unrelated, skip.
-      // Prevents a transaction matching purely on date+text with no amount signal.
-      if (sAmt === 0) continue;
+        // Stripe escape hatch: bypass counterparty/ref gate only.
+        // Date, direction, and currency guards above still apply.
+        if (isStripePayoutTransaction(bankTxn)) return true;
 
-      const sDate = scoreDate(bank.date, ledger.date);
-      const combinedLedgerRef = `${ledger.memo} ${ledger.invoiceRef}`;
-      const sText = scoreText(combinedBankDesc, combinedLedgerRef);
+        // Standard counterparty/ref gate
+        return true;
+      });
 
-      const confidence = sAmt * 0.5 + sDate * 0.3 + sText * 0.2;
+    if (bookCandidates.length >= 2) {
+      bookCandidates.sort((a, b) => {
+        const dateDiffA = Math.abs(differenceInDays(bankTxn.date, a.txn.date));
+        const dateDiffB = Math.abs(differenceInDays(bankTxn.date, b.txn.date));
+        return dateDiffA - dateDiffB;
+      });
+      const topCandidates = bookCandidates.slice(0, 10);
 
-      // Minimum confidence threshold: 0.60
-      if (confidence >= 0.60 && confidence > bestConfidence) {
-        bestConfidence = confidence;
-        bestLedgerId = ledger.id;
-        bestBreakdown = { amountScore: sAmt, dateScore: sDate, textScore: sText };
+      const combos = getCombinations(topCandidates, 2, 4);
+      const validCombos: { combo: TransactionState<LedgerEntry>[]; score: number }[] = [];
+
+      for (const combo of combos) {
+        const sumAmt = combo.reduce((sum, bs) => sum + bs.remainingAmountMinor, 0);
+        const diff = Math.abs(sumAmt - bankAmt);
+        const isExactSum = diff <= 100;
+        const isFeeSum = matchesProcessorFeeForCombo(bankAmt, combo);
+
+        if (isExactSum || isFeeSum) {
+          const baseScores = combo.map((bs) => {
+            const candidatesResult = generateCandidates(bankTxn, [bs.txn], { skipAmountGate: true });
+            return candidatesResult.length > 0 ? candidatesResult[0].score : 50;
+          });
+          let score = Math.max(...baseScores) + 15;
+
+          const bankAmtBig = BigInt(getEffectiveAmountMinor(bankTxn));
+          const comboSum = combo.reduce((acc, l) =>
+            acc + BigInt(getEffectiveAmountMinor(l.txn)), 0n);
+          const diffBig = bankAmtBig > comboSum ? bankAmtBig - comboSum : comboSum - bankAmtBig;
+          const diffPct = Number(diffBig) / Number(bankAmtBig);
+
+          if (diffBig === 0n) {
+            score += 50;   // perfect sum → pushes into auto-approve (>=0.80)
+          } else if (diffPct < 0.03) {
+            score += 35;   // within 3% → covers Stripe fee deductions (~2.9%)
+            // lands in accountant review (0.50-0.79)
+          } else if (diffPct < 0.05) {
+            score += 20;   // within 5% → still a plausible bulk match
+          }
+
+          validCombos.push({ combo, score });
+        }
+      }
+
+      if (validCombos.length > 0) {
+        validCombos.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          const spreadA = Math.max(...a.combo.map((c) => c.txn.date.getTime())) - Math.min(...a.combo.map((c) => c.txn.date.getTime()));
+          const spreadB = Math.max(...b.combo.map((c) => c.txn.date.getTime())) - Math.min(...b.combo.map((c) => c.txn.date.getTime()));
+          if (spreadA !== spreadB) return spreadA - spreadB;
+          const idsA = a.combo.map((c) => c.id).sort().join(",");
+          const idsB = b.combo.map((c) => c.id).sort().join(",");
+          return idsA.localeCompare(idsB);
+        });
+
+        const bestCombo = validCombos[0].combo;
+
+        bankState.status = "MATCHED";
+        bankState.matchedAmountMinor = bankAmt;
+        bankState.remainingAmountMinor = 0;
+
+        for (const bs of bestCombo) {
+          bs.status = "MATCHED";
+          bs.matchedAmountMinor = bs.remainingAmountMinor;
+          bs.remainingAmountMinor = 0;
+        }
+
+        const finalScore = validCombos[0].score;
+        results.push({
+          bankTransactionIds: [bankTxn.id],
+          ledgerEntryIds: bestCombo.map((bs) => bs.id),
+          confidenceScore: parseFloat((Math.min(100, finalScore) / 100).toFixed(2)),
+          score: finalScore,
+          confidenceBand: getConfidenceBand(finalScore),
+          matchType: "one_to_many",
+          reasons: [{ reason: "subset_match_validated", points: 15 }],
+          scoringBreakdown: {
+            amountScore: 0.95,
+            dateScore: 0.90,
+            textScore: 0.85
+          },
+          riskScore: 0
+        });
+      }
+    }
+  }
+
+  // Pass 2B: Many-to-One
+  for (const bookState of bookStates.values()) {
+    if (bookState.status === "MATCHED") continue;
+
+    const bookTxn = bookState.txn;
+    const bookAmt = bookState.remainingAmountMinor;
+
+    const bankCandidates = Array.from(bankStates.values())
+      .filter((bs) => {
+        if (bs.status === "MATCHED") return false;
+        const dayDiff = Math.abs(differenceInDays(bookTxn.date, bs.txn.date));
+        if (dayDiff > 5.0) return false;
+        if (!directionMatches(bookTxn, bs.txn)) return false;
+
+        return true;
+      });
+
+    if (bankCandidates.length >= 2) {
+      bankCandidates.sort((a, b) => {
+        const dateDiffA = Math.abs(differenceInDays(bookTxn.date, a.txn.date));
+        const dateDiffB = Math.abs(differenceInDays(bookTxn.date, b.txn.date));
+        return dateDiffA - dateDiffB;
+      });
+      const topCandidates = bankCandidates.slice(0, 10);
+
+      const combos = getCombinations(topCandidates, 2, 4);
+      const validCombos: { combo: TransactionState<BankTransaction>[]; score: number }[] = [];
+
+      for (const combo of combos) {
+        const sumAmt = combo.reduce((sum, bs) => sum + bs.remainingAmountMinor, 0);
+        const isExactSum = Math.abs(sumAmt - bookAmt) <= 100;
+        const isFeeSum = matchesProcessorFeeForCombo(bookAmt, combo);
+
+        if (isExactSum || isFeeSum) {
+          const baseScores = combo.map((bs) => {
+            const candidatesResult = generateCandidates(bs.txn, [bookTxn], { skipAmountGate: true });
+            return candidatesResult.length > 0 ? candidatesResult[0].score : 50;
+          });
+          const finalScore = Math.max(...baseScores) + 15;
+          validCombos.push({ combo, score: finalScore });
+        }
+      }
+
+      if (validCombos.length > 0) {
+        validCombos.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          const spreadA = Math.max(...a.combo.map((c) => c.txn.date.getTime())) - Math.min(...a.combo.map((c) => c.txn.date.getTime()));
+          const spreadB = Math.max(...b.combo.map((c) => c.txn.date.getTime())) - Math.min(...b.combo.map((c) => c.txn.date.getTime()));
+          if (spreadA !== spreadB) return spreadA - spreadB;
+          const idsA = a.combo.map((c) => c.id).sort().join(",");
+          const idsB = b.combo.map((c) => c.id).sort().join(",");
+          return idsA.localeCompare(idsB);
+        });
+
+        const bestCombo = validCombos[0].combo;
+
+        bookState.status = "MATCHED";
+        bookState.matchedAmountMinor = bookAmt;
+        bookState.remainingAmountMinor = 0;
+
+        for (const bs of bestCombo) {
+          bs.status = "MATCHED";
+          bs.matchedAmountMinor = bs.remainingAmountMinor;
+          bs.remainingAmountMinor = 0;
+        }
+
+        const finalScore = validCombos[0].score;
+        results.push({
+          bankTransactionIds: bestCombo.map(bs => bs.id),
+          ledgerEntryIds: [bookTxn.id],
+          confidenceScore: parseFloat((Math.min(100, finalScore) / 100).toFixed(2)),
+          score: finalScore,
+          confidenceBand: getConfidenceBand(finalScore),
+          matchType: "many_to_one",
+          reasons: [{ reason: "subset_match_validated", points: 15 }],
+          scoringBreakdown: {
+            amountScore: 0.95,
+            dateScore: 0.90,
+            textScore: 0.85
+          },
+          riskScore: 0
+        });
+      }
+    }
+  }
+
+  // ==========================================
+  // PASS 3: PROCESSOR FEE MATCH (Layer 6E)
+  // ==========================================
+  // Runs after Subset Match (Issue 4). Fee matching is an approximation;
+  // subset matching is deterministic. This order prevents a fee-ratio
+  // approximation from consuming a transaction that has a precise subset match.
+  for (const bankState of bankStates.values()) {
+    if (bankState.status === "MATCHED") continue;
+
+    const bankTxn = bankState.txn;
+    const candidates = generateCandidates(bankTxn, getAvailableBooks(), { skipAmountGate: true });
+    const feeMatches: { candidate: CandidateResult; score: number }[] = [];
+
+    for (const cand of candidates) {
+      const bookState = bookStates.get(cand.candidate.id)!;
+      if (bookState.status === "MATCHED") continue;
+
+      const bankAmt = bankState.remainingAmountMinor;
+      const bookAmt = bookState.remainingAmountMinor;
+      const dayDiff = Math.abs(differenceInDays(bankTxn.date, cand.candidate.date));
+
+      if (dayDiff <= 7.0) {
+        if (matchesProcessorFee(bankAmt, bookAmt)) {
+          const finalScore = cand.score + 20;
+          feeMatches.push({ candidate: cand, score: finalScore });
+        }
       }
     }
 
-    if (bestLedgerId) {
-      results.push({
-        bankTransactionId: bank.id,
-        ledgerEntryIds: [bestLedgerId],
-        confidenceScore: parseFloat(bestConfidence.toFixed(2)),
-        matchType: "fuzzy",
-        scoringBreakdown: bestBreakdown,
+    if (feeMatches.length > 0) {
+      feeMatches.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        const dateDiffA = Math.abs(differenceInDays(bankTxn.date, a.candidate.candidate.date));
+        const dateDiffB = Math.abs(differenceInDays(bankTxn.date, b.candidate.candidate.date));
+        if (dateDiffA !== dateDiffB) return dateDiffA - dateDiffB;
+        return a.candidate.candidate.id.localeCompare(b.candidate.candidate.id);
       });
-      claimedBankIds.add(bank.id);
-      claimedLedgerIds.add(bestLedgerId);
+
+      const best = feeMatches[0].candidate;
+      const bookState = bookStates.get(best.candidate.id)!;
+
+      bankState.status = "MATCHED";
+      bankState.matchedAmountMinor = bankState.remainingAmountMinor;
+      bankState.remainingAmountMinor = 0;
+
+      bookState.status = "MATCHED";
+      bookState.matchedAmountMinor = bookState.remainingAmountMinor;
+      bookState.remainingAmountMinor = 0;
+
+      const baseReasons = best.reasons.map((r) => ({ ...r }));
+      baseReasons.push({ reason: "fee_match_validated", points: 20 });
+      const finalScore = feeMatches[0].score;
+
+      results.push({
+        bankTransactionIds: [bankTxn.id],
+        ledgerEntryIds: [best.candidate.id],
+        confidenceScore: parseFloat((Math.min(100, finalScore) / 100).toFixed(2)),
+        score: finalScore,
+        confidenceBand: getConfidenceBand(finalScore),
+        matchType: "fee_adjustment",
+        reasons: baseReasons,
+        scoringBreakdown: {
+          amountScore: 0.90,
+          dateScore: 0.85,
+          textScore: 0.90
+        },
+        riskScore: 0
+      });
     }
   }
 
-  // ── Pass 4: Unmatched / Exceptions ───────────────────────────────────────
-  for (const bank of banks) {
-    if (!claimedBankIds.has(bank.id)) {
+  // ==========================================
+  // PASS 4: PARTIAL PAYMENT (Layer 6D)
+  // ==========================================
+  // Handles both underpayments (bank < book) and overpayments (bank > book).
+  // Overpayments and advance payments are valid accounting scenarios; they are
+  // matched and routed to accountant review via classification discrepancy types
+  // (OVERPAYMENT, ADVANCE_PAYMENT) rather than being silently rejected (Issue 9).
+  //
+  // The 20% gap guard remains in place for both directions to prevent
+  // pathological false positives on very different amounts.
+  for (const bankState of bankStates.values()) {
+    if (bankState.status === "MATCHED") continue;
+
+    const bankTxn = bankState.txn;
+    const bankAmt = bankState.remainingAmountMinor;
+
+    const candidates = generateCandidates(bankTxn, getAvailableBooks(), { skipAmountGate: true });
+
+    interface PartialMatchEntry {
+      candidate: CandidateResult;
+      score: number;
+      isOverpayment: boolean;
+      isAdvancePayment: boolean;
+    }
+    const partialMatches: PartialMatchEntry[] = [];
+
+    for (const cand of candidates) {
+      const bookState = bookStates.get(cand.candidate.id)!;
+      if (bookState.status === "MATCHED") continue;
+
+      const bankAmtNum = Number(getEffectiveAmountMinor(bankTxn));
+      const bookAmtNum = Number(getEffectiveAmountMinor(cand.candidate));
+      const gapPct = Math.abs(bankAmtNum - bookAmtNum) / Math.max(bankAmtNum, bookAmtNum);
+
+      if (gapPct > 0.20) continue;  // gap too large → reject, goes to exceptions
+
+      // Skip exact-amount matches here — they belong in Pass 5 (timing/tolerance).
+      // Without this guard, Pass 4 would incorrectly tag timing-difference entries
+      // (F1, F8) as "partial_payment" simply because bankAmt <= bookAmt is trivially true.
+      if (gapPct < 0.001) continue;
+      const currenciesDiffer = bankTxn.currency && cand.candidate.currency && bankTxn.currency !== cand.candidate.currency;
+
+      if (!currenciesDiffer) {
+        const isOverpayment = bankAmt > bookState.remainingAmountMinor;
+        // Advance payment: bank pays more than the ENTIRE invoice (no prior payments)
+        const isAdvancePayment = isOverpayment && bookState.matchedAmountMinor === 0;
+
+        const finalScore = cand.score + 5;
+        partialMatches.push({ candidate: cand, score: finalScore, isOverpayment, isAdvancePayment });
+      }
+    }
+
+    if (partialMatches.length > 0) {
+      partialMatches.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        const dateDiffA = Math.abs(differenceInDays(bankTxn.date, a.candidate.candidate.date));
+        const dateDiffB = Math.abs(differenceInDays(bankTxn.date, b.candidate.candidate.date));
+        if (dateDiffA !== dateDiffB) return dateDiffA - dateDiffB;
+        return a.candidate.candidate.id.localeCompare(b.candidate.candidate.id);
+      });
+
+      const bestEntry = partialMatches[0];
+      const best = bestEntry.candidate;
+      const bookState = bookStates.get(best.candidate.id)!;
+
+      bankState.status = "MATCHED";
+      bankState.matchedAmountMinor = bankAmt;
+      bankState.remainingAmountMinor = 0;
+
+      const baseReasons = best.reasons.map((r) => ({ ...r }));
+      const finalScore = bestEntry.score;
+
+      if (bestEntry.isOverpayment) {
+        // Both sides are fully consumed; the excess amount goes to accountant review.
+        const bookRemainingBefore = bookState.remainingAmountMinor;
+        bookState.matchedAmountMinor += bookRemainingBefore;
+        bookState.remainingAmountMinor = 0;
+        bookState.status = "MATCHED";
+
+        const overpaymentAmount = bankAmt - bookRemainingBefore;
+        const reasonLabel = bestEntry.isAdvancePayment ? "advance_payment_detected" : "overpayment_detected";
+        baseReasons.push({ reason: "partial_payment_validated", points: 5 });
+        baseReasons.push({ reason: reasonLabel, points: 0 });
+        baseReasons.push({ reason: `overpayment_amount:${overpaymentAmount}`, points: 0 });
+      } else {
+        // Standard underpayment path
+        baseReasons.push({ reason: "partial_payment_validated", points: 5 });
+        bookState.matchedAmountMinor += bankAmt;
+        bookState.remainingAmountMinor -= bankAmt;
+        bookState.status = bookState.remainingAmountMinor === 0 ? "MATCHED" : "PARTIALLY_MATCHED";
+      }
+
       results.push({
-        bankTransactionId: bank.id,
+        bankTransactionIds: [bankTxn.id],
+        ledgerEntryIds: [best.candidate.id],
+        confidenceScore: parseFloat((Math.min(100, finalScore) / 100).toFixed(2)),
+        score: finalScore,
+        confidenceBand: getConfidenceBand(finalScore),
+        matchType: "partial_payment",
+        reasons: baseReasons,
+        scoringBreakdown: {
+          amountScore: 0.60,
+          dateScore: 0.85,
+          textScore: 0.90
+        },
+        riskScore: 0
+      });
+    }
+  }
+
+  // ==========================================
+  // PASS 5: TOLERANCE / NEAR / FX (Layers 6B & 6F)
+  // ==========================================
+  for (const bankState of bankStates.values()) {
+    if (bankState.status === "MATCHED") continue;
+
+    const bankTxn = bankState.txn;
+    const candidates = generateCandidates(bankTxn, getAvailableBooks(), { skipAmountGate: true });
+    const toleranceMatches: { candidate: CandidateResult; score: number; matchType: MatchType; reasons: CandidateReason[] }[] = [];
+
+    for (const cand of candidates) {
+      const bookState = bookStates.get(cand.candidate.id)!;
+      if (bookState.status === "MATCHED") continue;
+
+      const bankAmt = bankState.remainingAmountMinor;
+      const bookAmt = bookState.remainingAmountMinor;
+      const dayDiff = Math.abs(differenceInDays(bankTxn.date, cand.candidate.date));
+
+      const currenciesDiffer = bankTxn.currency && cand.candidate.currency && bankTxn.currency !== cand.candidate.currency;
+      const sharesBaseCurrency = bankTxn.baseCurrency && cand.candidate.baseCurrency && bankTxn.baseCurrency === cand.candidate.baseCurrency;
+
+      if (currenciesDiffer && sharesBaseCurrency) {
+        const convertedBank = bankTxn.convertedAmountMinor !== undefined && bankTxn.convertedAmountMinor !== null
+          ? bankTxn.convertedAmountMinor
+          : bankTxn.amount;
+        const convertedBook = cand.candidate.convertedAmountMinor !== undefined && cand.candidate.convertedAmountMinor !== null
+          ? cand.candidate.convertedAmountMinor
+          : cand.candidate.amount;
+        if (convertedBank !== undefined && convertedBook !== undefined && convertedBank !== null && convertedBook !== null) {
+          const diffConverted = Math.abs(convertedBank - convertedBook);
+          const comparisonAmount = Math.max(convertedBank, convertedBook);
+          const allowedTolerance = Math.max(500, Math.round(comparisonAmount * 0.20));
+
+          if (diffConverted <= allowedTolerance && dayDiff <= 7.0) {
+            const finalScore = cand.score + 15;
+            const reasons = cand.reasons.map((r) => ({ ...r }));
+            reasons.push({ reason: "fx_difference_validated", points: 15 });
+            toleranceMatches.push({
+              candidate: cand,
+              score: finalScore,
+              matchType: "fx_difference",
+              reasons
+            });
+            continue;
+          }
+        }
+      }
+
+      if (dayDiff <= 7.0) {
+        const diffAmt = Math.abs(bankAmt - bookAmt);
+        const comparisonAmount = Math.max(bankAmt, bookAmt);
+        const allowedTolerance = Math.max(500, Math.round(comparisonAmount * 0.20));
+
+        if (diffAmt <= allowedTolerance) {
+          const finalScore = cand.score + 10;
+          const reasons = cand.reasons.map((r) => ({ ...r }));
+          reasons.push({ reason: "tolerance_match_validated", points: 10 });
+          toleranceMatches.push({
+            candidate: cand,
+            score: finalScore,
+            matchType: "tolerance",
+            reasons
+          });
+        }
+      }
+    }
+
+    if (toleranceMatches.length > 0) {
+      toleranceMatches.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        const dateDiffA = Math.abs(differenceInDays(bankTxn.date, a.candidate.candidate.date));
+        const dateDiffB = Math.abs(differenceInDays(bankTxn.date, b.candidate.candidate.date));
+        if (dateDiffA !== dateDiffB) return dateDiffA - dateDiffB;
+        return a.candidate.candidate.id.localeCompare(b.candidate.candidate.id);
+      });
+
+      const best = toleranceMatches[0];
+      const bookState = bookStates.get(best.candidate.candidate.id)!;
+
+      bankState.status = "MATCHED";
+      bankState.matchedAmountMinor = bankState.remainingAmountMinor;
+      bankState.remainingAmountMinor = 0;
+
+      bookState.status = "MATCHED";
+      bookState.matchedAmountMinor = bookState.remainingAmountMinor;
+      bookState.remainingAmountMinor = 0;
+
+      results.push({
+        bankTransactionIds: [bankTxn.id],
+        ledgerEntryIds: [best.candidate.candidate.id],
+        confidenceScore: parseFloat((Math.min(100, best.score) / 100).toFixed(2)),
+        score: best.score,
+        confidenceBand: getConfidenceBand(best.score),
+        matchType: best.matchType,
+        reasons: best.reasons,
+        scoringBreakdown: {
+          amountScore: 0.80,
+          dateScore: 0.85,
+          textScore: 0.80
+        },
+        riskScore: 0
+      });
+    }
+  }
+
+  // ==========================================
+  // PASS 6: UNMATCHED — Bank & Ledger (Issue 7)
+  // ==========================================
+  // 6A: Unmatched bank transactions
+  for (const bankState of bankStates.values()) {
+    if (bankState.status !== "MATCHED") {
+      results.push({
+        bankTransactionIds: [bankState.id],
         ledgerEntryIds: [],
         confidenceScore: 0,
+        score: 0,
+        confidenceBand: "NONE",
         matchType: "none",
-        scoringBreakdown: { amountScore: 0, dateScore: 0, textScore: 0 },
+        scoringBreakdown: { amountScore: 0, dateScore: 0, textScore: 0 }, riskScore: 0
       });
     }
   }
 
-  // ── Sort for dashboard ────────────────────────────────────────────────────
-  // FIX: High confidence first, exceptions last.
-  // Original code had this inverted (ascending confidence, none first).
-  const typeOrder: Record<MatchResult["matchType"], number> = {
-    exact: 0,
-    bulk: 1,
-    fuzzy: 2,
-    none: 3,
+  // 6B: Unmatched ledger entries — surfaced so accountants can see unpaid invoices,
+  //     ghost entries, or missing bank deposits alongside unmatched bank transactions.
+  for (const bookState of bookStates.values()) {
+    if (bookState.status !== "MATCHED") {
+      results.push({
+        bankTransactionIds: [],
+        ledgerEntryIds: [bookState.id],
+        confidenceScore: 0,
+        score: 0,
+        confidenceBand: "NONE",
+        matchType: "unmatched_ledger",
+        scoringBreakdown: { amountScore: 0, dateScore: 0, textScore: 0 }, riskScore: 0
+      });
+    }
+  }
+
+  const allBanksForDuplicate = banks.map(b => ({
+    amount: b.amount,
+    date: b.date,
+    description: b.description,
+    referenceId: b.referenceId,
+    counterparty: b.counterparty
+  }));
+
+  for (const res of results) {
+    const matchedBankTxns = banks.filter(b => res.bankTransactionIds.includes(b.id));
+    const primaryBankTxn = matchedBankTxns[0];
+
+    // For unmatched_ledger records, there is no bank transaction — use a synthetic
+    // placeholder so the classifier can route to the UNMATCHED path cleanly.
+    const classifierBankTxn = primaryBankTxn ?? {
+      amount: 0,
+      date: new Date(),
+      description: "",
+      referenceId: "",
+      counterparty: undefined,
+      currency: undefined,
+      baseCurrency: undefined,
+      convertedAmountMinor: undefined,
+      matchingSignals: undefined
+    };
+
+    // Create an aggregate bank txn for classifier (multi-bank matches)
+    const aggregateBankTxn = primaryBankTxn ? {
+      ...primaryBankTxn,
+      amount: matchedBankTxns.reduce((sum, b) => sum + b.amount, 0),
+      convertedAmountMinor: matchedBankTxns.reduce((sum, b) => sum + (b.convertedAmountMinor || b.amount), 0)
+    } : classifierBankTxn;
+
+    const matchedLedgerEntries = ledgers.filter(l => res.ledgerEntryIds.includes(l.id));
+    res.classification = classifyMatch(
+      aggregateBankTxn,
+      matchedLedgerEntries,
+      res.matchType,
+      res.reasons || [],
+      allBanksForDuplicate,
+      res.score
+    );
+  }
+
+  // Phase 8 — Risk Scoring: compute riskScore for every result after classification.
+  // Banks array is passed as-is for session-frequency anomaly detection.
+  for (const res of results) {
+    // unmatched_ledger: no bank side. Assign riskScore = 0 rather than calling
+    // computeRiskScore with synthetic data (amount=0, date=today), which would
+    // produce a meaningless score driven by today's date rather than actual risk.
+    if (res.matchType === "unmatched_ledger") {
+      res.riskScore = 0;
+      continue;
+    }
+
+    const matchedBankTxns = banks.filter(b => res.bankTransactionIds.includes(b.id));
+    const primaryBank = matchedBankTxns[0];
+
+    if (!primaryBank) {
+      res.riskScore = 0;
+      continue;
+    }
+
+    const matchedLedgersForRisk = ledgers.filter(l => res.ledgerEntryIds.includes(l.id));
+
+    // For many-to-one matches multiple bank transactions contribute to a single
+    // ledger entry. Use the aggregate amount so the amount-based risk factor
+    // reflects the true transaction size, not just the first bank entry.
+    const aggregateAmountMinor = matchedBankTxns.reduce((sum, b) => sum + b.amount, 0);
+
+    const breakdown = computeRiskScore({
+      amountMinor: aggregateAmountMinor,
+      matchingConfidence: res.confidenceScore,
+      matchType: res.matchType,
+      discrepancyType: res.classification?.discrepancyType ?? "NONE",
+      bankDate: primaryBank.date,
+      ledgerDates: matchedLedgersForRisk.map(l => l.date),
+      allBankDescriptions: banks.map(b => b.description),
+      allBankCounterparties: banks.map(b => b.counterparty || ""),
+      thisBankDescription: primaryBank.description ?? "",
+      thisBankCounterparty: primaryBank.counterparty,
+    });
+    res.riskScore = breakdown.compositeScore;
+  }
+
+  // Sort: UTR first, then high confidence, exceptions last
+  const typeOrder: Record<MatchType, number> = {
+    utr_exact: 0,
+    exact: 1,
+    one_to_many: 2,
+    many_to_one: 2,
+    bulk: 2,
+    fee_adjustment: 3,
+    fx_difference: 4,
+    tolerance: 5,
+    fuzzy: 5,
+    partial_payment: 6,
+    unmatched_ledger: 7,
+    none: 8
   };
 
   results.sort((a, b) => {
-    const typeDiff = typeOrder[a.matchType] - typeOrder[b.matchType];
+    const typeDiff = (typeOrder[a.matchType] ?? 9) - (typeOrder[b.matchType] ?? 9);
     if (typeDiff !== 0) return typeDiff;
-    return b.confidenceScore - a.confidenceScore; // descending within type
+    return b.score - a.score;
   });
 
-  return results;
+  return results as MatchResult[];
 }
+

@@ -6,8 +6,16 @@ import {
   bankTransactions,
   ledgerEntries,
   users,
+  canonicalTransactions,
+  auditLogs,
+  dailyMetrics,
+  transactionCandidates,
+  reconciliationRuns,
+  imports,
 } from "@/core/db/schema";
-import { eq } from "drizzle-orm";
+import { getOrCreateUserOrganization } from "@/core/db/org-helper";
+import { eq, sql } from "drizzle-orm";
+import { rebuildDailyMetricsRange } from "@/services/reports.service";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,16 +30,75 @@ export interface DeleteAccountResult {
 // ─── Service functions ────────────────────────────────────────────────────────
 
 /**
- * Clears all reconciliation data for a user but keeps the user account intact.
- * Resets bank transaction and ledger statuses back to 'unmatched'.
+ * Clears only the reconciliation history (matches, runs) and sets all transactions back to 'AVAILABLE'.
  */
-export async function resetReconData(userId: string): Promise<ResetResult> {
-  // Must delete in dependency order (foreign keys)
+export async function resetMatches(userId: string): Promise<ResetResult> {
+  const orgId = await getOrCreateUserOrganization(userId);
+
+  // Clear matches and runs
   await db.delete(auditEvents).where(eq(auditEvents.userId, userId));
   await db.delete(matches).where(eq(matches.userId, userId));
   await db.delete(reconRuns).where(eq(reconRuns.userId, userId));
-  await db.update(bankTransactions).set({ status: "unmatched" }).where(eq(bankTransactions.userId, userId));
-  await db.update(ledgerEntries).set({ status: "unmatched" }).where(eq(ledgerEntries.userId, userId));
+  
+  await db.delete(transactionCandidates).where(eq(transactionCandidates.organizationId, orgId));
+  await db.delete(reconciliationRuns).where(eq(reconciliationRuns.organizationId, orgId));
+
+  // Reset transactions to AVAILABLE
+  await db.update(canonicalTransactions)
+    .set({ status: 'AVAILABLE' })
+    .where(eq(canonicalTransactions.organizationId, orgId));
+
+  // Find the date range of existing transactions for this org
+  const dateRange = await db.select({
+    minDate: sql<Date>`MIN(${canonicalTransactions.transactionDate})`,
+    maxDate: sql<Date>`MAX(${canonicalTransactions.transactionDate})`
+  }).from(canonicalTransactions)
+  .where(eq(canonicalTransactions.organizationId, orgId));
+
+  const minDate = dateRange[0]?.minDate;
+  const maxDate = dateRange[0]?.maxDate;
+
+  if (minDate && maxDate) {
+    await rebuildDailyMetricsRange(orgId, new Date(minDate), new Date(maxDate));
+  } else {
+    // If no transactions exist, just wipe metrics
+    await db.delete(dailyMetrics).where(eq(dailyMetrics.organizationId, orgId));
+  }
+
+  return { message: "Matches reset successfully" };
+}
+
+/**
+ * Clears all reconciliation data for a user but keeps the user account intact.
+ * Implements a true workspace reset by completely deleting all upload-derived data,
+ * relying on ON DELETE CASCADE where configured in the schema.
+ */
+export async function resetReconData(userId: string): Promise<ResetResult> {
+  const orgId = await getOrCreateUserOrganization(userId);
+
+  // 1. Delete legacy tables first (they have references to canonicalTransactions without cascade)
+  await db.delete(auditEvents).where(eq(auditEvents.userId, userId));
+  await db.delete(matches).where(eq(matches.userId, userId));
+  await db.delete(reconRuns).where(eq(reconRuns.userId, userId));
+  await db.delete(bankTransactions).where(eq(bankTransactions.userId, userId));
+  await db.delete(ledgerEntries).where(eq(ledgerEntries.userId, userId));
+
+  // 2. Delete standalone upload-derived tables
+  await db.delete(auditLogs).where(eq(auditLogs.organizationId, orgId));
+  await db.delete(dailyMetrics).where(eq(dailyMetrics.organizationId, orgId));
+
+  // 3. transactionCandidates references canonicalTransactions with NO CASCADE. Must delete first.
+  await db.delete(transactionCandidates).where(eq(transactionCandidates.organizationId, orgId));
+
+  // 4. reconciliationRuns cascades to: matchGroups -> matchItems, reviewQueue, aiExplanations, matchGroupClassifications
+  // It also cascades to reconciliationRunTransactions.
+  await db.delete(reconciliationRuns).where(eq(reconciliationRuns.organizationId, orgId));
+
+  // 5. Now safe to delete canonicalTransactions since child references (matches, transactionCandidates, matchItems) are gone.
+  await db.delete(canonicalTransactions).where(eq(canonicalTransactions.organizationId, orgId));
+
+  // 6. imports cascades to rawRecords. Must delete AFTER canonicalTransactions since canonicalTransactions references rawRecords with NO CASCADE.
+  await db.delete(imports).where(eq(imports.organizationId, orgId));
 
   return { message: "Reconciliation data reset successfully" };
 }
@@ -41,12 +108,9 @@ export async function resetReconData(userId: string): Promise<ResetResult> {
  * This is irreversible.
  */
 export async function deleteAccount(userId: string): Promise<DeleteAccountResult> {
-  // Must delete in dependency order (foreign keys)
-  await db.delete(auditEvents).where(eq(auditEvents.userId, userId));
-  await db.delete(matches).where(eq(matches.userId, userId));
-  await db.delete(reconRuns).where(eq(reconRuns.userId, userId));
-  await db.delete(bankTransactions).where(eq(bankTransactions.userId, userId));
-  await db.delete(ledgerEntries).where(eq(ledgerEntries.userId, userId));
+  const orgId = await getOrCreateUserOrganization(userId);
+
+  await resetReconData(userId);
   await db.delete(users).where(eq(users.id, userId));
 
   return { message: "Account deleted successfully" };

@@ -1,0 +1,18 @@
+match_id,match_type,bank_ref_numbers,book_transaction_ids,expected_confidence,explanation
+MATCHC001,exact,UTR4001,BOOKC001,99,"Ref (INV2001), amount (2500), date and party all match exactly."
+MATCHC002,exact,UTR4002,BOOKC002,99,"Ref (INV2002), amount (4000), date and party all match exactly."
+MATCHC003,near,UTR4003,BOOKC003,88,Amount (5000) and ref (INV2003) match; bank credited 2 days after the book date (timing difference).
+MATCHC004,near,UTR4004,BOOKC004,85,"Amount (7500) and date match; ref typo on bank side (INV2O04 vs INV2004, letter O for zero) and party spelt 'Sunrise Logistic'."
+MATCHC005,fee_adjustment,UTR4005,BOOKC005,92,Book invoice 10000; bank net 9764. Residual 236 = Razorpay fee 2% (200) + 18% GST (36).
+MATCHC006,fee_adjustment,UTR4006,BOOKC006,92,Book invoice 50000; bank net 48700. Residual 1300 = Stripe processing fee; bank party 'ACME CORP' vs books 'Acme Corporation'.
+MATCHC007,one_to_many,UTR4007,BOOKC007;BOOKC008;BOOKC009,93,Single consolidated BlueSky deposit 30000 = INV2007 (12500) + INV2008 (7500) + INV2009 (10000).
+MATCHC008,many_to_one,UTR4008;UTR4009,BOOKC010,93,Vendor payment to CloudHost India for INV2010 (20000) cleared the bank in two tranches: 12000 + 8000.
+MATCHC009,partial_payment,UTR4010,BOOKC011,80,Invoice INV2011 is 15000 but only 9000 received; 6000 remains open (partial payment).
+MATCHC010,exact,UTR4011,BOOKC012,97,UPI receipt 3000 against INV2012 matches the book entry.
+MATCHC011,duplicate,UTR4012,,0,"Second identical 3000 UPI credit for INV2012 on the same day as UTR4011 — likely duplicate bank entry; flag, do not match."
+MATCHC012,unmatched,UTR4013,,0,Savings-account interest credited by bank (412); no corresponding book entry.
+MATCHC013,unmatched,UTR4014,,0,Bank SMS-alert charges + GST (590); no corresponding book entry (bank-originated fee).
+MATCHC014,unmatched,,BOOKC013,0,"Book records receivable INV2013 (6000) from GreenLeaf, but no bank credit yet — outstanding / missing on money side."
+MATCHC015,exact,UTR4015,BOOKC014,99,"Ref (INV2014), amount (8000), date and party all match exactly."
+MATCHC016,exact,UTR4016,BOOKC015,99,"Ref (INV2015), amount (11000), date and party all match exactly."
+MATCHC017,near,UTR4017,BOOKC016,90,Ref (INV2016) and party match; bank credited 10000 vs book 9999 (1 rupee rounding difference).

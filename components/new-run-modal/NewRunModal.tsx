@@ -9,48 +9,48 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useData } from "@/lib/data-context";
+import { api, ReconCounts, ReconStats } from "@/lib/api-client";
+import { FileIngestionWizard } from "@/components/file-ingestion-wizard";
 
 interface NewRunModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-interface RealCounts {
-  bankTransactions: number;    // all sources combined
-  stripeTransactions: number;  // only rows with source="Stripe" (real sync)
-  ledgerEntries: number;
-  qboConnected: boolean;
-  stripeConnected: boolean;
-}
-
-interface RunResult {
-  total: number;
-  autoMatched: number;
-  needsReview: number;
-  exceptions: number;
-}
-
 export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
   const router = useRouter();
-  const { refreshMatches } = useData();
+  const { refreshMatches, autoStartNewRun, setAutoStartNewRun } = useData();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()));
+  const [dateFrom, setDateFrom] = useState<Date>(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 2);
+    return startOfMonth(d);
+  });
   const [dateTo, setDateTo] = useState<Date>(endOfMonth(new Date()));
   const [processingTextIndex, setProcessingTextIndex] = useState(0);
 
   // Real counts from DB
-  const [counts, setCounts] = useState<RealCounts>({
+  const [counts, setCounts] = useState<ReconCounts>({
     bankTransactions: 0,
     stripeTransactions: 0,
     ledgerEntries: 0,
     qboConnected: false,
     stripeConnected: false,
+    qboLastSync: null,
+    stripeLastSync: null,
   });
   const [countsLoading, setCountsLoading] = useState(false);
 
+  const [activeSession, setActiveSession] = useState<{bank: any, ledger: any, periodStart?: string, periodEnd?: string} | null>(null);
+  const [activeSessionLoading, setActiveSessionLoading] = useState(false);
+
+  const [showWizard, setShowWizard] = useState(false);
+  const [wizardInitialType, setWizardInitialType] = useState<string | null>(null);
+  const [wizardReplaceId, setWizardReplaceId] = useState<string | null>(null);
+
   // Real results from API
-  const [runResult, setRunResult] = useState<RunResult | null>(null);
+  const [runResult, setRunResult] = useState<ReconStats | null>(null);
 
   const [sources, setSources] = useState({
     stripe: true,
@@ -64,32 +64,49 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
   // Fetch real counts when modal opens
   useEffect(() => {
     if (!open) return;
-    setCountsLoading(true);
-    fetch("/api/recon/counts")
-      .then((r) => r.json())
-      .then((data) => {
-        setCounts({
-          bankTransactions: data.bankTransactions ?? 0,
-          stripeTransactions: data.stripeTransactions ?? 0,
-          ledgerEntries: data.ledgerEntries ?? 0,
-          qboConnected: data.qboConnected ?? false,
-          stripeConnected: data.stripeConnected ?? false,
-        });
-        setSources((s) => ({ ...s, quickbooks: data.qboConnected ?? false, stripe: data.stripeConnected ?? false }));
-      })
-      .catch(() => {/* silently fail — counts stay at 0 */})
-      .finally(() => setCountsLoading(false));
+    let active = true;
+    const fetchCountsAndSession = async () => {
+      await Promise.resolve();
+      if (!active) return;
+      setCountsLoading(true);
+      setActiveSessionLoading(true);
+      try {
+        const [countsData, sessionData] = await Promise.all([
+          api.recon.counts().catch(() => ({ bankTransactions: 0, stripeTransactions: 0, ledgerEntries: 0, qboConnected: false, stripeConnected: false, qboLastSync: null, stripeLastSync: null })),
+          api.upload.active().catch(() => null)
+        ]);
+        if (!active) return;
+        setCounts(countsData);
+        setSources((s) => ({ ...s, quickbooks: countsData.qboConnected ?? false, stripe: countsData.stripeConnected ?? false }));
+        setActiveSession(sessionData);
+      } catch (e) {
+        /* silently fail */
+      } finally {
+        if (active) {
+          setCountsLoading(false);
+          setActiveSessionLoading(false);
+        }
+      }
+    };
+    fetchCountsAndSession();
+    return () => {
+      active = false;
+    };
   }, [open]);
+
+  const refreshActiveSession = async () => {
+    try {
+      const sessionData = await api.upload.active();
+      setActiveSession(sessionData);
+      const countsData = await api.recon.counts();
+      setCounts(countsData);
+    } catch (e) {}
+  };
 
   // Build dynamic processing steps based on real counts
   const steps = [
-    `Fetching ${counts.bankTransactions} bank transactions...`,
-    `Loading ${counts.ledgerEntries} ledger entries...`,
-    "Running exact match pass...",
-    "Running fuzzy match pass...",
-    "Detecting bulk payments...",
-    "Generating AI explanations...",
-    "Run complete!",
+    "Running Reconciliation Engine...",
+    "Reconciliation complete!",
   ];
 
   const handleOpenChange = (val: boolean) => {
@@ -108,48 +125,42 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
 
   // Step 2 processing animation
   useEffect(() => {
-    if (step === 2) {
-      const interval = setInterval(() => {
-        setProcessingTextIndex((prev) => {
-          if (prev < steps.length - 1) return prev + 1;
-          clearInterval(interval);
-          return prev;
-        });
-      }, 800);
-      return () => clearInterval(interval);
-    }
-  }, [step, steps.length]);
+    // We just wait here, no fake steps looping.
+  }, [step]);
 
   const handleStart = async () => {
     setStep(2);
     setProcessingTextIndex(0);
     setRunResult(null);
 
+    const startTime = Date.now();
+
     try {
-      const res = await fetch("/api/recon/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          periodStart: dateFrom.toISOString(),
-          periodEnd: dateTo.toISOString(),
-        }),
+      const data = await api.recon.run({
+        periodStart: dateFrom.toISOString(),
+        periodEnd: dateTo.toISOString(),
       });
-      const data = await res.json();
       if (data.stats) {
-        setRunResult({
-          total: data.stats.total ?? 0,
-          autoMatched: data.stats.autoMatched ?? 0,
-          needsReview: data.stats.needsReview ?? 0,
-          exceptions: data.stats.exceptions ?? 0,
-        });
+        setRunResult(data.stats);
       }
     } catch (error) {
       console.error("Recon API call failed", error);
     }
 
-    // Finish animation then move to step 3
-    setTimeout(() => setStep(3), steps.length * 800 + 600);
+    // Force the UI to immediately show "Run complete!"
+    setProcessingTextIndex(steps.length - 1);
+
+    // Short delay before showing results
+    setTimeout(() => setStep(3), 600);
   };
+
+  // Auto-start reconciliation if requested
+  useEffect(() => {
+    if (open && autoStartNewRun && !countsLoading && step === 1) {
+      setAutoStartNewRun(false);
+      handleStart();
+    }
+  }, [open, autoStartNewRun, countsLoading, step, setAutoStartNewRun]);
 
   const handleReview = () => {
     onOpenChange(false);
@@ -166,10 +177,21 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
     window.open("/api/reports/pdf", "_blank");
   };
 
+  const isValidDateRange = dateFrom && dateTo && dateFrom <= dateTo;
+  let dateErrorMessage = "";
+  if (!dateFrom || !dateTo) {
+    dateErrorMessage = "Both From and To dates are required.";
+  } else if (dateFrom > dateTo) {
+    dateErrorMessage = "From Date must be before or equal to To Date.";
+  }
+
+  const hasSources = Object.values(sources).some(Boolean);
+  const hasLedgerSources = Object.values(ledgerSources).some(Boolean);
+
   const canStart =
-    Object.values(sources).some(Boolean) &&
-    Object.values(ledgerSources).some(Boolean) &&
-    counts.bankTransactions > 0;
+    !!activeSession?.bank &&
+    !!activeSession?.ledger &&
+    isValidDateRange;
 
   const result = runResult ?? { total: 0, autoMatched: 0, needsReview: 0, exceptions: 0 };
 
@@ -267,6 +289,44 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
                     </label>
                   </div>
 
+                  {/* Active Bank Statement */}
+                  <div className="flex items-start space-x-3 mt-2 pt-3 border-t border-slate-200">
+                    <Checkbox
+                      id="internal-bank"
+                      checked={!!activeSession?.bank}
+                      disabled
+                      className="mt-1 opacity-100"
+                    />
+                    <div className="grid gap-1.5 flex-1 opacity-100">
+                      <span className="text-sm font-medium text-slate-900">Active Bank Statement</span>
+                      {activeSessionLoading ? (
+                         <span className="text-xs text-slate-500">Loading...</span>
+                      ) : activeSession?.bank ? (
+                         <div className="flex items-center justify-between bg-white border border-slate-200 rounded p-2.5">
+                           <div className="overflow-hidden mr-2">
+                             <p className="text-xs font-medium text-slate-900 truncate" title={activeSession.bank.filename}>{activeSession.bank.filename}</p>
+                             <p className="text-[10px] text-slate-500 mt-0.5">{activeSession.bank.transactionCount} txns • {new Date(activeSession.bank.uploadedAt).toLocaleDateString()}</p>
+                           </div>
+                           <Button variant="outline" size="sm" className="h-7 text-xs px-3 shrink-0" onClick={() => { setShowWizard(true); setWizardInitialType(activeSession.bank.fileType.includes("stripe") ? "stripe_export" : "bank_csv"); setWizardReplaceId(activeSession.bank.id); }}>Replace</Button>
+                         </div>
+                      ) : (
+                         <div className="flex items-center justify-between bg-white border border-slate-200 rounded p-2.5 border-dashed">
+                           <span className="text-xs text-slate-500">No active file</span>
+                           <Button variant="outline" size="sm" className="h-7 text-xs px-3 shrink-0" onClick={() => { setShowWizard(true); setWizardInitialType("bank_csv"); setWizardReplaceId(null); }}>Upload File</Button>
+                         </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ledger Sources */}
+              <div className="space-y-3">
+                <h4 className="text-[13px] font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <CalendarIcon className="w-4 h-4 text-slate-400" />
+                  Ledger Source
+                </h4>
+                <div className="space-y-3 border border-slate-100 rounded-md p-3 bg-slate-50/50">
                   {/* QuickBooks — shows real connection status */}
                   <div className={cn("flex items-start space-x-3", !counts.qboConnected && "opacity-70")}>
                     <Checkbox
@@ -293,33 +353,34 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
                       )}
                     </label>
                   </div>
-                </div>
-              </div>
 
-              {/* Ledger Sources */}
-              <div className="space-y-3">
-                <h4 className="text-[13px] font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4 text-slate-400" />
-                  Ledger Source
-                </h4>
-                <div className="space-y-3 border border-slate-100 rounded-md p-3 bg-slate-50/50">
-                  <div className="flex items-start space-x-3">
+                  {/* Active Ledger File */}
+                  <div className="flex items-start space-x-3 mt-2 pt-3 border-t border-slate-200">
                     <Checkbox
                       id="internal"
-                      checked={ledgerSources.internal}
-                      onCheckedChange={(c) => setLedgerSources((s) => ({ ...s, internal: !!c }))}
-                      className="mt-1"
+                      checked={!!activeSession?.ledger}
+                      disabled
+                      className="mt-1 opacity-100"
                     />
-                    <label htmlFor="internal" className="grid gap-1 leading-none cursor-pointer flex-1">
-                      <span className="text-sm font-medium text-slate-900">Internal Ledger DB</span>
-                      <span className="text-xs text-slate-500">
-                        {countsLoading
-                          ? "Loading..."
-                          : counts.ledgerEntries > 0
-                          ? `${counts.ledgerEntries} entries available`
-                          : "No ledger entries synced yet"}
-                      </span>
-                    </label>
+                    <div className="grid gap-1.5 flex-1 opacity-100">
+                      <span className="text-sm font-medium text-slate-900">Active Ledger File</span>
+                      {activeSessionLoading ? (
+                         <span className="text-xs text-slate-500">Loading...</span>
+                      ) : activeSession?.ledger ? (
+                         <div className="flex items-center justify-between bg-white border border-slate-200 rounded p-2.5">
+                           <div className="overflow-hidden mr-2">
+                             <p className="text-xs font-medium text-slate-900 truncate" title={activeSession.ledger.filename}>{activeSession.ledger.filename}</p>
+                             <p className="text-[10px] text-slate-500 mt-0.5">{activeSession.ledger.transactionCount} entries • {new Date(activeSession.ledger.uploadedAt).toLocaleDateString()}</p>
+                           </div>
+                           <Button variant="outline" size="sm" className="h-7 text-xs px-3 shrink-0" onClick={() => { setShowWizard(true); setWizardInitialType(activeSession.ledger.fileType.includes("qbo") ? "qbo_export" : (activeSession.ledger.fileType.includes("tally") ? "tally_export" : "qbo_export")); setWizardReplaceId(activeSession.ledger.id); }}>Replace</Button>
+                         </div>
+                      ) : (
+                         <div className="flex items-center justify-between bg-white border border-slate-200 rounded p-2.5 border-dashed">
+                           <span className="text-xs text-slate-500">No active file</span>
+                           <Button variant="outline" size="sm" className="h-7 text-xs px-3 shrink-0" onClick={() => { setShowWizard(true); setWizardInitialType("qbo_export"); setWizardReplaceId(null); }}>Upload File</Button>
+                         </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -336,14 +397,26 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
               </div>
             </div>
 
-            <div className="p-6 pt-4 bg-white border-t border-slate-100 flex justify-end">
-              <Button
-                onClick={handleStart}
-                disabled={!canStart}
-                className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-medium shadow-sm transition-all active:scale-[0.98]"
-              >
-                Start reconciliation <Play className="w-3.5 h-3.5 ml-1.5 fill-current" />
-              </Button>
+            <div className="p-6 pt-4 bg-white border-t border-slate-100 flex flex-col gap-3">
+              {!isValidDateRange && (
+                <div className="text-sm text-rose-600 bg-rose-50 border border-rose-100 px-3 py-2 rounded-md font-medium text-center">
+                  {dateErrorMessage}
+                </div>
+              )}
+              {(!activeSession?.bank || !activeSession?.ledger) && isValidDateRange && (
+                <div className="text-sm text-amber-600 bg-amber-50 border border-amber-100 px-3 py-2 rounded-md font-medium text-center">
+                  Please upload both an Active Bank Statement and an Active Ledger File.
+                </div>
+              )}
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleStart}
+                  disabled={!canStart}
+                  className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-medium shadow-sm transition-all active:scale-[0.98]"
+                >
+                  Start reconciliation <Play className="w-3.5 h-3.5 ml-1.5 fill-current" />
+                </Button>
+              </div>
             </div>
           </>
         )}
@@ -423,6 +496,23 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
           </div>
         )}
       </DialogContent>
+
+      <FileIngestionWizard
+        isOpen={showWizard}
+        onClose={() => {
+          setShowWizard(false);
+          setWizardInitialType(null);
+          setWizardReplaceId(null);
+        }}
+        onSuccess={() => {
+          setShowWizard(false);
+          setWizardInitialType(null);
+          setWizardReplaceId(null);
+          refreshActiveSession();
+        }}
+        initialFileType={wizardInitialType}
+        replaceImportId={wizardReplaceId}
+      />
     </Dialog>
   );
 }

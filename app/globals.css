@@ -45,6 +45,15 @@
     --radius-2xl: calc(var(--radius) * 1.8);
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
+    --color-brand-black: var(--brand-black);
+    --color-brand-muted: var(--brand-muted);
+    --color-brand-border: var(--brand-border);
+    --color-accent-ink: var(--accent-ink);
+    --color-accent-warm: var(--accent-warm);
+    --color-accent-soft: var(--accent-soft);
+    --color-accent-flag: var(--accent-flag);
+    --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+    --font-brand: var(--font-brand);
 }
 
 :root {
@@ -80,6 +89,13 @@
     --sidebar-ring: oklch(0.708 0 0);
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
+    --brand-black: oklch(0.145 0 0);
+    --brand-muted: oklch(0.55 0 0);
+    --brand-border: oklch(0.92 0 0);
+    --accent-ink: oklch(0.42 0.08 165);
+    --accent-warm: oklch(0.78 0.13 65);
+    --accent-soft: oklch(0.97 0.03 90);
+    --accent-flag: oklch(0.65 0.18 35);
 }
 
 .dark {
@@ -114,6 +130,13 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    --brand-black: oklch(0.145 0 0);
+    --brand-muted: oklch(0.55 0 0);
+    --brand-border: oklch(0.92 0 0);
+    --accent-ink: oklch(0.42 0.08 165);
+    --accent-warm: oklch(0.78 0.13 65);
+    --accent-soft: oklch(0.97 0.03 90);
+    --accent-flag: oklch(0.65 0.18 35);
 }
 
 @layer base {

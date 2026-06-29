@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { db } from "@/core/db";
-import { bankTransactions } from "@/core/db/schema";
-import { parse } from "csv-parse/sync";
+import { getOrCreateUserOrganization, getOrCreateFinancialAccount } from "@/core/db/org-helper";
+import { findMatchingTemplate } from "@/services/mapping/template-matcher";
+import { parseCsv } from "@/services/parsers/csv.parser";
+import { parseExcel } from "@/services/parsers/excel.parser";
+import { IngestionService } from "@/services/ingestion.service";
+import { parseStatement } from "@/services/parsers/statement.parser";
+import { parseTallyLedger } from "@/services/parsers/tally-ledger.parser";
+import { CleaningService } from "@/services/cleaning.service";
+import { detectLayout } from "@/services/parsers/layout-detector";
+import { serializeParsedStatement } from "@/services/parsers/serializer";
+
+
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,72 +21,228 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const searchParams = req.nextUrl.searchParams;
     const formData = await req.formData();
-    const file = formData.get("file") as File;
     
+    const action = searchParams.get("action") || (formData.get("action") as string) || "import";
+    const file = formData.get("file") as File;
+
     if (!file) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    const fileContent = await file.text();
+    const fileName = file.name;
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    // Basic CSV parsing
-    // Expects headers like: Date, Description, Amount
-    const records = parse(fileContent, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-      relax_quotes: true,
-      relax_column_count: true
-    });
+    const orgId = await getOrCreateUserOrganization(userId);
 
-    if (!records || records.length === 0) {
-      return NextResponse.json({ error: "CSV file is empty or improperly formatted" }, { status: 400 });
-    }
+    if (action === "preview") {
+      // --- Action 1: File Layout Preview & Column Mapping Recommendation ---
+      let rows: string[][] = [];
+      let sheetNames: string[] = [];
+      let bestLayoutMatch: any = null;
+      let parsedStatement: any = null;
+      const sheetName = (formData.get("sheetName") as string) || undefined;
+      const fileType = (formData.get("fileType") as string) || "bank_csv";
 
-    const newTxns = records.map((record: any) => {
-      // Find keys ignoring case
-      const keys = Object.keys(record);
-      const getVal = (possibleNames: string[]) => {
-        const key = keys.find(k => possibleNames.includes(k.toLowerCase()));
-        return key ? record[key] : null;
-      };
-
-      const date = getVal(["date", "txn date", "transaction date", "value date"]);
-      const description = getVal(["description", "narration", "particulars", "memo"]);
-      const amountStr = getVal(["amount", "withdrawal", "deposit", "credit", "debit", "total"]);
-
-      // Cleanup amount
-      let amountNum = 0;
-      if (amountStr) {
-        // Remove currency symbols and commas
-        const cleanStr = amountStr.replace(/[^0-9.-]+/g, "");
-        amountNum = parseFloat(cleanStr);
+      if (fileName.toLowerCase().endsWith(".csv")) {
+        const fileText = buffer.toString("utf8");
+        rows = parseCsv(fileText);
+      } else if (fileName.toLowerCase().endsWith(".xls") || fileName.toLowerCase().endsWith(".xlsx")) {
+        const parsed = parseExcel(buffer, sheetName);
+        rows = parsed.rows;
+        sheetNames = parsed.sheetNames;
+      } else {
+        return NextResponse.json({ error: "Unsupported file format. Please upload a CSV or Excel file." }, { status: 400 });
       }
 
-      // We need amount in paise/cents
-      const amountPaise = Math.round(amountNum * 100).toString();
+      if (rows.length === 0) {
+        return NextResponse.json({ error: "Uploaded file is empty." }, { status: 400 });
+      }
 
-      return {
-        userId,
-        amount: amountPaise,
-        date: date ? new Date(date).toISOString() : new Date().toISOString(),
-        description: description || "CSV Upload Transaction",
-        source: "CSV Upload",
-        status: "unmatched",
+      // Run new parser logic to get mapping and parsed structure
+      const dummyCleaningService = new CleaningService({
+        defaultCurrency: "USD",
+        inferredDateFormat: "DD/MM/YYYY",
+        accountLocale: "en-US",
+        accountCurrency: "USD",
+        orgCurrency: "USD"
+      });
+      if (fileType === "tally_export") {
+        parsedStatement = parseTallyLedger(rows, dummyCleaningService, fileType);
+      } else {
+        parsedStatement = parseStatement(rows, fileType, dummyCleaningService);
+      }
+      const layout = detectLayout(rows);
+
+      const headers = layout.headerRowIndex !== -1 ? rows[layout.headerRowIndex].map((h) => h.trim()) : [];
+      const previewRows = layout.headerRowIndex !== -1 ? rows.slice(layout.headerRowIndex + 1, layout.headerRowIndex + 6) : rows.slice(0, 5);
+
+      // Map back to expected column heuristics for backward compatibility
+      const columnHeuristics: Record<string, string> = {};
+      if (layout.headerRowIndex !== -1) {
+        const hmap = layout.mapping;
+        columnHeuristics.date = hmap.date !== -1 ? headers[hmap.date] : "";
+        columnHeuristics.description = hmap.description !== -1 ? headers[hmap.description] : "";
+        columnHeuristics.amount = hmap.amount !== -1 ? headers[hmap.amount] : "";
+        columnHeuristics.debit = hmap.debit !== -1 ? headers[hmap.debit] : "";
+        columnHeuristics.credit = hmap.credit !== -1 ? headers[hmap.credit] : "";
+        columnHeuristics.reference = hmap.reference !== -1 ? headers[hmap.reference] : "";
+        columnHeuristics.direction = ""; // Handled automatically now
+        columnHeuristics.counterparty = ""; // Deprecated in parser layer for now
+      }
+
+      const hasRequired = !!(
+        columnHeuristics.date &&
+        columnHeuristics.description &&
+        (columnHeuristics.amount || (columnHeuristics.debit && columnHeuristics.credit))
+      );
+
+      bestLayoutMatch = {
+        type: "canonical_parser",
+        name: "Parser Detected Layout",
+        confidence: hasRequired ? 0.99 : 0.50,
+        mapping: columnHeuristics
       };
-    });
 
-    // Bulk insert
-    await db.insert(bankTransactions).values(newTxns);
+      const safeParsedStatement = serializeParsedStatement(parsedStatement);
 
-    return NextResponse.json({ 
-      count: newTxns.length, 
-      message: "CSV imported successfully" 
-    });
+      return NextResponse.json({
+        success: true,
+        fileName,
+        fileSize: file.size,
+        headers,
+        previewRows,
+        columnHeuristics,
+        matchedTemplate: null, // deprecated
+        detectedLayout: null, // deprecated
+        layoutMatch: bestLayoutMatch,
+        parsedStatement: safeParsedStatement, // expose new canonical output with JSON-safe values
+        sheetNames,
+        selectedSheet: sheetName || sheetNames[0] || null,
+      });
+
+    } else if (action === "import") {
+      // --- Action 2: Process & Map Complete File ---
+      const fileType = formData.get("fileType") as string;
+      const columnMappingStr = formData.get("columnMapping") as string;
+      const saveTemplateName = formData.get("saveTemplateName") as string;
+      const sheetName = (formData.get("sheetName") as string) || undefined;
+
+      if (!fileType || !columnMappingStr) {
+        return NextResponse.json({ error: "Missing required import configuration parameters." }, { status: 400 });
+      }
+
+      const columnMapping = JSON.parse(columnMappingStr);
+      
+      // Inject fallback columns for dueDate and documentType if not explicitly mapped by user
+      if (file.name.includes("ledger")) {
+        if (!columnMapping.dueDate) columnMapping.dueDate = "due_date";
+        if (!columnMapping.documentType) columnMapping.documentType = "document_type";
+      }
+
+      // Resolve matching account ID
+      const accountName = `${fileType.replace("_", " ").toUpperCase()} Account`;
+      const type = ["bank_csv", "bank_excel", "stripe_export"].includes(fileType)
+        ? "bank"
+        : (fileType.includes("qbo") ? "quickbooks" : "tally");
+
+      const accountId = await getOrCreateFinancialAccount(orgId, type as any, accountName);
+
+      // Extract headers to save mapping template if requested
+      let originalHeaders: string[] = [];
+      if (saveTemplateName) {
+        let tempRows: string[][] = [];
+        if (fileName.toLowerCase().endsWith(".csv")) {
+          tempRows = parseCsv(buffer.toString("utf8"));
+        } else {
+          tempRows = parseExcel(buffer, sheetName).rows;
+        }
+        const layout = detectLayout(tempRows);
+        originalHeaders = layout.headerRowIndex !== -1 ? tempRows[layout.headerRowIndex] : [];
+      }
+
+      const saveTemplateParam = saveTemplateName
+        ? { templateName: saveTemplateName, originalHeaders }
+        : undefined;
+
+      const replaceImportId = formData.get("replaceImportId") as string;
+
+      const stats = await IngestionService.importFileTransactions(
+        orgId,
+        accountId,
+        buffer,
+        fileName,
+        fileType,
+        columnMapping,
+        saveTemplateParam,
+        sheetName
+      );
+
+      // Manage active session
+      const isBank = ["bank_csv", "bank_excel", "stripe_export"].includes(fileType);
+      
+      const updateData: any = {};
+      if (isBank) {
+        updateData.activeBankImportId = stats.importId;
+      } else {
+        updateData.activeLedgerImportId = stats.importId;
+      }
+      
+      const { db } = await import("@/core/db");
+      const { organizations } = await import("@/core/db/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      await db.update(organizations).set(updateData).where(eq(organizations.id, orgId));
+      
+      // If a replacement is requested, try to delete the old import
+      if (replaceImportId && typeof replaceImportId === "string") {
+         try {
+           const { canonicalTransactions, rawRecords, imports: dbImports, transactionCandidates, matchItems } = await import("@/core/db/schema");
+           const { inArray, or, and } = await import("drizzle-orm");
+           
+           const txns = await db.select({ id: canonicalTransactions.id })
+             .from(canonicalTransactions)
+             .innerJoin(rawRecords, eq(canonicalTransactions.rawRecordId, rawRecords.id))
+             .where(eq(rawRecords.importId, replaceImportId));
+
+           const txnIds = txns.map(t => t.id);
+
+           if (txnIds.length > 0) {
+             await db.delete(transactionCandidates)
+               .where(or(
+                 inArray(transactionCandidates.sourceTransactionId, txnIds),
+                 inArray(transactionCandidates.candidateTransactionId, txnIds)
+               ));
+
+             await db.delete(matchItems)
+               .where(inArray(matchItems.transactionId, txnIds));
+
+             await db.delete(canonicalTransactions)
+               .where(inArray(canonicalTransactions.id, txnIds));
+           }
+
+           await db.delete(rawRecords).where(eq(rawRecords.importId, replaceImportId));
+           await db.delete(dbImports).where(eq(dbImports.id, replaceImportId));
+         } catch(e) {
+           console.error("Failed to delete replaced import:", e);
+           // We do not fail the upload if deletion of old fails.
+         }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Import complete. Imported: ${stats.successCount}, Skipped (Duplicate): ${stats.skippedCount}, Failed: ${stats.failureCount}`,
+        metrics: stats,
+      });
+    }
+
+    return NextResponse.json({ error: "Invalid action." }, { status: 400 });
 
   } catch (error: any) {
-    console.error("CSV Upload Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to process CSV" }, { status: 500 });
+    console.error("Upload API Error:", error);
+    return NextResponse.json({ error: error.message || "Failed to process upload." }, { status: 500 });
   }
 }
+

@@ -5,3 +5,18 @@ coverage/
 *.log
 .env*
 !.env.example
+# TypeScript build cache
+*.tsbuildinfo
+# IDE / Editors
+.vscode/
+.idea/
+# Local Netlify/Vercel directories
+.vercel/
+# OS metadata
+Thumbs.db
+
+ 
+# Audit Framework outputs
+TestingFolder/results/
+/.agents
+*.tsbuildinfo

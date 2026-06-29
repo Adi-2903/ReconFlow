@@ -52,6 +52,8 @@ export interface MatchListItem {
 
 export interface ExceptionItem {
   id: string;
+  bankTransactionId: string;
+  ledgerEntryIds: string[];
   amount: number;
   date: string;
   source: string;
@@ -87,17 +89,60 @@ export interface ReportSummaryResult {
   }[];
 }
 
+export interface AvailableLedgerEntry {
+  id: string;
+  amount: number;
+  currency: string;
+  date: string;
+  description: string;
+  referenceNumber: string;
+  counterpartyName: string;
+  side: string;
+  direction: string;
+  sourceSystem: string;
+  score?: number;
+  confidenceBand?: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW";
+  reasons?: Array<{ reason: string; points: number }>;
+}
+
+export interface AvailableTransactionsResult {
+  data: AvailableLedgerEntry[];
+}
+
+export interface AuditLogEntry {
+  id: string;
+  matchId: string | null;
+  action: string;
+  actorEmail: string | null;
+  reason: string | null;
+  timestamp: string;
+  metadata: any;
+}
+
+export interface AuditLogsResult {
+  data: AuditLogEntry[];
+}
+
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
+  const isFormData = typeof FormData !== "undefined" && options?.body instanceof FormData;
+  const baseHeaders: any = isFormData ? {} : { "Content-Type": "application/json" };
+
   const res = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
     ...options,
+    headers: {
+      ...baseHeaders,
+      ...(options?.headers as any),
+    },
   });
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body?.error ?? `Request failed: ${res.status}`);
+    const error: any = new Error(body?.error ?? `Request failed: ${res.status}`);
+    error.status = res.status;
+    error.code = body?.code;
+    throw error;
   }
 
   return res.json() as Promise<T>;
@@ -106,6 +151,9 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 // ─── API client ───────────────────────────────────────────────────────────────
 
 export const api = {
+  /** Seed demo data */
+  seed: () => request<{ message: string }>("/api/seed", { method: "POST" }),
+
   recon: {
     /** Get counts of transactions and connection status */
     counts: () => request<ReconCounts>("/api/recon/counts"),
@@ -124,30 +172,49 @@ export const api = {
       request<MatchListItem[]>(`/api/matches${filter ? `?filter=${filter}` : ""}`),
 
     /** Approve a single match */
-    approve: (matchId: string) =>
+    approve: (matchId: string, reason?: string) =>
       request<{ success: boolean; matchId: string; status: string }>(
         `/api/matches/${matchId}/approve`,
-        { method: "POST" }
+        { method: "POST", body: JSON.stringify({ reason }) }
       ),
 
     /** Reject a single match */
-    reject: (matchId: string) =>
+    reject: (matchId: string, reason?: string) =>
       request<{ success: boolean; matchId: string; status: string }>(
         `/api/matches/${matchId}/reject`,
-        { method: "POST" }
+        { method: "POST", body: JSON.stringify({ reason }) }
+      ),
+
+    /** Create a manual match */
+    manualMatch: (bankTransactionId: string, ledgerEntryIds: string[], reason?: string) =>
+      request<{ success: boolean }>(
+        `/api/matches/${bankTransactionId}/manual-match`,
+        { method: "POST", body: JSON.stringify({ ledgerEntryIds, reason }) }
       ),
 
     /** Bulk approve all pending matches above a confidence threshold */
-    bulkApprove: (runId: string, threshold: number) =>
+    bulkApprove: (threshold: number) =>
       request<{ approvedCount: number }>("/api/matches/bulk-approve", {
         method: "POST",
-        body: JSON.stringify({ runId, threshold }),
+        body: JSON.stringify({ threshold }),
       }),
   },
 
   exceptions: {
     /** List all exceptions (unmatched + rejected matches) */
     list: () => request<ExceptionsResult>("/api/exceptions"),
+  },
+
+  transactions: {
+    /** Get available ledger transactions for a bank transaction */
+    available: (params: URLSearchParams) =>
+      request<AvailableTransactionsResult>(`/api/transactions/available?${params.toString()}`),
+  },
+
+  auditLogs: {
+    /** List audit logs for a match */
+    list: (matchId: string) =>
+      request<AuditLogsResult>(`/api/audit-logs?matchId=${matchId}`),
   },
 
   stripe: {
@@ -170,11 +237,36 @@ export const api = {
     disconnect: () => request<{ success: boolean }>("/api/qbo/disconnect", { method: "POST" }),
   },
 
+  upload: {
+    /** Get upload history */
+    history: () => request<any[]>("/api/upload/history"),
+
+    /** Get active reconciliation session */
+    active: () => request<{ bank: any, ledger: any }>("/api/upload/active"),
+
+    /** Process file upload (preview or import) */
+    process: (formData: FormData) =>
+      request<any>("/api/upload", {
+        method: "POST",
+        body: formData,
+      }),
+
+    /** Delete an upload and all associated records */
+    delete: (id: string, force?: boolean) =>
+      request<{ success: boolean }>(`/api/upload/${id}${force ? '?force=true' : ''}`, { method: "DELETE" }),
+  },
+
   reports: {
     /** Get reconciliation summary stats for a date range */
     summary: (periodStart: string, periodEnd: string) =>
       request<ReportSummaryResult>(
-        `/api/reports/summary?periodStart=${encodeURIComponent(periodStart)}&periodEnd=${encodeURIComponent(periodEnd)}`
+        `/api/reports?type=summary&periodStart=${encodeURIComponent(periodStart)}&periodEnd=${encodeURIComponent(periodEnd)}`
+      ),
+
+    /** Get report details for a specific tab */
+    details: (type: string, periodStart: string, periodEnd: string, page: number, limit: number = 50) =>
+      request<{ data: any[]; totalCount: number; error?: string }>(
+        `/api/reports?type=${type}&periodStart=${encodeURIComponent(periodStart)}&periodEnd=${encodeURIComponent(periodEnd)}&page=${page}&limit=${limit}`
       ),
   },
 

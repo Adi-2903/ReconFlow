@@ -7,6 +7,13 @@ export function evaluate(
     expected: ExpectedMatch[]
 ): EvaluationResult {
 
+    const normalizePair = (pairStr: string) => {
+        const [banks, books] = pairStr.split(":");
+        const sortedBanks = (banks || "").split(/[;,]/).map(x => x.trim()).filter(Boolean).sort().join(";");
+        const sortedBooks = (books || "").split(/[;,]/).map(x => x.trim()).filter(Boolean).sort().join(";");
+        return `${sortedBanks}:${sortedBooks}`;
+    };
+
     const expectedReconMatches =
         expected.filter(
             (m) =>
@@ -18,7 +25,7 @@ export function evaluate(
         new Set(
             expectedReconMatches.map(
                 (m) =>
-                    `${m.bank_transaction_ids}:${m.book_transaction_ids}`
+                    normalizePair(`${m.bank_transaction_ids}:${m.book_transaction_ids}`)
             )
         );
 
@@ -26,7 +33,7 @@ export function evaluate(
         new Set(
             generated.map(
                 (m) =>
-                    `${m.bankTransactionIds.join(",")}:${m.bookTransactionIds.join(",")}`
+                    normalizePair(`${m.bankTransactionIds.join(";")}:${m.bookTransactionIds.join(";")}`)
             )
         );
 

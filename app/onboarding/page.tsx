@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ChevronRight, Building, Landmark, Server, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api-client";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -13,7 +14,7 @@ export default function OnboardingPage() {
   const handleSeedDemo = async () => {
     setIsSeeding(true);
     try {
-      await fetch("/api/seed", { method: "POST" });
+      await api.seed();
       setStep(4); // Skip to end
     } catch (error) {
       console.error(error);
@@ -42,7 +43,7 @@ export default function OnboardingPage() {
               <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-6">
                 <Sparkles className="w-6 h-6 text-indigo-600" />
               </div>
-              <h1 className="text-3xl font-bold text-slate-900 mb-3">Welcome to ReconFlow</h1>
+              <h1 className="text-3xl font-bold text-slate-900 mb-3">Welcome to <span className="font-brand font-normal">Recon<span className="italic text-accent-ink">F</span>low</span></h1>
               <p className="text-slate-500 text-lg mb-8">
                 The AI-powered reconciliation engine for modern finance teams. Let&apos;s get your accounts connected so you can stop matching rows manually.
               </p>
