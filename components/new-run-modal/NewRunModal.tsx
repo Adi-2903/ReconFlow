@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useData } from "@/lib/data-context";
 import { api, ReconCounts, ReconStats } from "@/lib/api-client";
+import { FileIngestionWizard } from "@/components/file-ingestion-wizard";
 
 interface NewRunModalProps {
   open: boolean;
@@ -41,6 +42,13 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
   });
   const [countsLoading, setCountsLoading] = useState(false);
 
+  const [activeSession, setActiveSession] = useState<{bank: any, ledger: any, periodStart?: string, periodEnd?: string} | null>(null);
+  const [activeSessionLoading, setActiveSessionLoading] = useState(false);
+
+  const [showWizard, setShowWizard] = useState(false);
+  const [wizardInitialType, setWizardInitialType] = useState<string | null>(null);
+  const [wizardReplaceId, setWizardReplaceId] = useState<string | null>(null);
+
   // Real results from API
   const [runResult, setRunResult] = useState<ReconStats | null>(null);
 
@@ -57,26 +65,43 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
   useEffect(() => {
     if (!open) return;
     let active = true;
-    const fetchCounts = async () => {
+    const fetchCountsAndSession = async () => {
       await Promise.resolve();
       if (!active) return;
       setCountsLoading(true);
+      setActiveSessionLoading(true);
       try {
-        const data = await api.recon.counts();
+        const [countsData, sessionData] = await Promise.all([
+          api.recon.counts().catch(() => ({ bankTransactions: 0, stripeTransactions: 0, ledgerEntries: 0, qboConnected: false, stripeConnected: false, qboLastSync: null, stripeLastSync: null })),
+          api.upload.active().catch(() => null)
+        ]);
         if (!active) return;
-        setCounts(data);
-        setSources((s) => ({ ...s, quickbooks: data.qboConnected ?? false, stripe: data.stripeConnected ?? false }));
+        setCounts(countsData);
+        setSources((s) => ({ ...s, quickbooks: countsData.qboConnected ?? false, stripe: countsData.stripeConnected ?? false }));
+        setActiveSession(sessionData);
       } catch (e) {
-        /* silently fail — counts stay at 0 */
+        /* silently fail */
       } finally {
-        if (active) setCountsLoading(false);
+        if (active) {
+          setCountsLoading(false);
+          setActiveSessionLoading(false);
+        }
       }
     };
-    fetchCounts();
+    fetchCountsAndSession();
     return () => {
       active = false;
     };
   }, [open]);
+
+  const refreshActiveSession = async () => {
+    try {
+      const sessionData = await api.upload.active();
+      setActiveSession(sessionData);
+      const countsData = await api.recon.counts();
+      setCounts(countsData);
+    } catch (e) {}
+  };
 
   // Build dynamic processing steps based on real counts
   const steps = [
@@ -152,10 +177,21 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
     window.open("/api/reports/pdf", "_blank");
   };
 
+  const isValidDateRange = dateFrom && dateTo && dateFrom <= dateTo;
+  let dateErrorMessage = "";
+  if (!dateFrom || !dateTo) {
+    dateErrorMessage = "Both From and To dates are required.";
+  } else if (dateFrom > dateTo) {
+    dateErrorMessage = "From Date must be before or equal to To Date.";
+  }
+
+  const hasSources = Object.values(sources).some(Boolean);
+  const hasLedgerSources = Object.values(ledgerSources).some(Boolean);
+
   const canStart =
-    Object.values(sources).some(Boolean) &&
-    Object.values(ledgerSources).some(Boolean) &&
-    counts.bankTransactions > 0;
+    !!activeSession?.bank &&
+    !!activeSession?.ledger &&
+    isValidDateRange;
 
   const result = runResult ?? { total: 0, autoMatched: 0, needsReview: 0, exceptions: 0 };
 
@@ -253,24 +289,33 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
                     </label>
                   </div>
 
-                  {/* Internal Bank DB (CSV Uploads) */}
-                  <div className="flex items-start space-x-3">
+                  {/* Active Bank Statement */}
+                  <div className="flex items-start space-x-3 mt-2 pt-3 border-t border-slate-200">
                     <Checkbox
                       id="internal-bank"
-                      checked={true}
+                      checked={!!activeSession?.bank}
                       disabled
-                      className="mt-1 opacity-70"
+                      className="mt-1 opacity-100"
                     />
-                    <label htmlFor="internal-bank" className="grid gap-1 leading-none cursor-not-allowed flex-1 opacity-80">
-                      <span className="text-sm font-medium text-slate-900">Internal Bank DB (CSV Uploads)</span>
-                      <span className="text-xs text-slate-500">
-                        {countsLoading
-                          ? "Loading..."
-                          : counts.bankTransactions > 0
-                          ? `${counts.bankTransactions} transactions available`
-                          : "No bank transactions uploaded yet"}
-                      </span>
-                    </label>
+                    <div className="grid gap-1.5 flex-1 opacity-100">
+                      <span className="text-sm font-medium text-slate-900">Active Bank Statement</span>
+                      {activeSessionLoading ? (
+                         <span className="text-xs text-slate-500">Loading...</span>
+                      ) : activeSession?.bank ? (
+                         <div className="flex items-center justify-between bg-white border border-slate-200 rounded p-2.5">
+                           <div className="overflow-hidden mr-2">
+                             <p className="text-xs font-medium text-slate-900 truncate" title={activeSession.bank.filename}>{activeSession.bank.filename}</p>
+                             <p className="text-[10px] text-slate-500 mt-0.5">{activeSession.bank.transactionCount} txns • {new Date(activeSession.bank.uploadedAt).toLocaleDateString()}</p>
+                           </div>
+                           <Button variant="outline" size="sm" className="h-7 text-xs px-3 shrink-0" onClick={() => { setShowWizard(true); setWizardInitialType(activeSession.bank.fileType.includes("stripe") ? "stripe_export" : "bank_csv"); setWizardReplaceId(activeSession.bank.id); }}>Replace</Button>
+                         </div>
+                      ) : (
+                         <div className="flex items-center justify-between bg-white border border-slate-200 rounded p-2.5 border-dashed">
+                           <span className="text-xs text-slate-500">No active file</span>
+                           <Button variant="outline" size="sm" className="h-7 text-xs px-3 shrink-0" onClick={() => { setShowWizard(true); setWizardInitialType("bank_csv"); setWizardReplaceId(null); }}>Upload File</Button>
+                         </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -309,23 +354,33 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
                     </label>
                   </div>
 
-                  <div className="flex items-start space-x-3">
+                  {/* Active Ledger File */}
+                  <div className="flex items-start space-x-3 mt-2 pt-3 border-t border-slate-200">
                     <Checkbox
                       id="internal"
-                      checked={ledgerSources.internal}
-                      onCheckedChange={(c) => setLedgerSources((s) => ({ ...s, internal: !!c }))}
-                      className="mt-1"
+                      checked={!!activeSession?.ledger}
+                      disabled
+                      className="mt-1 opacity-100"
                     />
-                    <label htmlFor="internal" className="grid gap-1 leading-none cursor-pointer flex-1">
-                      <span className="text-sm font-medium text-slate-900">Internal Ledger DB</span>
-                      <span className="text-xs text-slate-500">
-                        {countsLoading
-                          ? "Loading..."
-                          : counts.ledgerEntries > 0
-                          ? `${counts.ledgerEntries} entries available`
-                          : "No ledger entries synced yet"}
-                      </span>
-                    </label>
+                    <div className="grid gap-1.5 flex-1 opacity-100">
+                      <span className="text-sm font-medium text-slate-900">Active Ledger File</span>
+                      {activeSessionLoading ? (
+                         <span className="text-xs text-slate-500">Loading...</span>
+                      ) : activeSession?.ledger ? (
+                         <div className="flex items-center justify-between bg-white border border-slate-200 rounded p-2.5">
+                           <div className="overflow-hidden mr-2">
+                             <p className="text-xs font-medium text-slate-900 truncate" title={activeSession.ledger.filename}>{activeSession.ledger.filename}</p>
+                             <p className="text-[10px] text-slate-500 mt-0.5">{activeSession.ledger.transactionCount} entries • {new Date(activeSession.ledger.uploadedAt).toLocaleDateString()}</p>
+                           </div>
+                           <Button variant="outline" size="sm" className="h-7 text-xs px-3 shrink-0" onClick={() => { setShowWizard(true); setWizardInitialType(activeSession.ledger.fileType.includes("qbo") ? "qbo_export" : (activeSession.ledger.fileType.includes("tally") ? "tally_export" : "qbo_export")); setWizardReplaceId(activeSession.ledger.id); }}>Replace</Button>
+                         </div>
+                      ) : (
+                         <div className="flex items-center justify-between bg-white border border-slate-200 rounded p-2.5 border-dashed">
+                           <span className="text-xs text-slate-500">No active file</span>
+                           <Button variant="outline" size="sm" className="h-7 text-xs px-3 shrink-0" onClick={() => { setShowWizard(true); setWizardInitialType("qbo_export"); setWizardReplaceId(null); }}>Upload File</Button>
+                         </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -342,14 +397,26 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
               </div>
             </div>
 
-            <div className="p-6 pt-4 bg-white border-t border-slate-100 flex justify-end">
-              <Button
-                onClick={handleStart}
-                disabled={!canStart}
-                className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-medium shadow-sm transition-all active:scale-[0.98]"
-              >
-                Start reconciliation <Play className="w-3.5 h-3.5 ml-1.5 fill-current" />
-              </Button>
+            <div className="p-6 pt-4 bg-white border-t border-slate-100 flex flex-col gap-3">
+              {!isValidDateRange && (
+                <div className="text-sm text-rose-600 bg-rose-50 border border-rose-100 px-3 py-2 rounded-md font-medium text-center">
+                  {dateErrorMessage}
+                </div>
+              )}
+              {(!activeSession?.bank || !activeSession?.ledger) && isValidDateRange && (
+                <div className="text-sm text-amber-600 bg-amber-50 border border-amber-100 px-3 py-2 rounded-md font-medium text-center">
+                  Please upload both an Active Bank Statement and an Active Ledger File.
+                </div>
+              )}
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleStart}
+                  disabled={!canStart}
+                  className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-medium shadow-sm transition-all active:scale-[0.98]"
+                >
+                  Start reconciliation <Play className="w-3.5 h-3.5 ml-1.5 fill-current" />
+                </Button>
+              </div>
             </div>
           </>
         )}
@@ -429,6 +496,23 @@ export function NewRunModal({ open, onOpenChange }: NewRunModalProps) {
           </div>
         )}
       </DialogContent>
+
+      <FileIngestionWizard
+        isOpen={showWizard}
+        onClose={() => {
+          setShowWizard(false);
+          setWizardInitialType(null);
+          setWizardReplaceId(null);
+        }}
+        onSuccess={() => {
+          setShowWizard(false);
+          setWizardInitialType(null);
+          setWizardReplaceId(null);
+          refreshActiveSession();
+        }}
+        initialFileType={wizardInitialType}
+        replaceImportId={wizardReplaceId}
+      />
     </Dialog>
   );
 }

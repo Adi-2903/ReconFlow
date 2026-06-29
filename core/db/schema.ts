@@ -116,6 +116,10 @@ export const organizations = pgTable("organizations", {
     name: text("name").notNull(),
     baseCurrency: char("base_currency", { length: 3 }).notNull().default("USD"),
     timezone: text("timezone").notNull().default("Asia/Kolkata"),
+    activeBankImportId: uuid("active_bank_import_id"),
+    activeLedgerImportId: uuid("active_ledger_import_id"),
+    activePeriodStart: timestamp("active_period_start", { withTimezone: true }),
+    activePeriodEnd: timestamp("active_period_end", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

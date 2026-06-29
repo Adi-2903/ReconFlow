@@ -241,12 +241,19 @@ export const api = {
     /** Get upload history */
     history: () => request<any[]>("/api/upload/history"),
 
+    /** Get active reconciliation session */
+    active: () => request<{ bank: any, ledger: any }>("/api/upload/active"),
+
     /** Process file upload (preview or import) */
     process: (formData: FormData) =>
       request<any>("/api/upload", {
         method: "POST",
         body: formData,
       }),
+
+    /** Delete an upload and all associated records */
+    delete: (id: string, force?: boolean) =>
+      request<{ success: boolean }>(`/api/upload/${id}${force ? '?force=true' : ''}`, { method: "DELETE" }),
   },
 
   reports: {

@@ -211,7 +211,7 @@ export class IngestionService {
     columnMap: Record<string, string>,
     saveTemplate?: { templateName: string; originalHeaders: string[] },
     sheetName?: string
-  ): Promise<{ successCount: number; skippedCount: number; failureCount: number }> {
+  ): Promise<{ successCount: number; skippedCount: number; failureCount: number, importId: string }> {
     // 1. Generate sha256 checksum and check for duplicate files
     const sha256 = this.generateChecksum(fileBuffer);
     const [existingImport] = await db
@@ -481,7 +481,7 @@ export class IngestionService {
       throw err;
     }
 
-    return { successCount, skippedCount, failureCount };
+    return { successCount, skippedCount, failureCount, importId: importRun.id };
   }
 }
 

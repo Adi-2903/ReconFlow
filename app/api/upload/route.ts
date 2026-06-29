@@ -167,6 +167,8 @@ export async function POST(req: NextRequest) {
         ? { templateName: saveTemplateName, originalHeaders }
         : undefined;
 
+      const replaceImportId = formData.get("replaceImportId") as string;
+
       const stats = await IngestionService.importFileTransactions(
         orgId,
         accountId,
@@ -177,6 +179,57 @@ export async function POST(req: NextRequest) {
         saveTemplateParam,
         sheetName
       );
+
+      // Manage active session
+      const isBank = ["bank_csv", "bank_excel", "stripe_export"].includes(fileType);
+      
+      const updateData: any = {};
+      if (isBank) {
+        updateData.activeBankImportId = stats.importId;
+      } else {
+        updateData.activeLedgerImportId = stats.importId;
+      }
+      
+      const { db } = await import("@/core/db");
+      const { organizations } = await import("@/core/db/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      await db.update(organizations).set(updateData).where(eq(organizations.id, orgId));
+      
+      // If a replacement is requested, try to delete the old import
+      if (replaceImportId && typeof replaceImportId === "string") {
+         try {
+           const { canonicalTransactions, rawRecords, imports: dbImports, transactionCandidates, matchItems } = await import("@/core/db/schema");
+           const { inArray, or, and } = await import("drizzle-orm");
+           
+           const txns = await db.select({ id: canonicalTransactions.id })
+             .from(canonicalTransactions)
+             .innerJoin(rawRecords, eq(canonicalTransactions.rawRecordId, rawRecords.id))
+             .where(eq(rawRecords.importId, replaceImportId));
+
+           const txnIds = txns.map(t => t.id);
+
+           if (txnIds.length > 0) {
+             await db.delete(transactionCandidates)
+               .where(or(
+                 inArray(transactionCandidates.sourceTransactionId, txnIds),
+                 inArray(transactionCandidates.candidateTransactionId, txnIds)
+               ));
+
+             await db.delete(matchItems)
+               .where(inArray(matchItems.transactionId, txnIds));
+
+             await db.delete(canonicalTransactions)
+               .where(inArray(canonicalTransactions.id, txnIds));
+           }
+
+           await db.delete(rawRecords).where(eq(rawRecords.importId, replaceImportId));
+           await db.delete(dbImports).where(eq(dbImports.id, replaceImportId));
+         } catch(e) {
+           console.error("Failed to delete replaced import:", e);
+           // We do not fail the upload if deletion of old fails.
+         }
+      }
 
       return NextResponse.json({
         success: true,
@@ -192,3 +245,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || "Failed to process upload." }, { status: 500 });
   }
 }
+
