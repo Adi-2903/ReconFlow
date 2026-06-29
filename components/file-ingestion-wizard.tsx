@@ -243,7 +243,7 @@ export function FileIngestionWizard({ isOpen, onClose, onSuccess, initialFileTyp
                     { key: "bank_excel", name: "Bank Excel Statement" },
                     { key: "stripe_export", name: "Stripe Statement Export" },
                     { key: "qbo_export", name: "QuickBooks Export (CSV/XLS)" },
-                    { key: "tally_export", name: "Tally Export (Excel/XML)" }
+                    { key: "tally_export", name: "Tally Export (CSV/Excel)" }
                   ].map((item) => (
                     <button
                       key={item.key}
@@ -279,9 +279,9 @@ export function FileIngestionWizard({ isOpen, onClose, onSuccess, initialFileTyp
                 >
                   <Upload className={`w-8 h-8 mb-3 ${dragActive ? "text-indigo-600 animate-bounce" : "text-slate-400"}`} />
                   <div className="font-semibold text-sm text-slate-700">
-                    {!selectedFileType ? "Select a format above to activate upload zone" : selectedFileType === "tally_export" ? "Drop CSV/Excel/XML here or click to browse" : "Drop CSV/Excel here or click to browse"}
+                    {!selectedFileType ? "Select a format above to activate upload zone" : "Drop CSV/Excel here or click to browse"}
                   </div>
-                  <div className="text-xs text-slate-400 mt-1">{selectedFileType === "tally_export" ? "XML files are restricted to 5MB, others up to 10MB" : "Supports file types up to 10MB"}</div>
+                  <div className="text-xs text-slate-400 mt-1">Supports file types up to 10MB</div>
                   <input
                     ref={fileInputRef}
                     type="file"
