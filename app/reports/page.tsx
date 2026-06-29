@@ -29,7 +29,7 @@ export default function ReportsPage() {
   const totalNum = Number(stats.totalCount) || 0;
   const autoNum = Number(stats.matchedCount) || 0;
   const manualNum = 0; // Phase 11 doesn't distinguish auto/manual matched on DB level yet in metrics
-  const exceptionNum = Number(stats.unmatchedCount + stats.pendingCount) || 0;
+  const exceptionNum = (Number(stats.unmatchedCount) || 0) + (Number(stats.pendingCount) || 0);
 
   const autoPercent = totalNum > 0 ? Math.round((autoNum / totalNum) * 100) : 0;
   const manualPercent = totalNum > 0 ? Math.round((manualNum / totalNum) * 100) : 0;

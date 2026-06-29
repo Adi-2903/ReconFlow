@@ -70,6 +70,8 @@ export const users = pgTable("users", {
     name: text("name"),
     image: text("image"),
     emailVerified: timestamp("email_verified", { mode: "date" }),
+    passwordHash: text("password_hash"),
+    onboarded: boolean("onboarded").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

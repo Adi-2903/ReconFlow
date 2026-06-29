@@ -30,7 +30,7 @@ export function EmptyDashboardState() {
           </p>
           <Button 
             className="w-full bg-slate-900 hover:bg-slate-800 text-white" 
-            onClick={() => router.push("/onboarding")}
+            onClick={() => router.push("/connect")}
           >
             Start Setup <ArrowRight className="w-4 h-4 ml-2" />
           </Button>

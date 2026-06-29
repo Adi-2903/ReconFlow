@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, ChevronRight, Building, Landmark, Server, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api-client";
+import { useSession } from "next-auth/react";
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { update } = useSession();
   const [step, setStep] = useState(1);
   const [isSeeding, setIsSeeding] = useState(false);
 
@@ -15,12 +17,35 @@ export default function OnboardingPage() {
     setIsSeeding(true);
     try {
       await api.seed();
+      // Automatically mark as onboarded since they loaded demo data
+      await fetch("/api/onboard", { method: "POST" });
+      await update({});
       setStep(4); // Skip to end
     } catch (error) {
       console.error(error);
       alert("Failed to seed demo data");
     } finally {
       setIsSeeding(false);
+    }
+  };
+
+  const handleFinishOnboarding = async () => {
+    try {
+      const response = await fetch("/api/onboard", {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to finalize onboarding");
+      }
+
+      // Securely refresh the JWT token from the database
+      await update({});
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch (error) {
+      console.error("Onboarding finalization failed:", error);
     }
   };
 
@@ -155,7 +180,7 @@ export default function OnboardingPage() {
                 {isSeeding ? "Demo data has been loaded." : "Your accounts are connected."} The AI engine is ready to run your first reconciliation.
               </p>
               
-              <Button onClick={() => router.push("/dashboard")} size="lg" className="bg-slate-900 hover:bg-slate-800 w-full sm:w-auto px-12">
+              <Button onClick={handleFinishOnboarding} size="lg" className="bg-slate-900 hover:bg-slate-800 w-full sm:w-auto px-12">
                 Go to Dashboard
               </Button>
             </div>
