@@ -70,7 +70,7 @@ function WaxStamp() {
 
 function Wordmark({ className = "" }: { className?: string }) {
   return (
-    <span className={`font-serif text-2xl leading-none tracking-tight ${className}`}>
+    <span className={`font-brand text-2xl leading-none tracking-tight ${className}`}>
       Recon<span className="italic text-accent-ink">F</span>low
     </span>
   );
@@ -730,7 +730,9 @@ function Compare() {
           <div className="grid grid-cols-3 border-b border-brand-border bg-accent-soft/50 px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-brand-muted">
             <div></div>
             <div>BlackLine / Numeric</div>
-            <div className="text-accent-ink">ReconFlow</div>
+            <div className="font-brand text-sm normal-case tracking-normal text-slate-900">
+              Recon<span className="italic text-accent-ink">F</span>low
+            </div>
           </div>
           {rows.map((r) => (
             <div

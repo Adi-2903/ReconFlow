@@ -12,7 +12,7 @@ export function EmptyDashboardState() {
       </div>
       
       <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 mb-3">
-        Welcome to ReconFlow!
+        Welcome to <span className="font-brand font-normal">Recon<span className="italic text-accent-ink">F</span>low</span>!
       </h2>
       <p className="text-slate-500 max-w-[500px] mb-10 text-base sm:text-lg">
         You haven&apos;t connected any data sources yet. How would you like to get started?

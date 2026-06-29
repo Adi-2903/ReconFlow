@@ -1,6 +1,7 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import { Geist } from "next/font/google";
+import localFont from "next/font/local";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
 import { Providers } from "@/components/Providers";
@@ -11,6 +12,10 @@ import { DemoBanner } from "@/components/demo-banner";
 import { Toaster } from "sonner";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const gcEpicPro = localFont({
+  src: '../font/GC-EPICPRO-Demo-BF6891cc5419ab8.ttf',
+  variable: '--font-brand',
+});
 
 export const metadata: Metadata = {
   title: 'ReconFlow - Bank Reconciliation',
@@ -22,7 +27,7 @@ export default async function RootLayout({children}: {children: React.ReactNode}
 
   return (
     <SessionProvider session={session}>
-      <html lang="en" className={cn("font-sans", geist.variable)} suppressHydrationWarning>
+      <html lang="en" className={cn("font-sans", geist.variable, gcEpicPro.variable)} suppressHydrationWarning>
         <body suppressHydrationWarning>
           <DataProvider>
             <DemoBanner />

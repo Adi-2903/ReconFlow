@@ -78,11 +78,8 @@ export function AppShell({ children }: AppShellProps) {
           </button>
           
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-slate-900 flex items-center justify-center rounded-sm shadow-sm">
-              <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white rotate-45 transition-transform group-hover:rotate-90 duration-300"></div>
-            </div>
-            <Link href="/dashboard" className="font-serif text-2xl sm:text-3xl tracking-tight text-slate-900 flex items-baseline">
-              Recon<span className="italic text-accent-ink font-serif mr-0.5">F</span>low
+            <Link href="/dashboard" className="font-brand text-2xl sm:text-3xl tracking-tight text-slate-900 flex items-baseline">
+              Recon<span className="italic text-accent-ink font-brand mr-0.5">F</span>low
             </Link>
           </div>
         </div>

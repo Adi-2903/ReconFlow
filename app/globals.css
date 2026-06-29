@@ -53,6 +53,7 @@
     --color-accent-soft: var(--accent-soft);
     --color-accent-flag: var(--accent-flag);
     --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+    --font-brand: var(--font-brand);
 }
 
 :root {

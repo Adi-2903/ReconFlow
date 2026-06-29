@@ -604,7 +604,7 @@ export default function ConnectPage() {
 
       {/* Wizard Modal View */}
       {showWizard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 backdrop-blur-md p-4 overflow-y-auto">
           <div className="bg-white rounded-xl border border-slate-200 max-w-[760px] w-full max-h-[85vh] flex flex-col shadow-2xl animate-in fade-in-50 zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">

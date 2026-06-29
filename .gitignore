@@ -19,3 +19,4 @@ Thumbs.db
 # Audit Framework outputs
 TestingFolder/results/
 /.agents
+*.tsbuildinfo

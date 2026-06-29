@@ -67,7 +67,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             {/* Content */}
             <div className="mt-4 text-center">
               <h3 className="font-serif text-3xl font-normal text-brand-black">
-                Sign in to ReconFlow
+                Sign in to <span className="font-brand">Recon<span className="italic text-accent-ink">F</span>low</span>
               </h3>
               <p className="mt-2 text-sm text-brand-muted">
                 Access your dashboard to match records and review statements.

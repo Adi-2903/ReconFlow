@@ -29,7 +29,7 @@ export default function SignInPage() {
           </div>
 
           <div className="font-serif text-sm tracking-[0.16em] uppercase text-brand-muted mb-2">
-            ReconFlow Ledger Portal
+            <span className="font-brand normal-case tracking-normal text-slate-800 mr-1">Recon<span className="italic text-accent-ink">F</span>low</span> Ledger Portal
           </div>
           
           <h2 className="font-serif text-xl text-brand-black mb-1">
