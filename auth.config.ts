@@ -15,6 +15,8 @@ export const authConfig = {
       const isOnSignIn = nextUrl.pathname === "/sign-in"
       const isOnSignUp = nextUrl.pathname === "/sign-up"
       const isPublicHome = nextUrl.pathname === "/"
+      const isOnOnboarding = nextUrl.pathname === "/onboarding"
+      const isOnConnect = nextUrl.pathname === "/connect"
 
       if (isOnSignIn || isOnSignUp) {
         if (isLoggedIn) {
@@ -33,15 +35,36 @@ export const authConfig = {
         return true
       }
 
+      // Onboarding redirection logic
+      if (isLoggedIn) {
+        const isUserOnboarded = auth?.user?.onboarded ?? false;
+        if (!isUserOnboarded) {
+          // Allow access only to /onboarding and /connect during setup
+          if (!isOnOnboarding && !isOnConnect) {
+            return Response.redirect(new URL("/onboarding", nextUrl))
+          }
+          return true;
+        } else {
+          // If already onboarded, don't let them visit onboarding wizard again
+          if (isOnOnboarding) {
+            return Response.redirect(new URL("/dashboard", nextUrl))
+          }
+        }
+      }
+
       return isLoggedIn
     },
     jwt({ token, user }) {
-      if (user) token.userId = user.id
+      if (user) {
+        token.userId = user.id
+        token.onboarded = user.onboarded
+      }
       return token
     },
     session({ session, token }) {
       if (session?.user) {
         session.user.id = token.userId as string
+        session.user.onboarded = token.onboarded as boolean
       }
       return session
     }
