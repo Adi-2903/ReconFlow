@@ -1,5 +1,5 @@
 import { db } from "../../core/db";
-import { canonicalTransactions, imports, rawRecords, matchItems, matchGroups, reconciliationRuns, reconciliationRunTransactions, transactionCandidates, reconRuns, matches } from "../../schema";
+import { canonicalTransactions, imports, rawRecords, matchItems, matchGroups, reconciliationRuns, reconciliationRunTransactions, transactionCandidates, reconRuns, matches } from "../../core/db/schema";
 import { desc, eq, inArray, gt } from "drizzle-orm";
 
 async function main() {

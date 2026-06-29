@@ -10,6 +10,11 @@ export const REPORT_VERSION = "v1" as const;
 export const HIGH_RISK_CONFIDENCE_THRESHOLD = 0.5;
 export const HIGH_RISK_AMOUNT_DISCREPANCY_THRESHOLD = 0.05;
 
+export function serializeMoney(value: bigint | number | string | null | undefined): string {
+  if (value === null || value === undefined) return "0";
+  return value.toString();
+}
+
 export interface ReportMetadata {
   reportVersion: typeof REPORT_VERSION;
   generatedAt: string;
@@ -46,15 +51,26 @@ export async function getReconciliationSummaryReport(
       )
     );
 
-  return metrics[0] || {
+  const row = metrics[0] || {
     totalCount: 0,
     matchedCount: 0,
     pendingCount: 0,
     unmatchedCount: 0,
     highRiskCount: 0,
-    totalVolumeMinor: 0n,
-    feeVolumeMinor: 0n,
-    fxVolumeMinor: 0n,
+    totalVolumeMinor: "0",
+    feeVolumeMinor: "0",
+    fxVolumeMinor: "0",
+  };
+
+  return {
+    totalCount: Number(row.totalCount || 0),
+    matchedCount: Number(row.matchedCount || 0),
+    pendingCount: Number(row.pendingCount || 0),
+    unmatchedCount: Number(row.unmatchedCount || 0),
+    highRiskCount: Number(row.highRiskCount || 0),
+    totalVolumeMinor: serializeMoney(row.totalVolumeMinor),
+    feeVolumeMinor: serializeMoney(row.feeVolumeMinor),
+    fxVolumeMinor: serializeMoney(row.fxVolumeMinor),
   };
 }
 
@@ -97,7 +113,12 @@ export async function getExceptionReport(userId: string, start: string, end: str
     .limit(limit)
     .offset(offset);
 
-  return { data, totalCount, page, limit };
+  const serializedData = data.map((item) => ({
+    ...item,
+    amountMinor: serializeMoney(item.amountMinor),
+  }));
+
+  return { data: serializedData, totalCount, page, limit };
 }
 
 export async function getFeeReport(userId: string, start: string, end: string, page: number, limit: number) {
@@ -139,7 +160,12 @@ export async function getFeeReport(userId: string, start: string, end: string, p
     .limit(limit)
     .offset(offset);
 
-  return { data, totalCount, page, limit };
+  const serializedData = data.map((item) => ({
+    ...item,
+    amountMinor: serializeMoney(item.amountMinor),
+  }));
+
+  return { data: serializedData, totalCount, page, limit };
 }
 
 export async function getFXReport(userId: string, start: string, end: string, page: number, limit: number) {
@@ -181,7 +207,12 @@ export async function getFXReport(userId: string, start: string, end: string, pa
     .limit(limit)
     .offset(offset);
 
-  return { data, totalCount, page, limit };
+  const serializedData = data.map((item) => ({
+    ...item,
+    amountMinor: serializeMoney(item.amountMinor),
+  }));
+
+  return { data: serializedData, totalCount, page, limit };
 }
 
 export async function getAuditActivityReport(userId: string, start: string, end: string, page: number, limit: number) {
@@ -268,7 +299,12 @@ export async function getRiskReport(userId: string, start: string, end: string, 
     .limit(limit)
     .offset(offset);
 
-  return { data, totalCount, page, limit };
+  const serializedData = data.map((item) => ({
+    ...item,
+    amountMinor: serializeMoney(item.amountMinor),
+  }));
+
+  return { data: serializedData, totalCount, page, limit };
 }
 
 /**

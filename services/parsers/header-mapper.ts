@@ -10,7 +10,9 @@ export const HEADER_ALIASES = {
     "post date",
     "time",
     "created",
-    "dt"
+    "dt",
+    "txndate",
+    "txn date"
   ],
   valueDate: [
     "value date"
@@ -30,7 +32,12 @@ export const HEADER_ALIASES = {
     "net amount",
     "total amount",
     "amount(inr)",
-    "amount (inr)"
+    "amount (inr)",
+    "totalamt",
+    "total amt",
+    "amt",
+    "txn amt",
+    "txnamt"
   ],
   debit: [
     "dr",
@@ -71,7 +78,12 @@ export const HEADER_ALIASES = {
     "voucher",
     "vch",
     "cheque no",
-    "chqno"
+    "chqno",
+    "docnumber",
+    "doc number",
+    "document number",
+    "doc no",
+    "docno"
   ]
 };
 

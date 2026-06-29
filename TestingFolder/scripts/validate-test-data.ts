@@ -2,7 +2,7 @@ import "dotenv/config";
 import path from "path";
 import fs from "fs";
 import { db } from "../../core/db";
-import { organizations, financialAccounts, canonicalTransactions } from "../../schema";
+import { organizations, financialAccounts, canonicalTransactions } from "../../core/db/schema";
 import { IngestionService } from "../../services/ingestion.service";
 import { runMatcher } from "../matching/runMatcher";
 import { eq } from "drizzle-orm";

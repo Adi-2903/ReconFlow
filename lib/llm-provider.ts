@@ -26,24 +26,51 @@ export interface LLMProvider {
 
 // ── Gemini 2.5 Flash implementation ───────────────────────────────────────────
 
-let _geminiClient: GoogleGenAI | null = null;
+let _geminiClients: GoogleGenAI[] = [];
+let _currentClientIndex = 0;
 
-function getGeminiClient(): GoogleGenAI {
-  if (!_geminiClient) {
-    if (!process.env.GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY is not set in environment variables.");
+function getGeminiClients(): GoogleGenAI[] {
+  if (_geminiClients.length === 0) {
+    const apiKeys: string[] = [];
+    
+    if (process.env.GEMINI_API_KEY) {
+      apiKeys.push(process.env.GEMINI_API_KEY);
     }
-    _geminiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    
+    // Check for GEMINI_API_KEY_1, GEMINI_API_KEY_2, GEMINI_API_KEY_3, etc.
+    for (let i = 1; i <= 10; i++) {
+      const key = process.env[`GEMINI_API_KEY_${i}`];
+      if (key && !apiKeys.includes(key)) {
+        apiKeys.push(key);
+      }
+    }
+    
+    if (apiKeys.length === 0) {
+      throw new Error(
+        "No Gemini API keys found in environment variables. Please set GEMINI_API_KEY, GEMINI_API_KEY_1, GEMINI_API_KEY_2, or GEMINI_API_KEY_3."
+      );
+    }
+    
+    _geminiClients = apiKeys.map(key => new GoogleGenAI({ apiKey: key }));
   }
-  return _geminiClient;
+  return _geminiClients;
+}
+
+function getNextGeminiClient(): { client: GoogleGenAI; index: number; count: number } {
+  const clients = getGeminiClients();
+  const index = _currentClientIndex;
+  const client = clients[index];
+  _currentClientIndex = (_currentClientIndex + 1) % clients.length;
+  return { client, index, count: clients.length };
 }
 
 export class GeminiProvider implements LLMProvider {
   readonly name = "gemini-2.5-flash";
 
   async complete(systemPrompt: string, userPrompt: string): Promise<string> {
-    const ai = getGeminiClient();
-    const response = await ai.models.generateContent({
+    const { client, index, count } = getNextGeminiClient();
+    console.log(`[GeminiProvider] Using API key index ${index + 1} of ${count}`);
+    const response = await client.models.generateContent({
       model: "gemini-2.5-flash",
       contents: `${systemPrompt}\n\n${userPrompt}`,
       config: {

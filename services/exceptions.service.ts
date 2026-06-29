@@ -22,6 +22,26 @@ export interface ExceptionsResult {
   count: number;
 }
 
+export interface MatchingSignalsMetadata {
+  source?: string;
+  matchingSignals?: {
+    utr?: string;
+    referenceNumber?: string;
+    invoiceNumber?: string;
+    voucherNumber?: string;
+  };
+}
+
+export function firstNonEmpty(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (value !== null && value !== undefined) {
+      const str = String(value).trim();
+      if (str) return str;
+    }
+  }
+  return undefined;
+}
+
 // ─── Reason tag mapping (backend engineer can extend this) ────────────────────
 
 const REASON_MAP: Record<string, string> = {
@@ -78,7 +98,16 @@ export async function listExceptions(userId: string): Promise<ExceptionsResult> 
       reasonTag = REASON_MAP[evidence.likelyReason] || reasonTag;
     }
 
-    const metadata = (exc.metadata as any) || {};
+    const metadata = exc.metadata as MatchingSignalsMetadata | null;
+    const signals = metadata?.matchingSignals ?? {};
+
+    const reference = firstNonEmpty(
+      exc.referenceId,
+      signals.utr,
+      signals.referenceNumber,
+      signals.invoiceNumber,
+      signals.voucherNumber
+    ) ?? "N/A";
 
     return {
       id: exc.id,
@@ -89,8 +118,8 @@ export async function listExceptions(userId: string): Promise<ExceptionsResult> 
         month: "short",
         day: "numeric",
       }),
-      source: metadata.source || "Bank",
-      reference: exc.referenceId || "N/A",
+      source: metadata?.source || "Bank",
+      reference,
       reasonTag,
       reasonText: exc.reasonText || "Manual review required.",
       flags: evidence.flags || [],

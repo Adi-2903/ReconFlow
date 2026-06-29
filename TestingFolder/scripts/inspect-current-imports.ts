@@ -1,5 +1,5 @@
 import { db } from "../../core/db";
-import { canonicalTransactions, imports, rawRecords } from "../../schema";
+import { canonicalTransactions, imports, rawRecords } from "../../core/db/schema";
 import { desc, eq } from "drizzle-orm";
 
 async function main() {

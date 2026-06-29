@@ -2,7 +2,7 @@ import "dotenv/config";
 import path from "path";
 import fs from "fs";
 import { db } from "../../core/db";
-import { organizations, financialAccounts, fxRates, canonicalTransactions, imports, rawRecords, matches, reconRuns } from "../../schema";
+import { organizations, financialAccounts, fxRates, canonicalTransactions, imports, rawRecords, matches, reconRuns } from "../../core/db/schema";
 import { IngestionService } from "../../services/ingestion.service";
 import { CleaningService } from "../../services/cleaning.service";
 import { runMatcher } from "../matching/runMatcher";

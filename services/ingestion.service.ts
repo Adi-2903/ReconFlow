@@ -28,6 +28,37 @@ function mapSourceSystem(type: string): "bank" | "quickbooks" | "tally" | "strip
   return "bank";
 }
 
+function inferDateFormat(dateStrings: string[]): "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD" {
+  for (const rawStr of dateStrings) {
+    const cleanStr = rawStr.trim();
+    if (!cleanStr) continue;
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+      return "YYYY-MM-DD";
+    }
+
+    const normalized = cleanStr.replace(/[-.]/g, "/");
+    const segments = normalized.split("/");
+    if (segments.length < 3) continue;
+
+    const seg0 = parseInt(segments[0], 10);
+    const seg1 = parseInt(segments[1], 10);
+
+    if (isNaN(seg0) || isNaN(seg1)) continue;
+
+    if (seg0 > 1000) {
+      return "YYYY-MM-DD";
+    }
+    if (seg0 > 12) {
+      return "DD/MM/YYYY";
+    }
+    if (seg1 > 12) {
+      return "MM/DD/YYYY";
+    }
+  }
+  return "DD/MM/YYYY";
+}
+
 export class IngestionService {
   /**
    * Generates a SHA-256 hash of a file buffer to enable duplicate detection.
@@ -316,10 +347,24 @@ export class IngestionService {
       // Determine account locale
       const accountLocale = accountMetadata.locale || (account.baseCurrency === "INR" ? "en-IN" : "en-US");
 
-      // 4. Instantiate cleaning standardizer
+      // 4. Infer date format if possible from rows
+      let inferredDateFormatStr: "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD" = "DD/MM/YYYY";
+      const layout = detectLayout(rows);
+      if (layout.headerRowIndex !== -1 && layout.mapping.date !== -1) {
+        const dateColIndex = layout.mapping.date;
+        const dateStrings: string[] = [];
+        for (const row of layout.bodyRows) {
+          if (row[dateColIndex]) {
+            dateStrings.push(row[dateColIndex]);
+          }
+        }
+        inferredDateFormatStr = inferDateFormat(dateStrings);
+      }
+
+      // Instantiate cleaning standardizer
       const cleaningService = new CleaningService({
         defaultCurrency: org.baseCurrency || "USD",
-        inferredDateFormat: "DD/MM/YYYY", // Or use inferDateFormat if we want, but letting cleaning service handle it
+        inferredDateFormat: inferredDateFormatStr,
         accountLocale,
         accountCurrency: account.baseCurrency,
         orgCurrency: org.baseCurrency,

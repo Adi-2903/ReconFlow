@@ -23,7 +23,7 @@ import {
   transactionEmbeddings,
   counterpartyProfiles,
   learnedPatterns,
-} from "../../schema";
+} from "../../core/db/schema";
 import { IngestionService } from "../../services/ingestion.service";
 import { runMatcher } from "../matching/runMatcher";
 import { generateCandidates } from "../matching/candidateGenerator";
