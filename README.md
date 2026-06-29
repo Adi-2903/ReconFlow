@@ -2,17 +2,26 @@
 
 **AI-powered bank reconciliation for startups and SMEs.**
 
-ReconFlow is a modern, automated financial reconciliation platform that bridges the gap between your bank statements (like Stripe payouts or bank NEFTs) and your accounting ledger (like QuickBooks). It automatically matches transactions, explains discrepancies using AI, and provides a clear, actionable dashboard for your finance team.
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-recon--flow--flax.vercel.app-black?style=for-the-badge&logo=vercel)](https://recon-flow-flax.vercel.app/)
+
+ReconFlow is a modern, automated financial reconciliation platform that bridges the gap between your bank statements (Stripe payouts, bank NEFTs, CSV exports) and your accounting ledger (QuickBooks Online, Tally). It automatically matches transactions, classifies discrepancies, explains anomalies using Gemini AI, and provides a clean, actionable dashboard for your finance team.
 
 ---
 
 ## 🚀 Key Features
 
-*   **Multi-Pass Matching Engine:** A deterministic algorithm that handles exact matches, fuzzy matches (date/amount discrepancies), and complex bulk/many-to-one matches (e.g., multiple invoices paid in a single wire transfer).
-*   **AI-Powered Reasoning:** Integrates with Google's Gemini AI to explain *why* transactions matched (or didn't) in plain English. For example, it can detect if a discrepancy is due to a Stripe fee or an FX conversion.
-*   **QuickBooks Integration:** Seamless OAuth 2.0 integration to pull live invoice data directly from QuickBooks Online into the reconciliation engine.
-*   **Beautiful, High-Performance UI:** Built with Next.js App Router and Tailwind CSS, featuring virtualized tables for large datasets, dark-mode glassmorphic aesthetics, and responsive design.
-*   **Enterprise-Grade Database:** Backed by Amazon Aurora PostgreSQL via Drizzle ORM for robust, scalable data persistence.
+*   **Multi-Pass Matching Engine:** A deterministic 4-pass algorithm that handles exact matches, bulk/subset-sum matches, fuzzy matches, and flags exceptions — all in a single reconciliation run.
+*   **AI-Powered Reasoning:** Uses Google Gemini 2.5 Flash with round-robin API key rotation to explain *why* transactions matched (or didn't) in plain English. Detects Stripe fees, FX conversions, timing gaps, and more.
+*   **Risk Engine:** A dedicated risk scoring layer (`riskEngine.ts`) that scores each match for auditability and flags high-risk patterns.
+*   **Fee Formula Library:** Built-in knowledge of Stripe, PayPal, and bank wire fee structures to automatically explain amount discrepancies.
+*   **QuickBooks Integration:** OAuth 2.0 integration to pull live invoice data directly from QuickBooks Online.
+*   **Stripe Integration:** OAuth connection to pull payout and fee data from Stripe, critical for reconciling processing fees.
+*   **Flexible File Ingestion:** Upload bank CSV/Excel, Tally exports, or QuickBooks CSV with an intelligent schema-mapping wizard.
+*   **FX Rate Sync:** Background job that syncs foreign exchange rates, enabling cross-currency reconciliation with precision math.
+*   **Audit Logs:** All match decisions — approvals, rejections, and AI reasoning — are recorded in an audit trail.
+*   **Beautiful, High-Performance UI:** Next.js App Router with virtualized tables for large datasets, dark-mode glassmorphic aesthetics, and a full landing page.
+*   **Enterprise-Grade Database:** Amazon Aurora PostgreSQL (Serverless v2) via Drizzle ORM for robust, scalable data persistence.
+*   **Google Sign-In:** NextAuth.js (Auth.js v5) with Google OAuth and credential-based authentication.
 
 ---
 
@@ -65,7 +74,7 @@ flowchart TD
 
     %% Phase 6
     subgraph Phase 6: AI Reasoning Layer
-        P4 & Tags --> Gemini[Gemini AI Reasoner]
+        P4 & Tags --> Gemini[Gemini 2.5 Flash Reasoner]
         Gemini --> Expl[Plain English Explanation & Adjusted Confidence]
     end
 
@@ -84,60 +93,56 @@ flowchart TD
 ### Pipeline Phase Details
 
 #### **Phase 1 — Data Ingestion**
-You have three data sources:
-*   **File Upload** — user uploads bank CSV/Excel, QuickBooks CSV/Excel, or Tally Excel/CSV directly through the UI.
-*   **QuickBooks API** — user has OAuth-connected their QBO account, so you pull live invoice and transaction data via the QBO REST API on demand.
-*   **Stripe API** — user connects their Stripe account, you pull payout and fee data via Stripe's API. This is especially important for reconciling Stripe's processing fees which cause small amount discrepancies.
+Three data source paths:
+*   **File Upload** — User uploads bank CSV/Excel, QuickBooks CSV/Excel, or Tally Excel/CSV directly through the UI (`file-ingestion-wizard.tsx`). Parsers handle format detection and extraction.
+*   **QuickBooks API** — OAuth-connected QBO account pulls live invoice and transaction data via the QBO REST API on demand.
+*   **Stripe API** — Connected Stripe account pulls payout and fee data. Critical for reconciling Stripe processing fees that cause small amount discrepancies.
 
 #### **Phase 2 — Data Cleaning**
-Before anything else, you run all ingested data through a cleaning layer:
+All ingested data runs through `cleaning.service.ts`:
 *   Remove exact duplicate rows (same amount, date, reference).
 *   Handle missing values — flag rows where critical fields like amount or date are null.
 *   Normalize formats — dates to ISO 8601, amounts to a standard decimal format, currency codes to ISO 4217.
-*   Strip whitespace, special characters from vendor names and reference numbers.
-*   Flag rows with obvious anomalies (negative amounts where unexpected, future dates, etc.) for review.
+*   Strip whitespace and special characters from vendor names and reference numbers.
+*   Flag rows with obvious anomalies (negative amounts where unexpected, future dates) for review.
 
 #### **Phase 3 — Universal Schema Mapper**
-This is your normalization layer. Every source — QBO, Tally, Stripe, bank — has its own column names and terminology. Your mapper converts everything into one internal schema.
+Every source — QBO, Tally, Stripe, bank — has its own column names. The mapper (`services/mapping/`) converts everything into one internal schema with fields: `transaction_id`, `date`, `amount`, `currency`, `vendor_name`, `reference_number`, `transaction_type` (debit/credit), `source` (bank/ledger), `raw_source` (QBO/Tally/Stripe/CSV).
 
-Your internal schema has fields like: `transaction_id`, `date`, `amount`, `currency`, `vendor_name`, `reference_number`, `transaction_type` (debit/credit), `source` (bank/ledger), `raw_source` (QBO/Tally/Stripe/CSV).
-
-The mapper works with a config file per source type, something like: QBO calls it "TxnDate", Tally calls it "Voucher Date", your schema calls it "date" — the mapper handles that translation. For new or unknown sources, you either auto-detect via column name similarity or prompt the user to map columns manually once, then save that mapping for future uploads.
+For new or unknown sources, the wizard auto-detects via column name similarity or prompts the user to map columns manually once, then saves that mapping template for future uploads.
 
 #### **Phase 4 — Matching Engine**
-This is the core. You run a sequential multi-pass engine:
+The core (`core/matching/engine.ts`) runs a sequential 4-pass algorithm:
 *   **Pass 1 — Exact Match:** Same amount (to the cent) and date within 1 day, plus reference number match if available. Auto-approved, high confidence score (95–100).
-*   **Pass 2 — Bulk / Subset-Sum Match:** One bank transaction matches a combination of 2–5 ledger entries that sum to the same amount within a 5-day window. You use a subset-sum algorithm here. This handles things like multiple invoices paid in a single wire transfer.
-*   **Pass 3 — Fuzzy Match:** For everything that didn't match in passes 1 and 2, you compute a composite confidence score:
-    *   *Amount similarity* — small differences are acceptable. Within 0.5% is fine, within 5% is acceptable with a note, above 20% is rejected. The difference in amount is flagged for the AI layer to reason about (could be a fee, FX rate, partial payment).
-    *   *Date proximity* — within 3 days is normal, up to 7 days is acceptable with lower score, beyond that gets penalized heavily.
-    *   *Text similarity* — Jaccard similarity on vendor name tokens, plus exact match on any invoice/reference number substrings.
-    *   *Currency handling* — if currencies differ, pull the exchange rate for that date and apply it before comparing amounts.
-*   **Pass 4 — Exceptions:** Anything that scores below your minimum threshold (say, below 40) gets flagged as unmatched and goes to the AI layer and human review queue.
+*   **Pass 2 — Bulk / Subset-Sum Match:** One bank transaction matches a combination of 2–5 ledger entries that sum to the same amount within a 5-day window. Uses a subset-sum algorithm to handle multiple invoices paid in a single wire transfer.
+*   **Pass 3 — Fuzzy Match:** Composite confidence score based on amount similarity, date proximity, text similarity (Jaccard on vendor name tokens), and FX-adjusted amounts.
+*   **Pass 4 — Exceptions:** Anything scoring below the minimum threshold is flagged as unmatched and routed to the AI layer and human review queue.
+
+A dedicated **Risk Engine** (`riskEngine.ts`) and **Fee Formula Library** (`feeFormulas.ts`) augment match scoring with known fee rates (Stripe 2.9% + 30¢, etc.) and risk signals.
 
 #### **Phase 5 — Discrepancy Classification**
-Every match (fuzzy or bulk) gets tagged with one or more discrepancy categories:
-*   **Timing difference** — the amount matches perfectly but the date is off by several days (e.g., cheque clearing delay).
-*   **Partial payment** — bank received less than the invoice amount, no obvious fee explanation.
-*   **Missing entry** — a bank transaction has no corresponding ledger entry at all (or vice versa).
+Every fuzzy or bulk match gets tagged by `classifier.ts` with one or more categories:
+*   **Timing difference** — amount matches perfectly but date is off (e.g., cheque clearing delay).
+*   **Partial payment** — bank received less than the invoice amount.
+*   **Missing entry** — a bank transaction has no corresponding ledger entry (or vice versa).
 *   **Typo** — reference number or vendor name is slightly off (e.g., "INV-1023" vs "INV-1032").
 *   **Foreign exchange rate** — amount difference is proportional to an FX rate movement on that date.
-*   **Hidden processing fee** — amount difference exactly or approximately matches a known fee percentage (Stripe's 2.9% + 30¢, PayPal's fee, bank wire charges).
+*   **Hidden processing fee** — amount difference matches a known fee percentage.
 
 #### **Phase 6 — AI Reasoning Layer**
-Only transactions that are unmatched or have a low/medium confidence score get sent to Gemini. You don't want to waste tokens on exact matches.
+Only unmatched or low/medium confidence transactions are sent to Gemini 2.5 Flash (`lib/ai-reason.ts`, `services/intelligence.service.ts`). The system sends: the bank transaction, the closest candidate ledger entry/entries, the confidence score, the discrepancy type tag, and contextual info (e.g., Stripe fee rate).
 
-You send Gemini the bank transaction, the closest candidate ledger entry or entries, the confidence score, the discrepancy type tag, and contextual info like whether Stripe is connected and what its fee rate is.
+Gemini returns a plain-English explanation, a revised confidence assessment, and a human-review recommendation.
 
-Gemini returns a plain-English explanation of the likely reason, a revised confidence assessment, and whether human review is needed.
+*Example output: "This $487.50 bank deposit likely corresponds to invoice INV-2041 for $500. The $12.50 difference matches Stripe's standard processing fee of 2.5%. Recommend auto-approving with a Stripe fee tag."*
 
-Example output: *"This $487.50 bank deposit likely corresponds to invoice INV-2041 for $500. The $12.50 difference matches Stripe's standard processing fee of 2.5%. Recommend auto-approving with a Stripe fee tag."*
+Supports **round-robin key rotation** across up to 10 Gemini API keys (`GEMINI_API_KEY`, `GEMINI_API_KEY_2`, … `GEMINI_API_KEY_10`) to avoid rate limits on large reconciliation runs.
 
 #### **Phase 7 — Human Review Queue**
 Based on confidence score:
 *   **High score (80–100)** — auto-approved, shown in dashboard as matched.
-*   **Medium score (50–79)** — presented to the accountant for approval. They see both the bank transaction and the ledger match, the confidence score, the discrepancy type, and the AI's reasoning. One-click approve or reject.
-*   **Low score or unmatched (below 50)** — full manual review required. Accountant sees the AI's best guess, all nearby candidates, and can manually link or create a new entry.
+*   **Medium score (50–79)** — presented to the accountant for one-click approval. Shows both the bank transaction and the ledger match, confidence score, discrepancy type, and AI reasoning.
+*   **Low score / unmatched (below 50)** — full manual review. Accountant sees the AI's best guess, all nearby candidates, and can manually link or create a new entry.
 
 ---
 
@@ -145,14 +150,19 @@ Based on confidence score:
 
 | Category | Technology |
 | :--- | :--- |
-| **Framework** | Next.js 15 (App Router) |
-| **Language** | TypeScript |
-| **Styling** | Tailwind CSS, ShadCN UI, Lucide Icons |
-| **Database** | Amazon Aurora PostgreSQL (Serverless) |
-| **ORM** | Drizzle ORM |
-| **Authentication**| NextAuth.js (Auth.js v5) |
-| **AI/ML** | `@google/genai` (Gemini 2.5 Flash) |
-| **Integrations** | `intuit-oauth` (QuickBooks), Stripe SDK |
+| **Framework** | Next.js 15.4 (App Router) |
+| **Language** | TypeScript 5.9 |
+| **Styling** | Tailwind CSS 4, ShadCN UI, Lucide Icons |
+| **Animation** | Motion (Framer Motion) |
+| **Database** | Amazon Aurora PostgreSQL (Serverless v2) |
+| **ORM** | Drizzle ORM + Drizzle Kit |
+| **Authentication** | NextAuth.js v5 (Auth.js) — Google OAuth + Credentials |
+| **AI/ML** | `@google/genai` (Gemini 2.5 Flash) with round-robin key rotation |
+| **PDF Export** | `@react-pdf/renderer`, `jspdf` |
+| **Table Virtualization** | `@tanstack/react-virtual` |
+| **Integrations** | `intuit-oauth` (QuickBooks Online), `stripe` SDK |
+| **File Parsing** | `csv-parse`, `csv-parser`, `exceljs`, `xlsx` |
+| **Testing** | Jest + `ts-jest` |
 
 ---
 
@@ -160,17 +170,21 @@ Based on confidence score:
 
 ```text
 reconflow/
-├── app/                          # Next.js App Router — Frontend pages & Backend API routes
+├── app/                          # Next.js App Router — Pages & API routes
 │   ├── api/                      # Backend API endpoints
+│   │   ├── audit-logs/           # Fetch audit trail for match decisions
 │   │   ├── auth/                 # NextAuth.js authentication routes
-│   │   ├── exceptions/           # API for fetching and resolving reconciliation exceptions
-│   │   ├── matches/              # API for matching engine (approve, reject, bulk-approve)
+│   │   ├── exceptions/           # Fetch and resolve reconciliation exceptions
+│   │   ├── matches/              # Matching engine actions (approve, reject, bulk-approve)
+│   │   ├── onboard/              # Organization onboarding initialization
 │   │   ├── qbo/                  # QuickBooks Online OAuth, callbacks, and syncing
-│   │   ├── recon/                # Triggers for the reconciliation matching engine and counts
-│   │   ├── reports/              # API for dashboard analytics and summary reporting
+│   │   ├── recon/                # Triggers for the reconciliation engine and match counts
+│   │   ├── reports/              # Dashboard analytics and summary reporting
+│   │   ├── seed/                 # Demo data seeding for testing
 │   │   ├── settings/             # User settings (delete account, reset data)
 │   │   ├── stripe/               # Stripe OAuth, callbacks, and data syncing
-│   │   └── upload/               # File ingestion endpoints (CSV/Excel uploads and history)
+│   │   ├── transactions/         # Raw transaction fetch endpoints
+│   │   └── upload/               # File ingestion (CSV/Excel uploads and history)
 │   ├── connect/                  # UI Page: Integration setup (Stripe, QuickBooks, File Uploads)
 │   ├── dashboard/                # UI Page: Main reconciliation overview and metrics
 │   ├── exceptions/               # UI Page: Management of unmatched transactions
@@ -181,55 +195,83 @@ reconflow/
 │
 ├── components/                   # React UI components (presentation layer)
 │   ├── app-shell.tsx             # Main layout wrapper (sidebar + top navigation)
+│   ├── auth-modal.tsx            # Authentication modal (sign-in/sign-up)
+│   ├── demo-banner.tsx           # Demo mode banner
+│   ├── empty-dashboard-state.tsx # Empty state for first-time users
 │   ├── evidence-panel/           # Side panel showing match evidence & Gemini AI reasoning
+│   ├── file-ingestion-wizard.tsx # Step-by-step file upload and column mapping wizard
+│   ├── landing-page.tsx          # Public-facing marketing landing page
+│   ├── new-run-modal/            # Modal to trigger a new reconciliation run
+│   ├── skeletons/                # Loading skeleton components
 │   ├── ui/                       # ShadCN base components (buttons, dialogs, inputs, tables)
-│   └── virtual-match-table.tsx   # Highly optimized virtualized table for large transaction datasets
+│   └── virtual-match-table.tsx   # Virtualized table for large transaction datasets
 │
-├── core/                         # Core Database and Engine logic
+├── core/                         # Core database and engine logic
 │   ├── db/
-│   │   ├── index.ts              # Drizzle DB connection configuration (Neon/Aurora)
-│   │   ├── schema.ts             # Drizzle schema definitions (transactions, matches, connectors)
+│   │   ├── index.ts              # Drizzle DB connection (Aurora PostgreSQL via pg driver)
+│   │   ├── schema.ts             # Drizzle schema definitions (all tables)
 │   │   ├── org-helper.ts         # Multi-tenant organization context helpers
-│   │   └── migrations/           # SQL migration files generated by Drizzle
+│   │   ├── types.ts              # DB-level TypeScript types inferred from schema
+│   │   └── migrations/           # SQL migration files generated by Drizzle Kit
 │   ├── matching/
 │   │   ├── engine.ts             # The deterministic 4-pass reconciliation algorithm
-│   │   └── classifier.ts         # Discrepancy tagging (fees, FX, timing, partial)
-│   └── env.ts                    # Environment variable validation
+│   │   ├── classifier.ts         # Discrepancy tagging (fees, FX, timing, partial)
+│   │   ├── candidateGenerator.ts # Generates candidate matches for the fuzzy pass
+│   │   ├── feeFormulas.ts        # Known fee rate formulas (Stripe, PayPal, wire)
+│   │   ├── matchingHelpers.ts    # Shared scoring utilities
+│   │   └── riskEngine.ts         # Risk scoring for individual matches
+│   ├── utils/
+│   │   └── dateUtils.ts          # Shared date utility functions
+│   └── env.ts                    # Environment variable validation (fail-fast at startup)
 │
-├── services/                     # Business logic & Data decoupling layer
-│   ├── cleaning.service.ts       # Normalization & sanitation layer (dates, amounts, currencies)
-│   ├── exceptions.service.ts     # Handles unmatched rows and review queue
+├── services/                     # Business logic & data decoupling layer
+│   ├── cleaning.service.ts       # Normalization & sanitation (dates, amounts, currencies)
+│   ├── exceptions.service.ts     # Handles unmatched rows and the review queue
 │   ├── fx-sync.job.ts            # Background job for syncing foreign exchange rates
 │   ├── ingestion.service.ts      # Data ingestion manager (coordinates parsers and db)
 │   ├── intelligence.service.ts   # Coordination with Gemini AI for match explanations
 │   ├── matches.service.ts        # Database operations for confirmed/pending matches
 │   ├── qbo.service.ts            # QuickBooks API interaction layer
-│   ├── recon.service.ts          # Orchestrator for the matching engine workflow
+│   ├── recon.service.ts          # Orchestrator for the full matching engine workflow
+│   ├── reports.service.ts        # Aggregation and analytics queries for the reports page
+│   ├── settings.service.ts       # Account and organization settings operations
 │   ├── stripe.service.ts         # Stripe API interaction layer
 │   ├── connectors/               # Abstract connector interfaces for data sources
 │   ├── mapping/                  # Column heuristic detection & mapping template matcher
 │   └── parsers/                  # Extractors for CSV, Excel, and Tally formats
 │
-├── lib/                          # Shared Utilities & Helpers
+├── lib/                          # Shared utilities & helpers
 │   ├── ai-reason.ts              # Gemini prompt generation and JSON parsing logic
 │   ├── api-client.ts             # Typed wrapper for frontend API calls
+│   ├── data-context.tsx          # React context for global data state
+│   ├── data.ts                   # Static reference data
 │   ├── fx-math.ts                # Precision math for foreign exchange calculations
+│   ├── llm-provider.ts           # LLM provider abstraction (Gemini, round-robin key rotation)
+│   ├── prompt-context.ts         # Prompt context builders for Gemini calls
+│   ├── render-explanation.ts     # Formats AI explanations for display
+│   ├── toast.ts                  # Toast notification helpers
 │   └── utils.ts                  # Shared Tailwind and string utility functions
 │
-├── scripts/                      # Standalone CLI tools and background tasks
+├── scripts/                      # Standalone CLI tools and migration scripts
 │   ├── seed-stripe-test.ts       # Database fixture script for local testing
-│   └── migration-phase7.ts       # Data migration script
+│   ├── seed-enrichment.ts        # Enrichment data seeding script
+│   ├── reset-db.ts               # Resets all database tables (dev only)
+│   ├── migration-phase7.ts       # Data migration: Phase 7 schema changes
+│   ├── migration-phase8.ts       # Data migration: Phase 8 schema changes
+│   ├── migration-add-password-and-onboarded.ts  # Adds password & onboarding fields
+│   └── migration-f13-constraint.ts              # Constraint migration for F-13
 │
 ├── types/                        # TypeScript type definitions
-│   └── match.ts                  # Strong typing for match results and confidence bands
+│   ├── match.ts                  # Strong typing for match results and confidence bands
+│   └── next-auth.d.ts            # NextAuth session type augmentation
 │
-├── convert.js                    # Utility script for character encoding fixes
-├── drizzle.config.ts             # Drizzle Kit configuration for migrations
+├── auth.ts                       # NextAuth.js configuration (providers, callbacks, adapter)
+├── auth.config.ts                # Auth config (edge-compatible, used in middleware)
+├── middleware.ts                 # Next.js middleware for route protection
+├── drizzle.config.ts             # Drizzle Kit configuration (Aurora SSL auto-detection)
 ├── package.json                  # Node dependencies and NPM scripts
 └── README.md                     # This documentation file
 ```
-
-*(Note: AI Agent specific files and configurations have been intentionally excluded from this tree).*
 
 ---
 
@@ -237,7 +279,7 @@ reconflow/
 
 ### 1. Prerequisites
 *   Node.js 18+
-*   A PostgreSQL database instance (local, Docker, or managed like AWS Aurora/Neon)
+*   A PostgreSQL database (local, Docker, or managed like **AWS Aurora PostgreSQL Serverless v2** or Neon)
 
 ### 2. Installation
 ```bash
@@ -247,21 +289,41 @@ npm install
 ```
 
 ### 3. Environment Configuration
-Create a `.env` file in the root directory:
+Copy the example file and fill in your values:
+```bash
+cp .env.example .env
+```
+
 ```env
-# Database
-DATABASE_URL=postgres://user:password@host:5432/reconflow
+# ── Database ─────────────────────────────────────────────────────────────────
+# Aurora PostgreSQL (Serverless v2) or any PostgreSQL-compatible database
+DATABASE_URL="postgresql://username:password@host:5432/dbname"
 
-# Authentication
-AUTH_SECRET=generate-a-secure-random-string
+# ── AI / Gemini ──────────────────────────────────────────────────────────────
+# Required. Add GEMINI_API_KEY_2, GEMINI_API_KEY_3, etc. for round-robin
+# key rotation to avoid rate limits on large reconciliation runs.
+GEMINI_API_KEY="your_gemini_api_key_here"
+GEMINI_API_KEY_2="your_second_gemini_api_key_here"   # optional
 
-# AI Integration
-GEMINI_API_KEY=your-gemini-api-key
+# ── FX Rates ─────────────────────────────────────────────────────────────────
+# Optional. Falls back to open.er-api.com if not provided.
+EXCHANGERATE_HOST_API_KEY="your_exchangerate_host_api_key_here"
 
-# QuickBooks Integration (Sandbox or Production)
-QBO_CLIENT_ID=your-qbo-client-id
-QBO_CLIENT_SECRET=your-qbo-client-secret
-QBO_ENVIRONMENT=sandbox
+# ── Authentication ────────────────────────────────────────────────────────────
+NEXTAUTH_SECRET="any_random_32_character_string"
+NEXTAUTH_URL="http://localhost:3000"
+GOOGLE_CLIENT_ID="your_google_client_id_here"
+GOOGLE_CLIENT_SECRET="your_google_client_secret_here"
+
+# ── Stripe ────────────────────────────────────────────────────────────────────
+STRIPE_PUBLISHABLE_KEY="pk_test_..."
+STRIPE_SECRET_KEY="sk_test_..."
+
+# ── QuickBooks Online ─────────────────────────────────────────────────────────
+QBO_CLIENT_ID="your_qbo_client_id_here"
+QBO_CLIENT_SECRET="your_qbo_client_secret_here"
+QBO_REALM_ID="your_qbo_realm_id_here"
+QBO_ENVIRONMENT="sandbox"
 ```
 
 ### 4. Database Setup
@@ -270,9 +332,16 @@ Push the Drizzle schema to your database:
 npx drizzle-kit push
 ```
 
+> **AWS Aurora note:** `drizzle.config.ts` automatically detects Aurora endpoints (`.rds.amazonaws.com`) and configures the SSL connection with `rejectUnauthorized: false`.
+
 *(Optional)* Seed the database with curated demo data to test the matching engine without connecting live accounts:
 ```bash
 npx tsx scripts/seed-stripe-test.ts
+```
+
+*(Optional)* Reset all tables in dev:
+```bash
+npm run db:reset
 ```
 
 ### 5. Run the Application
@@ -280,6 +349,17 @@ npx tsx scripts/seed-stripe-test.ts
 npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### 6. Available Scripts
+
+| Script | Command | Description |
+| :--- | :--- | :--- |
+| Dev Server | `npm run dev` | Starts Next.js in development mode |
+| Lint | `npm run lint` | Runs ESLint across the project |
+| Full Audit | `npm run full-audit` | Runs the comprehensive engine audit suite |
+| DB Reset | `npm run db:reset` | Drops and re-creates all tables (dev only) |
+| Schema Push | `npx drizzle-kit push` | Syncs Drizzle schema to the database |
+| Migrate | `npx drizzle-kit migrate` | Runs pending Drizzle migrations |
 
 ---
 
