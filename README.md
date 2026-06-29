@@ -25,7 +25,7 @@ ReconFlow is a modern, automated financial reconciliation platform that bridges 
 
 ---
 
-## 🧠 The ReconFlow Pipeline
+## 🧠 The ReconFlow Pipeline.
 
 ReconFlow processes, cleans, normalizes, and reconciles your financial transactions using a robust 7-Phase pipeline.
 
