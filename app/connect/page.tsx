@@ -273,13 +273,6 @@ export default function ConnectPage() {
           <h2 className="text-[17px] font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <Layers className="w-5 h-5 text-indigo-600" /> Active Reconciliation Session
           </h2>
-          {activeSession?.periodStart && activeSession?.periodEnd && (
-            <div className="text-sm font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-md flex items-center gap-2 border border-slate-200">
-              <span>{new Date(activeSession.periodStart).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
-              <span className="text-slate-400">&darr;</span>
-              <span>{new Date(activeSession.periodEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
-            </div>
-          )}
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -408,11 +401,6 @@ export default function ConnectPage() {
               <div className="w-8 h-8 rounded border border-indigo-200 bg-indigo-600 flex items-center justify-center text-white font-bold text-lg">
                 S
               </div>
-              {!stripeConnected && (
-                <span className="text-[9px] font-bold bg-blue-50 border border-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                  Popular
-                </span>
-              )}
             </div>
             <h3 className="text-sm font-semibold text-slate-900 mb-1">Stripe</h3>
             <p className="text-xs text-slate-500 mb-4 flex-1">
@@ -436,10 +424,11 @@ export default function ConnectPage() {
               </div>
             ) : (
               <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-auto text-xs font-medium"
                 onClick={onConnectStripe}
                 disabled={isStripeSyncing}
-                size="sm"
-                className="w-full mt-auto bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs"
               >
                 {isStripeSyncing ? "Syncing..." : "Connect"}
               </Button>

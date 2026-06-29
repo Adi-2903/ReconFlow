@@ -7,8 +7,10 @@ import {
   matches,
   connectors,
   aiExplanations,
+  organizations,
+  rawRecords,
 } from "@/core/db/schema";
-import { eq, and, gte, lte, count, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, count, inArray, getTableColumns } from "drizzle-orm";
 import { matchTransactions } from "@/core/matching/engine";
 import { generateMatchReasoning, RunTracker } from "@/lib/ai-reason";
 import { getOrCreateUserOrganization } from "@/core/db/org-helper";
@@ -87,33 +89,64 @@ export async function runReconciliation(
   }
 
   const orgId = await getOrCreateUserOrganization(userId);
+  const [org] = await db.select().from(organizations).where(eq(organizations.id, orgId));
 
   // Fetch unmatched transactions in period
-  const bankRows = await db
-    .select()
-    .from(canonicalTransactions)
-    .where(
-      and(
-        eq(canonicalTransactions.organizationId, orgId),
-        eq(canonicalTransactions.side, "money"),
-        eq(canonicalTransactions.status, "AVAILABLE"),
-        gte(canonicalTransactions.transactionDate, new Date(periodStart)),
-        lte(canonicalTransactions.transactionDate, new Date(periodEnd))
-      )
-    );
+  const bankRows = org.activeBankImportId
+    ? await db
+        .select({ ...getTableColumns(canonicalTransactions) })
+        .from(canonicalTransactions)
+        .innerJoin(rawRecords, eq(canonicalTransactions.rawRecordId, rawRecords.id))
+        .where(
+          and(
+            eq(canonicalTransactions.organizationId, orgId),
+            eq(canonicalTransactions.side, "money"),
+            eq(canonicalTransactions.status, "AVAILABLE"),
+            gte(canonicalTransactions.transactionDate, new Date(periodStart)),
+            lte(canonicalTransactions.transactionDate, new Date(periodEnd)),
+            eq(rawRecords.importId, org.activeBankImportId)
+          )
+        )
+    : await db
+        .select()
+        .from(canonicalTransactions)
+        .where(
+          and(
+            eq(canonicalTransactions.organizationId, orgId),
+            eq(canonicalTransactions.side, "money"),
+            eq(canonicalTransactions.status, "AVAILABLE"),
+            gte(canonicalTransactions.transactionDate, new Date(periodStart)),
+            lte(canonicalTransactions.transactionDate, new Date(periodEnd))
+          )
+        );
 
-  const ledgerRows = await db
-    .select()
-    .from(canonicalTransactions)
-    .where(
-      and(
-        eq(canonicalTransactions.organizationId, orgId),
-        eq(canonicalTransactions.side, "books"),
-        eq(canonicalTransactions.status, "AVAILABLE"),
-        gte(canonicalTransactions.transactionDate, new Date(periodStart)),
-        lte(canonicalTransactions.transactionDate, new Date(periodEnd))
-      )
-    );
+  const ledgerRows = org.activeLedgerImportId
+    ? await db
+        .select({ ...getTableColumns(canonicalTransactions) })
+        .from(canonicalTransactions)
+        .innerJoin(rawRecords, eq(canonicalTransactions.rawRecordId, rawRecords.id))
+        .where(
+          and(
+            eq(canonicalTransactions.organizationId, orgId),
+            eq(canonicalTransactions.side, "books"),
+            eq(canonicalTransactions.status, "AVAILABLE"),
+            gte(canonicalTransactions.transactionDate, new Date(periodStart)),
+            lte(canonicalTransactions.transactionDate, new Date(periodEnd)),
+            eq(rawRecords.importId, org.activeLedgerImportId)
+          )
+        )
+    : await db
+        .select()
+        .from(canonicalTransactions)
+        .where(
+          and(
+            eq(canonicalTransactions.organizationId, orgId),
+            eq(canonicalTransactions.side, "books"),
+            eq(canonicalTransactions.status, "AVAILABLE"),
+            gte(canonicalTransactions.transactionDate, new Date(periodStart)),
+            lte(canonicalTransactions.transactionDate, new Date(periodEnd))
+          )
+        );
 
   if (bankRows.length === 0) {
     return {
