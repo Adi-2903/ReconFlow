@@ -7,9 +7,18 @@ import { getOrCreateUserOrganization, getOrCreateFinancialAccount } from "@/core
 
 export async function POST(req: NextRequest) {
   try {
+    console.log("[seed] POST called");
+    console.log("[seed] DATABASE_URL set:", !!process.env.DATABASE_URL);
+    console.log("[seed] AUTH_SECRET set:", !!process.env.AUTH_SECRET);
+
     const session = await auth();
+    console.log("[seed] session:", JSON.stringify(session));
+
     const userId = session?.user?.id;
+    console.log("[seed] userId:", userId);
+
     if (!userId) {
+      console.error("[seed] No userId — returning 401");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -204,7 +213,9 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error("Seed Error:", error);
+    console.error("[seed] Error:", error?.message);
+    console.error("[seed] Stack:", error?.stack);
+    console.error("[seed] Code:", error?.code);
     return NextResponse.json({ error: error.message || "Failed to seed database" }, { status: 500 });
   }
 }
