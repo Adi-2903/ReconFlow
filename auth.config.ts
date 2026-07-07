@@ -1,6 +1,7 @@
 import type { NextAuthConfig } from "next-auth"
 
 export const authConfig = {
+  trustHost: true,
   providers: [], // No providers here to avoid Edge database driver dependencies
   session: { 
     strategy: "jwt",
@@ -27,6 +28,9 @@ export const authConfig = {
 
       // Allow public access to the landing page
       if (isPublicHome) {
+        if (isLoggedIn) {
+          return Response.redirect(new URL("/dashboard", nextUrl))
+        }
         return true
       }
 
