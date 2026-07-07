@@ -39,11 +39,11 @@ export default function OnboardingPage() {
         throw new Error("Failed to finalize onboarding");
       }
 
-      // Securely refresh the JWT token from the database
+      // Refresh the JWT so the session reflects onboarded=true,
+      // then use a hard navigation so the server sees the updated cookie
+      // before middleware evaluates the route (avoids race with router.push)
       await update({});
-
-      router.push("/dashboard");
-      router.refresh();
+      window.location.href = "/dashboard";
     } catch (error) {
       console.error("Onboarding finalization failed:", error);
     }
