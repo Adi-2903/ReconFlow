@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { syncQboData } from "@/services/qbo.service";
 
+// Vercel Serverless: extend timeout for QuickBooks API sync
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();

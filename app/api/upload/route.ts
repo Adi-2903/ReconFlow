@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+
+// Vercel Serverless: extend timeout for large file parsing + AI enrichment
+export const maxDuration = 60;
 import { getOrCreateUserOrganization, getOrCreateFinancialAccount } from "@/core/db/org-helper";
 import { findMatchingTemplate } from "@/services/mapping/template-matcher";
 import { parseCsv } from "@/services/parsers/csv.parser";

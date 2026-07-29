@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { syncStripeTransactions } from "@/services/stripe.service";
 
+// Vercel Serverless: extend timeout for paginated Stripe API sync
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();

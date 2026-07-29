@@ -1,4 +1,7 @@
 import { NextRequest } from "next/server";
+
+// Vercel Serverless: extend timeout for batch match approvals
+export const maxDuration = 60;
 import { auth } from "@/auth";
 import { db } from "@/core/db";
 import { organizationMembers } from "@/core/db/schema";

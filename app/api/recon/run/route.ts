@@ -1,5 +1,8 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/auth";
+
+// Vercel Serverless: extend timeout for reconciliation engine + AI reasoning
+export const maxDuration = 60;
 import { runReconciliation } from "@/services/recon.service";
 import { db } from "@/core/db";
 import { organizations } from "@/core/db/schema";

@@ -10,13 +10,14 @@ import {
 } from "@/services/reports.service";
 // @ts-ignore
 import ExcelJS from "exceljs";
-import { PassThrough } from "stream";
-import { renderToStream } from "@react-pdf/renderer";
+import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
-// Assuming a generic PDF document for now; you'd typically have a tailored component.
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 
 export const runtime = 'nodejs';
+
+// Vercel Serverless: extend timeout for large report generation
+export const maxDuration = 60;
 
 function createPdfDocument(data: any[], title: string, metadata: any) {
   const styles = StyleSheet.create({
@@ -106,29 +107,25 @@ export async function GET(req: NextRequest) {
     };
 
     if (format === "csv") {
-      const passThrough = new PassThrough();
-      
+      // Build CSV string in memory — avoids Node.js stream compatibility issues on Vercel
       const headers = Object.keys(result.data[0] || { date: "", amount: "", status: "" }).join(",");
-      passThrough.write(headers + "\n");
-      
-      for (const row of result.data) {
+      const rows = result.data.map(row => {
         const values = Object.values(row).map(v => `"${String(v).replace(/"/g, '""')}"`);
-        passThrough.write(values.join(",") + "\n");
-      }
-      passThrough.end();
+        return values.join(",");
+      });
+      const csvContent = [headers, ...rows].join("\n");
 
-      return new NextResponse(passThrough as any, {
+      return new NextResponse(csvContent, {
         headers: {
-          "Content-Type": "text/csv",
+          "Content-Type": "text/csv; charset=utf-8",
           "Content-Disposition": `attachment; filename="report_${type}.csv"`
         }
       });
     }
 
     if (format === "xlsx") {
-      const passThrough = new PassThrough();
-      const options = { stream: passThrough, useStyles: true, useSharedStrings: true };
-      const workbook = new ExcelJS.stream.xlsx.WorkbookWriter(options);
+      // Build XLSX workbook in memory and write to buffer
+      const workbook = new ExcelJS.Workbook();
       const sheet = workbook.addWorksheet('Report');
 
       // Metadata rows
@@ -141,15 +138,13 @@ export async function GET(req: NextRequest) {
         sheet.columns = columns;
 
         for (const row of result.data) {
-          sheet.addRow(row).commit();
+          sheet.addRow(row);
         }
       }
-      
-      workbook.commit().then(() => {
-        // stream finishes automatically
-      });
 
-      return new NextResponse(passThrough as any, {
+      const buffer = await workbook.xlsx.writeBuffer();
+
+      return new NextResponse(buffer, {
         headers: {
           "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           "Content-Disposition": `attachment; filename="report_${type}.xlsx"`
@@ -158,12 +153,10 @@ export async function GET(req: NextRequest) {
     }
 
     if (format === "pdf") {
-      const passThrough = new PassThrough();
-      const pdfStream = await renderToStream(createPdfDocument(result.data, `Report: ${type.toUpperCase()}`, metadata));
-      
-      pdfStream.pipe(passThrough);
+      // Render PDF to buffer — avoids stream piping issues on Vercel serverless
+      const pdfBuffer = await renderToBuffer(createPdfDocument(result.data, `Report: ${type.toUpperCase()}`, metadata));
 
-      return new NextResponse(passThrough as any, {
+      return new NextResponse(new Uint8Array(pdfBuffer), {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="report_${type}.pdf"`
