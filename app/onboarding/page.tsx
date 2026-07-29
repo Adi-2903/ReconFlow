@@ -4,48 +4,35 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ChevronRight, Building, Landmark, Server, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api-client";
 import { useSession } from "next-auth/react";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { update } = useSession();
   const [step, setStep] = useState(1);
-  const [isSeeding, setIsSeeding] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false);
 
-  const handleSeedDemo = async () => {
-    setIsSeeding(true);
+  const handleSkipToDashboard = async () => {
+    setIsFinishing(true);
     try {
-      await api.seed();
-      // Automatically mark as onboarded since they loaded demo data
       await fetch("/api/onboard", { method: "POST" });
       await update({});
-      setStep(4); // Skip to end
-    } catch (error) {
-      console.error(error);
-      alert("Failed to seed demo data");
+    } catch (e) {
+      // Ignore background network errors — proceed to dashboard
     } finally {
-      setIsSeeding(false);
+      window.location.href = "/dashboard";
     }
   };
 
   const handleFinishOnboarding = async () => {
+    setIsFinishing(true);
     try {
-      const response = await fetch("/api/onboard", {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to finalize onboarding");
-      }
-
-      // Refresh the JWT so the session reflects onboarded=true,
-      // then use a hard navigation so the server sees the updated cookie
-      // before middleware evaluates the route (avoids race with router.push)
+      await fetch("/api/onboard", { method: "POST" });
       await update({});
+    } catch (e) {
+      // Ignore background network errors — proceed to dashboard
+    } finally {
       window.location.href = "/dashboard";
-    } catch (error) {
-      console.error("Onboarding finalization failed:", error);
     }
   };
 
@@ -86,8 +73,12 @@ export default function OnboardingPage() {
               </div>
 
               <div className="mt-10 flex items-center justify-between">
-                <button onClick={handleSeedDemo} className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline">
-                  Skip setup & load demo data
+                <button 
+                  onClick={handleSkipToDashboard} 
+                  disabled={isFinishing}
+                  className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                >
+                  {isFinishing ? "Loading Dashboard..." : "Skip setup & go to Dashboard"}
                 </button>
                 <Button onClick={() => setStep(2)} size="lg" className="bg-slate-900 hover:bg-slate-800">
                   Continue <ChevronRight className="w-4 h-4 ml-1" />
@@ -177,11 +168,16 @@ export default function OnboardingPage() {
               </div>
               <h1 className="text-3xl font-bold text-slate-900 mb-3">You&apos;re all set!</h1>
               <p className="text-slate-500 text-lg mb-8 max-w-md mx-auto">
-                {isSeeding ? "Demo data has been loaded." : "Your accounts are connected."} The AI engine is ready to run your first reconciliation.
+                Your workspace is ready. The AI engine is prepared to run your reconciliation.
               </p>
               
-              <Button onClick={handleFinishOnboarding} size="lg" className="bg-slate-900 hover:bg-slate-800 w-full sm:w-auto px-12">
-                Go to Dashboard
+              <Button 
+                onClick={handleFinishOnboarding} 
+                disabled={isFinishing}
+                size="lg" 
+                className="bg-slate-900 hover:bg-slate-800 w-full sm:w-auto px-12"
+              >
+                {isFinishing ? "Loading Dashboard..." : "Go to Dashboard"}
               </Button>
             </div>
           )}
