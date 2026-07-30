@@ -24,9 +24,13 @@ export function AppShell({ children }: AppShellProps) {
   const { data: session } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isResettingMatches, setIsResettingMatches] = useState(false);
-  const { matches, exceptionCount, isNewRunModalOpen, setIsNewRunModalOpen } = useData();
+  const { matches, exceptionCount, isNewRunModalOpen, setIsNewRunModalOpen, isDemoMode } = useData();
 
   const handleResetMatches = async () => {
+    if (isDemoMode) {
+      toast.success("Matches have been reset! (demo mode)");
+      return;
+    }
     setIsResettingMatches(true);
     try {
       const response = await fetch('/api/recon/reset-matches', { method: 'POST' });
@@ -42,6 +46,9 @@ export function AppShell({ children }: AppShellProps) {
     }
   };
 
+  // Append ?demo=true to nav hrefs when in demo mode
+  const demoSuffix = isDemoMode ? "?demo=true" : "";
+
   const reconciledPercent = matches.length > 0 
     ? Math.round((matches.filter(m => m.matchType === "exact" || m.status === "approved").length / matches.length) * 100)
     : 0;
@@ -52,11 +59,11 @@ export function AppShell({ children }: AppShellProps) {
 
 
   const navItems = [
-    { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", active: pathname === "/dashboard" },
-    { href: "/connect", icon: Link2, label: "Integrations", active: pathname === "/connect" },
-    { href: "/exceptions", icon: AlertCircle, label: "Exceptions", active: pathname === "/exceptions", badge: exceptionCount > 0 ? exceptionCount.toString() : undefined, badgeColor: "bg-red-100 text-red-600" },
-    { href: "/reports", icon: BarChart2, label: "Reports", active: pathname === "/reports" },
-    { href: "/settings", icon: Settings, label: "Settings", active: pathname === "/settings" },
+    { href: `/dashboard${demoSuffix}`, icon: LayoutDashboard, label: "Dashboard", active: pathname === "/dashboard" },
+    { href: `/connect${demoSuffix}`, icon: Link2, label: "Integrations", active: pathname === "/connect" },
+    { href: `/exceptions${demoSuffix}`, icon: AlertCircle, label: "Exceptions", active: pathname === "/exceptions", badge: exceptionCount > 0 ? exceptionCount.toString() : undefined, badgeColor: "bg-red-100 text-red-600" },
+    { href: `/reports${demoSuffix}`, icon: BarChart2, label: "Reports", active: pathname === "/reports" },
+    { href: `/settings${demoSuffix}`, icon: Settings, label: "Settings", active: pathname === "/settings" },
   ];
 
   const isPublicPath = pathname === "/" || pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/onboarding";

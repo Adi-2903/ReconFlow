@@ -17,6 +17,14 @@ export const authConfig = {
       const isPublicHome = nextUrl.pathname === "/"
       const isOnOnboarding = nextUrl.pathname === "/onboarding"
       const isOnConnect = nextUrl.pathname === "/connect"
+      const isDemoMode = nextUrl.searchParams.get("demo") === "true"
+      const isDemoRoute = nextUrl.pathname === "/demo"
+
+      // ── Demo mode: allow full access without auth ──
+      // Recruiters can explore the entire app with mock data
+      if (isDemoMode || isDemoRoute) {
+        return true
+      }
 
       if (isOnSignIn || isOnSignUp) {
         if (isLoggedIn) {

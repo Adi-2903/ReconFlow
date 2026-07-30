@@ -209,12 +209,12 @@ function Nav({
               Go to Dashboard
             </Link>
           ) : (
-            <a
-              href="mailto:adityajain2903@gmail.com?subject=ReconFlow%20Demo%20Booking"
+            <Link
+              href="/dashboard?demo=true"
               className="rounded-full bg-brand-black px-5 py-2 text-sm font-medium text-white ring-2 ring-transparent transition-all hover:ring-accent-warm/60"
             >
-              Book a demo
-            </a>
+              Try Live Demo
+            </Link>
           )}
         </div>
       </div>
@@ -318,10 +318,10 @@ function Hero({
             </a>
           )}
           <Link
-            href="#product"
+            href="/dashboard?demo=true"
             className="w-full rounded-full border border-brand-border bg-white px-8 py-4 text-base font-medium text-brand-black shadow-sm transition-all duration-300 hover:bg-accent-soft/40 sm:w-auto text-center"
           >
-            Try the live demo
+            Try the live demo →
           </Link>
         </motion.div>
 
@@ -1199,10 +1199,10 @@ function FinalCTA({
             </a>
           )}
           <Link
-            href="#product"
+            href="/dashboard?demo=true"
             className="w-full rounded-full border border-white/20 px-8 py-4 text-base font-medium text-white transition-colors hover:bg-white/5 sm:w-auto text-center"
           >
-            Watch a 2-min walkthrough
+            Try Live Demo →
           </Link>
         </div>
         <p className="mt-6 text-xs uppercase tracking-[0.18em] text-white/40">

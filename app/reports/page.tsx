@@ -5,9 +5,10 @@ import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Download, CalendarDays, Clock, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { sharedMatches } from "@/lib/data";
 
 export default function ReportsPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState<string>("June 2026");
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("November 2024");
   const [activeTab, setActiveTab] = useState<string>("summary");
   const [page, setPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
@@ -24,6 +25,14 @@ export default function ReportsPage() {
   
   const [listData, setListData] = useState<any[]>([]);
   const [totalListCount, setTotalListCount] = useState(0);
+
+  // Check for demo mode from URL
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsDemoMode(new URLSearchParams(window.location.search).get("demo") === "true");
+    }
+  }, []);
 
   // Derived display values from real stats
   const totalNum = Number(stats.totalCount) || 0;
@@ -72,6 +81,54 @@ export default function ReportsPage() {
   useEffect(() => {
     if (!selectedPeriod) return;
 
+    // ── Demo mode: compute from mock data, no API calls ──
+    if (isDemoMode) {
+      setIsLoading(true);
+      // Simulate a brief loading delay for realism
+      const timer = setTimeout(() => {
+        const total = sharedMatches.length;
+        const matched = sharedMatches.filter(m => m.status === "approved").length;
+        const pending = sharedMatches.filter(m => m.status === "pending").length;
+        const unmatched = sharedMatches.filter(m => m.matchOutcome === "UNMATCHED").length;
+        const highRisk = sharedMatches.filter(m => m.riskScore >= 50).length;
+        const volume = sharedMatches.reduce((s, m) => s + Math.abs(m.bankRow.amount), 0) * 100;
+
+        if (activeTab === "summary") {
+          setStats({ totalCount: total, matchedCount: matched, pendingCount: pending, unmatchedCount: unmatched, highRiskCount: highRisk, totalVolumeMinor: volume });
+        } else {
+          // Generate list data from mock matches filtered by tab
+          const filtered = activeTab === "exceptions"
+            ? sharedMatches.filter(m => m.matchOutcome === "UNMATCHED" || m.status === "pending")
+            : activeTab === "fees"
+            ? sharedMatches.filter(m => m.discrepancyType === "PROCESSING_FEE")
+            : activeTab === "fx"
+            ? sharedMatches.filter(m => m.discrepancyType === "FX_DIFFERENCE")
+            : activeTab === "risk"
+            ? sharedMatches.filter(m => m.riskScore >= 40)
+            : sharedMatches;
+
+          const mapped = filtered.map(m => ({
+            id: m.id,
+            bankDescription: m.bankRow.description,
+            bankAmount: m.bankRow.amount,
+            bankDate: m.bankRow.date,
+            ledgerMemo: m.ledgerRow?.memo || m.ledgerRows?.map(l => l.memo).join(", ") || "—",
+            ledgerAmount: m.ledgerRow?.amount || m.ledgerRows?.reduce((s, l) => s + l.amount, 0) || 0,
+            confidenceScore: m.confidenceScore,
+            matchType: m.matchType,
+            status: m.status,
+            riskScore: m.riskScore,
+            discrepancyType: m.discrepancyType,
+            reasonText: m.reasonText,
+          }));
+          setListData(mapped);
+          setTotalListCount(mapped.length);
+        }
+        setIsLoading(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+
     let active = true;
     const fetchData = async () => {
       setIsLoading(true);
@@ -106,7 +163,7 @@ export default function ReportsPage() {
 
     fetchData();
     return () => { active = false; };
-  }, [selectedPeriod, activeTab, page]);
+  }, [selectedPeriod, activeTab, page, isDemoMode]);
 
   const handleExport = async (format: "csv" | "xlsx" | "pdf") => {
     if (!selectedPeriod) {

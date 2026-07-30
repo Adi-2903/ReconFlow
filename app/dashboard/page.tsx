@@ -60,6 +60,17 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
+    if (isDemoMode) {
+      // Compute summary from client-side mock data — no API needed
+      const total = matches.length;
+      const matched = matches.filter(m => m.status === "approved").length;
+      const pending = matches.filter(m => m.status === "pending").length;
+      const unmatched = matches.filter(m => m.matchOutcome === "UNMATCHED").length;
+      const volume = matches.reduce((sum, m) => sum + Math.abs(m.bankRow.amount), 0) * 100;
+      setSummary({ totalCount: total, matchedCount: matched, pendingCount: pending, unmatchedCount: unmatched, totalVolumeMinor: volume });
+      return;
+    }
+
     let active = true;
     const fetchSummary = async () => {
       // Default to last 2 years for dashboard to ensure test data is included
@@ -77,7 +88,7 @@ export default function DashboardPage() {
     };
     fetchSummary();
     return () => { active = false; };
-  }, []);
+  }, [isDemoMode, matches]);
 
   const autoMatchedCount = summary?.matchedCount ?? 0;
   const needReviewCount = summary?.pendingCount ?? 0;
