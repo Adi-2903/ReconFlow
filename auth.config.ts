@@ -35,6 +35,7 @@ export const authConfig = {
 
       return isLoggedIn
     },
+<<<<<<< Updated upstream
     jwt({ token, user }) {
       if (user) token.userId = user.id
       return token
@@ -42,8 +43,22 @@ export const authConfig = {
     session({ session, token }) {
       if (session?.user) {
         session.user.id = token.userId as string
+=======
+    // NOTE: The jwt callback is intentionally NOT defined here.
+    // It lives exclusively in auth.ts (non-Edge, full Node.js runtime)
+    // where it can make DB calls.
+    //
+    // The session callback IS required here because the Edge middleware's
+    // authorized() callback reads auth?.user?.onboarded. Without this,
+    // the middleware never sees the onboarded field (it's undefined/false)
+    // and every authenticated user gets redirected to /onboarding forever.
+    session({ session, token }) {
+      if (session?.user) {
+        session.user.id = token.userId as string;
+        session.user.onboarded = token.onboarded as boolean;
+>>>>>>> Stashed changes
       }
-      return session
-    }
+      return session;
+    },
   }
 } satisfies NextAuthConfig

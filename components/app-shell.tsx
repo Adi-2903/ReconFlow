@@ -57,6 +57,8 @@ export function AppShell({ children }: AppShellProps) {
     { href: "/settings", icon: Settings, label: "Settings", active: pathname === "/settings" },
   ];
 
+  // Only truly public / standalone pages skip the app shell.
+  // /connect is a regular app page — onboarded users need the sidebar there.
   const isPublicPath = pathname === "/" || pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/onboarding";
 
   if (isPublicPath) {

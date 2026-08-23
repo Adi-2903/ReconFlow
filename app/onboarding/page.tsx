@@ -15,7 +15,17 @@ export default function OnboardingPage() {
     setIsSeeding(true);
     try {
       await api.seed();
+<<<<<<< Updated upstream
       setStep(4); // Skip to end
+=======
+      // Mark as onboarded since demo data is loaded
+      await fetch("/api/onboard", { method: "POST" });
+      // Refresh the JWT so the cookie carries onboarded=true before we navigate.
+      // Then use a hard navigation so the browser sends the fresh cookie on the
+      // next request — avoids the middleware seeing a stale JWT and looping back.
+      await update({});
+      setStep(4); // Show success screen; navigation happens on button click below
+>>>>>>> Stashed changes
     } catch (error) {
       console.error(error);
       alert("Failed to seed demo data");
@@ -24,6 +34,34 @@ export default function OnboardingPage() {
     }
   };
 
+<<<<<<< Updated upstream
+=======
+  const handleFinishOnboarding = async () => {
+    try {
+      // Only call /api/onboard if we arrived via the normal wizard flow
+      // (not the demo-seed path which already called it in handleSeedDemo).
+      if (!isSeeding) {
+        const response = await fetch("/api/onboard", {
+          method: "POST",
+        });
+        if (!response.ok) {
+          throw new Error("Failed to finalize onboarding");
+        }
+      }
+
+      // Refresh the JWT token so the cookie carries onboarded=true.
+      await update({});
+
+      // Hard navigation: forces the browser to make a fresh server request
+      // with the updated cookie, so the middleware won't see the old JWT
+      // and bounce the user back to /onboarding.
+      window.location.href = "/dashboard";
+    } catch (error) {
+      console.error("Onboarding finalization failed:", error);
+    }
+  };
+
+>>>>>>> Stashed changes
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">

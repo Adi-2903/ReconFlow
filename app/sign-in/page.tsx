@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 "use client"
 
 import { useState } from "react"
@@ -5,8 +6,16 @@ import { signIn } from "next-auth/react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Activity } from "lucide-react"
+=======
+import { redirect } from "next/navigation";
+>>>>>>> Stashed changes
 
+// Server-side redirect — instant, no flash, no JS required.
+// NextAuth uses /sign-in as the signIn page, so any unauthenticated
+// navigation lands here and is immediately bounced to the landing page
+// with the auth modal pre-opened via the `auth=true` query param.
 export default function SignInPage() {
+<<<<<<< Updated upstream
   const [googleLoading, setGoogleLoading] = useState(false)
 
   const handleGoogleSignIn = async () => {
@@ -69,4 +78,7 @@ export default function SignInPage() {
       </div>
     </div>
   )
+=======
+  redirect("/?auth=true");
+>>>>>>> Stashed changes
 }

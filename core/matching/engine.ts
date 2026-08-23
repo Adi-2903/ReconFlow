@@ -259,7 +259,15 @@ export function matchTransactions(
     if (bankState.status === "MATCHED") continue;
 
     const bankTxn = bankState.txn;
+<<<<<<< Updated upstream
     const candidates = generateCandidates(bankTxn, getAvailableBooks());
+=======
+    const availableBooks = getAvailableBooks();
+    // console.log(`[DEBUG engine.ts] Pass 1 inputs: bankTxn=${JSON.stringify(bankTxn, null, 2)}`);
+    // console.log(`[DEBUG engine.ts] Pass 1 inputs: book[0]=${JSON.stringify(availableBooks[0], null, 2)}`);
+    const candidates = generateCandidates(bankTxn, availableBooks);
+    // console.log(`[DEBUG engine.ts] Pass 1 bank ${bankTxn.id}: found ${availableBooks.length} available books, generated ${candidates.length} candidates`);
+>>>>>>> Stashed changes
     const exactMatches: { candidate: CandidateResult; score: number }[] = [];
 
     for (const cand of candidates) {

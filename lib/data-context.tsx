@@ -5,6 +5,7 @@ import { MatchData } from "@/types/match";
 import { sharedMatches as initialMatches } from "@/lib/data";
 import { toast } from "sonner";
 import { api } from "@/lib/api-client";
+import { useSession } from "next-auth/react";
 
 interface DataContextType {
   matches: MatchData[];
@@ -26,6 +27,8 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
+  const { status } = useSession();
+  const isAuthenticated = status === "authenticated";
   const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(false);
   const [exceptionCount, setExceptionCount] = useState(0);
@@ -84,6 +87,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [isDemoMode]);
 
   useEffect(() => {
+    // Only fetch data when the user is properly authenticated.
+    // This prevents 401 noise for unauthenticated visitors and
+    // users who are still in the onboarding flow.
+    if (!isAuthenticated) return;
     let active = true;
     const initData = async () => {
       // Defer to next microtask to prevent synchronous state setting in effect body
@@ -97,7 +104,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, [refreshMatches, refreshExceptions]);
+  }, [isAuthenticated, refreshMatches, refreshExceptions]);
 
   const handleApprove = async (id: string, reason?: string): Promise<boolean> => {
     if (isDemoMode) {
