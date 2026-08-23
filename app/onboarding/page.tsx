@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -17,10 +17,13 @@ export default function OnboardingPage() {
     setIsSeeding(true);
     try {
       await api.seed();
-      // Automatically mark as onboarded since they loaded demo data
+      // Mark as onboarded since demo data is loaded
       await fetch("/api/onboard", { method: "POST" });
+      // Refresh the JWT so the cookie carries onboarded=true before we navigate.
+      // Then use a hard navigation so the browser sends the fresh cookie on the
+      // next request — avoids the middleware seeing a stale JWT and looping back.
       await update({});
-      setStep(4); // Skip to end
+      setStep(4); // Show success screen; navigation happens on button click below
     } catch (error) {
       console.error(error);
       alert("Failed to seed demo data");
@@ -31,19 +34,24 @@ export default function OnboardingPage() {
 
   const handleFinishOnboarding = async () => {
     try {
-      const response = await fetch("/api/onboard", {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to finalize onboarding");
+      // Only call /api/onboard if we arrived via the normal wizard flow
+      // (not the demo-seed path which already called it in handleSeedDemo).
+      if (!isSeeding) {
+        const response = await fetch("/api/onboard", {
+          method: "POST",
+        });
+        if (!response.ok) {
+          throw new Error("Failed to finalize onboarding");
+        }
       }
 
-      // Securely refresh the JWT token from the database
+      // Refresh the JWT token so the cookie carries onboarded=true.
       await update({});
 
-      router.push("/dashboard");
-      router.refresh();
+      // Hard navigation: forces the browser to make a fresh server request
+      // with the updated cookie, so the middleware won't see the old JWT
+      // and bounce the user back to /onboarding.
+      window.location.href = "/dashboard";
     } catch (error) {
       console.error("Onboarding finalization failed:", error);
     }
@@ -87,7 +95,7 @@ export default function OnboardingPage() {
 
               <div className="mt-10 flex items-center justify-between">
                 <button onClick={handleSeedDemo} className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline">
-                  Skip setup & load demo data
+                  Skip setup &amp; load demo data
                 </button>
                 <Button onClick={() => setStep(2)} size="lg" className="bg-slate-900 hover:bg-slate-800">
                   Continue <ChevronRight className="w-4 h-4 ml-1" />

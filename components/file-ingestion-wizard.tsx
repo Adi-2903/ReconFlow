@@ -49,7 +49,17 @@ export function FileIngestionWizard({ isOpen, onClose, onSuccess, initialFileTyp
     failureCount: number;
   } | null>(null);
   const [wizardError, setWizardError] = useState<string | null>(null);
-  const [importProgress, setImportProgress] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [importStageIndex, setImportStageIndex] = useState(0);
+  const elapsedIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const IMPORT_STAGES = [
+    "Parsing rows & detecting structure…",
+    "Cleaning & normalizing data…",
+    "Deduplicating transactions…",
+    "Saving to database…",
+    "Finalizing import…",
+  ];
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -164,14 +174,20 @@ export function FileIngestionWizard({ isOpen, onClose, onSuccess, initialFileTyp
     if (!fileToUpload || !selectedFileType) return;
 
     setWizardStep("importing");
-    setImportProgress(0);
+    setElapsedSeconds(0);
+    setImportStageIndex(0);
 
-    const progressInterval = setInterval(() => {
-      setImportProgress(prev => {
-        if (prev >= 90) return prev;
-        return Math.min(prev + Math.floor(Math.random() * 15) + 5, 90);
-      });
-    }, 400);
+    // Real elapsed-time counter — advances every second.
+    // Stages cycle every ~3 seconds to signal ongoing server work.
+    let seconds = 0;
+    elapsedIntervalRef.current = setInterval(() => {
+      seconds += 1;
+      setElapsedSeconds(seconds);
+      // Cycle through stage labels every 3s, hold on last stage
+      setImportStageIndex(prev =>
+        prev < IMPORT_STAGES.length - 1 && seconds % 3 === 0 ? prev + 1 : prev
+      );
+    }, 1000);
 
     try {
       const formData = new FormData();
@@ -179,7 +195,7 @@ export function FileIngestionWizard({ isOpen, onClose, onSuccess, initialFileTyp
       formData.append("action", "import");
       formData.append("fileType", selectedFileType);
       formData.append("columnMapping", JSON.stringify(columnMapping));
-      
+
       if (saveTemplate && templateName.trim()) {
         formData.append("saveTemplateName", templateName.trim());
       }
@@ -190,19 +206,18 @@ export function FileIngestionWizard({ isOpen, onClose, onSuccess, initialFileTyp
 
       const data = await api.upload.process(formData);
 
+      // Server responded — clear the timer and show success
+      if (elapsedIntervalRef.current) clearInterval(elapsedIntervalRef.current);
       setImportMetrics(data.metrics);
-      
-      clearInterval(progressInterval);
-      setImportProgress(100);
-      
+
       setTimeout(() => {
         setWizardStep("success");
         toast.success("File imported successfully!");
         onSuccess();
-      }, 500);
+      }, 300);
 
     } catch (err: any) {
-      clearInterval(progressInterval);
+      if (elapsedIntervalRef.current) clearInterval(elapsedIntervalRef.current);
       console.error(err);
       setWizardError(err.message || "Failed to process transaction import.");
       setWizardStep("failed");
@@ -588,13 +603,29 @@ export function FileIngestionWizard({ isOpen, onClose, onSuccess, initialFileTyp
                 <Database className="w-8 h-8 text-indigo-600 animate-pulse" />
               </div>
               <div className="text-sm font-bold text-slate-900">Processing Your Data</div>
-              <div className="text-xs text-slate-500 text-center max-w-[320px] mb-4">
-                Validating constraints, mapping columns, and generating vector embeddings for AI matching.
+              {/* Stage label — cycles through phases so the user sees movement */}
+              <div className="text-xs text-indigo-600 font-semibold text-center min-h-[18px] transition-all duration-500">
+                {IMPORT_STAGES[importStageIndex]}
               </div>
-              <div className="w-full max-w-md bg-slate-100 rounded-full h-2.5 mb-2 overflow-hidden relative">
-                <div className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300 ease-out" style={{ width: `${importProgress}%` }}></div>
+              {/* Indeterminate animated bar — never freezes at a fake percentage */}
+              <div className="w-full max-w-md bg-slate-100 rounded-full h-2.5 overflow-hidden relative">
+                <div
+                  className="absolute inset-y-0 left-0 bg-indigo-500 rounded-full"
+                  style={{
+                    width: "45%",
+                    animation: "indeterminate-slide 1.6s cubic-bezier(0.4,0,0.6,1) infinite",
+                  }}
+                />
               </div>
-              <div className="text-xs font-bold text-slate-400">{importProgress}% Complete</div>
+              <style>{`
+                @keyframes indeterminate-slide {
+                  0%   { transform: translateX(-100%); }
+                  100% { transform: translateX(320%); }
+                }
+              `}</style>
+              <div className="text-xs font-semibold text-slate-400">
+                Processing… {elapsedSeconds}s
+              </div>
             </div>
           )}
 

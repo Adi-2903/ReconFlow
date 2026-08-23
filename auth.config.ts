@@ -1,4 +1,4 @@
-import type { NextAuthConfig } from "next-auth"
+﻿import type { NextAuthConfig } from "next-auth"
 
 export const authConfig = {
   trustHost: true,
@@ -58,19 +58,20 @@ export const authConfig = {
 
       return isLoggedIn
     },
-    jwt({ token, user }) {
-      if (user) {
-        token.userId = user.id
-        token.onboarded = user.onboarded
-      }
-      return token
-    },
+    // NOTE: The jwt callback is intentionally NOT defined here.
+    // It lives exclusively in auth.ts (non-Edge, full Node.js runtime)
+    // where it can make DB calls.
+    //
+    // The session callback IS required here because the Edge middleware's
+    // authorized() callback reads auth?.user?.onboarded. Without this,
+    // the middleware never sees the onboarded field (it's undefined/false)
+    // and every authenticated user gets redirected to /onboarding forever.
     session({ session, token }) {
       if (session?.user) {
-        session.user.id = token.userId as string
-        session.user.onboarded = token.onboarded as boolean
+        session.user.id = token.userId as string;
+        session.user.onboarded = token.onboarded as boolean;
       }
-      return session
-    }
+      return session;
+    },
   }
 } satisfies NextAuthConfig
